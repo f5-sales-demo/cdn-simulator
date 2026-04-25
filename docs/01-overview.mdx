@@ -1,6 +1,6 @@
 ---
 title: Overview
-description: Architecture and purpose of the CDN edge node simulator
+description: Architecture, endpoints, vendor header simulation, and modular design of the NGINX-based CDN edge node simulator deployed on Ubuntu 24.04 in Azure
 sidebar:
   order: 1
 ---
@@ -47,6 +47,72 @@ The NGINX edge node:
 | Cache-Control respect | `proxy_cache_valid` with origin header passthrough |
 | Cache status reporting | `add_header X-Cache-Status $upstream_cache_status` |
 | Health endpoint | `/health` location returning 200 OK |
+
+## Endpoints and Request/Response Behavior
+
+### Health Check
+
+```
+GET /health
+```
+
+Response (200 OK, `Content-Type: application/json`):
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": ["akamai", "cloudflare", "cloudfront", "fastly", "azure-front-door"]
+}
+```
+
+### CDN Proxy (All Other Paths)
+
+```
+GET /<any-path>
+```
+
+Request headers injected toward origin (67+ headers from 5 vendors):
+
+| Category | Headers Added |
+|---|---|
+| Client IP | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
+| Geolocation | `X-Akamai-Edgescape` (compound), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
+| Device Detection | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
+| TLS/Fingerprint | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
+| Bot Detection | `cf-bot-score` (85 = likely human), `cf-verified-bot` |
+| Request Tracing | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
+| Edge Identity | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
+| Standard | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
+
+Response headers added to every proxied response:
+
+| Header | Values | Purpose |
+|---|---|---|
+| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | Cache behavior for this request |
+| `X-CDN-Edge` | `cdn-simulator` | Identifies this edge node |
+| `X-CDN-POP` | `SJC` | Simulated Point of Presence IATA code |
+| `X-Served-By` | `cache-sjc3120-SJC` | Simulated cache node in Fastly format |
+| `X-Request-ID` | UUID (per-request) | Unique request identifier |
+
+### Cache Behavior
+
+- First request to any path: `X-Cache-Status: MISS` (fetched from origin, now cached)
+- Subsequent identical requests: `X-Cache-Status: HIT` (served from disk cache)
+- Cache key: `$scheme$host$request_uri` (scheme + hostname + full path + query string)
+- Cache TTL: 10 minutes for 200/301/302, 1 minute for 404
+- Stale serving: returns cached content on origin errors (500/502/503/504)
+
+### VM Access
+
+| Access Method | Command/Path |
+|---|---|
+| SSH | `ssh azureuser@<PUBLIC_IP>` |
+| NGINX config | `/etc/nginx/conf.d/cdn-edge.conf` |
+| NGINX logs | `/var/log/nginx/access.log` and `/var/log/nginx/error.log` |
+| Cache directory | `/var/cache/nginx/cdn/` |
+| Cloud-init log | `/var/log/cloud-init-output.log` |
 
 ## Modular Component Design
 

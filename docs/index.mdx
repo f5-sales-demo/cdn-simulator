@@ -1,6 +1,6 @@
 ---
 title: CDN Simulator
-description: NGINX-based CDN edge node simulator for multi-vendor lab environments
+description: NGINX-based CDN edge node simulator that injects realistic headers from Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys as an Ubuntu 24.04 Azure VM via Terraform with NGINX caching reverse proxy. Used as a modular lab component in front of F5 Distributed Cloud HTTP load balancers.
 template: splash
 sidebar:
   hidden: true
@@ -19,30 +19,42 @@ hero:
       variant: minimal
 ---
 
-import { CardGrid } from '@astrojs/starlight/components';
-import LinkCard from '@f5xc-salesdemos/docs-theme/components/LinkCard.astro';
-
 ## What This Provides
 
-<CardGrid>
-  <LinkCard
-    title="Single Edge Node"
-    description="One Ubuntu 24.04 VM running NGINX as a caching reverse proxy — the minimum viable CDN edge."
-    href="01-overview/"
-  />
-  <LinkCard
-    title="Terraform Deployment"
-    description="Complete Azure infrastructure as code: VNet, PIP, NSG, and VM with cloud-init provisioning."
-    href="03-deploy/"
-  />
-  <LinkCard
-    title="Origin Integration"
-    description="Configure the edge to forward cache misses to an F5 XC HTTP load balancer as the origin."
-    href="06-integrate/"
-  />
-  <LinkCard
-    title="Cache Verification"
-    description="Validate HIT/MISS behavior with X-Cache-Status headers and NGINX cache inspection."
-    href="05-verify/"
-  />
-</CardGrid>
+- **[Single Edge Node](01-overview/)** — One Ubuntu 24.04 VM running NGINX as a caching reverse proxy, the minimum viable CDN edge
+- **[Terraform Deployment](03-deploy/)** — Complete Azure infrastructure as code: VNet, PIP, NSG, and VM with cloud-init provisioning
+- **[67+ CDN Vendor Headers](04-nginx-config/)** — Simulates Akamai, Cloudflare, CloudFront, Fastly, and Azure Front Door request headers including True-Client-IP, CF-Connecting-IP, geolocation, device detection, JA3/JA4 fingerprints, and bot scores
+- **[Origin Integration](06-integrate/)** — Configure the edge to forward cache misses to an F5 XC HTTP load balancer as the origin
+- **[Cache Verification](05-verify/)** — Validate HIT/MISS behavior with X-Cache-Status headers and NGINX cache inspection
+
+## Quick Reference
+
+After deployment, the CDN edge node exposes:
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `http://<PUBLIC_IP>/health` | GET | Health check — returns JSON with component status and vendor profiles |
+| `http://<PUBLIC_IP>/` | GET | CDN proxy — caches and forwards requests to the origin server |
+| `http://<PUBLIC_IP>/<any-path>` | GET | CDN proxy — all paths are proxied with caching and vendor headers |
+
+Response headers added to every proxied response:
+
+| Header | Example | Purpose |
+|---|---|---|
+| `X-Cache-Status` | `HIT` or `MISS` | Whether response was served from cache |
+| `X-CDN-Edge` | `cdn-simulator` | Identifies this edge node |
+| `X-CDN-POP` | `SJC` | Simulated Point of Presence code |
+| `X-Served-By` | `cache-sjc3120-SJC` | Simulated cache node identifier |
+| `X-Request-ID` | UUID | Unique per-request identifier |
+
+## Documentation Guide
+
+| Page | Audience | Purpose |
+|---|---|---|
+| [Overview](01-overview/) | Human + AI | Architecture, multi-vendor context, what this simulates |
+| [Prerequisites](02-prerequisites/) | AI | Required tools, Azure subscription, SSH keys, cost estimate |
+| [Deploy](03-deploy/) | AI | Complete Terraform HCL — copy and apply to deploy |
+| [NGINX Configuration](04-nginx-config/) | Human + AI | All 67+ CDN vendor headers with exact values and purposes |
+| [Verify](05-verify/) | AI | Smoke test commands with expected request/response behavior |
+| [Integrate with F5 XC](06-integrate/) | Human + AI | Connect edge to F5 XC as origin, end-to-end verification |
+| [Teardown](07-teardown/) | AI | Destroy all resources, cleanup commands |
