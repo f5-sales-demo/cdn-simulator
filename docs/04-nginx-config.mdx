@@ -1,0 +1,217 @@
+---
+title: NGINX Configuration
+description: CDN edge caching, proxy, and TLS configuration reference
+sidebar:
+  order: 4
+---
+
+The cloud-init provisioning deploys a working NGINX CDN edge configuration automatically. This page documents the configuration in detail and covers optional customizations.
+
+## Default Configuration
+
+The deployed configuration lives at `/etc/nginx/conf.d/cdn-edge.conf` on the VM. It provides:
+
+- Disk-based response caching (1 GB max, 60-minute inactive eviction)
+- Reverse proxy to the configured origin server
+- `X-Cache-Status` header reporting `HIT`, `MISS`, `BYPASS`, `EXPIRED`, or `STALE`
+- Health check endpoint at `/health`
+
+## Cache Configuration
+
+### Cache Path
+
+```nginx
+proxy_cache_path /var/cache/nginx/cdn
+                 levels=1:2
+                 keys_zone=cdn_cache:10m
+                 max_size=1g
+                 inactive=60m
+                 use_temp_path=off;
+```
+
+| Parameter | Value | Purpose |
+|---|---|---|
+| `levels=1:2` | Two-level directory hierarchy | Prevents too many files in a single directory |
+| `keys_zone=cdn_cache:10m` | 10 MB shared memory zone | Stores cache keys and metadata (~80,000 keys) |
+| `max_size=1g` | 1 GB disk limit | Total cached content on disk; oldest entries evicted first |
+| `inactive=60m` | 60-minute inactivity timeout | Entries not accessed within 60 minutes are eligible for removal |
+| `use_temp_path=off` | Write directly to cache dir | Avoids unnecessary file copies between temp and cache directories |
+
+### Cache Behavior
+
+```nginx
+proxy_cache cdn_cache;
+proxy_cache_valid 200 301 302 10m;
+proxy_cache_valid 404 1m;
+proxy_cache_key "$scheme$host$request_uri";
+proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+```
+
+| Directive | Purpose |
+|---|---|
+| `proxy_cache_valid 200 301 302 10m` | Cache successful and redirect responses for 10 minutes |
+| `proxy_cache_valid 404 1m` | Cache 404s for 1 minute to avoid hammering origin for missing content |
+| `proxy_cache_key` | Cache key includes scheme, host, and full URI — distinct entries per hostname |
+| `proxy_cache_use_stale` | Serve stale cached content when origin returns errors or times out |
+
+### Cache Status Header
+
+```nginx
+add_header X-Cache-Status $upstream_cache_status always;
+```
+
+The `X-Cache-Status` header is added to every response:
+
+| Value | Meaning |
+|---|---|
+| `HIT` | Response served from cache |
+| `MISS` | Response fetched from origin and now cached |
+| `BYPASS` | Cache was bypassed (client sent `Cache-Control` header) |
+| `EXPIRED` | Cached entry had expired; refreshed from origin |
+| `STALE` | Origin unavailable; serving stale cached content |
+| `UPDATING` | Stale content served while cache is being refreshed in background |
+
+## Proxy Headers
+
+```nginx
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+These headers pass client information through to the origin server (F5 XC HTTP load balancer), preserving the original client IP and protocol for logging and policy decisions.
+
+## Changing the Origin Server
+
+To update the origin server after deployment, SSH into the VM and edit the NGINX configuration:
+
+```bash
+# SSH into the edge node
+ssh azureuser@<PUBLIC_IP>
+
+# Edit the CDN edge config
+sudo nano /etc/nginx/conf.d/cdn-edge.conf
+# Change the proxy_pass directive to the new origin URL
+
+# Test configuration
+sudo nginx -t
+
+# Reload without downtime
+sudo systemctl reload nginx
+```
+
+Alternatively, update the `origin_server` variable in `terraform.tfvars` and run `terraform apply` to reprovision the VM with the new origin.
+
+## Optional: TLS with Self-Signed Certificate
+
+For HTTPS termination at the edge using a self-signed certificate:
+
+```bash
+# SSH into the edge node
+ssh azureuser@<PUBLIC_IP>
+
+# Generate self-signed certificate
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/private/cdn-edge.key \
+  -out /etc/ssl/certs/cdn-edge.crt \
+  -subj "/CN=cdn-edge-simulator"
+
+# Add TLS server block to /etc/nginx/conf.d/cdn-edge.conf
+```
+
+Add an HTTPS server block:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     /etc/ssl/certs/cdn-edge.crt;
+    ssl_certificate_key /etc/ssl/private/cdn-edge.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location /health {
+        access_log off;
+        return 200 '{"status":"healthy","component":"cdn-edge","engine":"nginx","tls":true}';
+        add_header Content-Type application/json;
+    }
+
+    location / {
+        proxy_pass https://your-origin.example.com;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_cache cdn_cache;
+        proxy_cache_valid 200 301 302 10m;
+        proxy_cache_valid 404 1m;
+        proxy_cache_key "$scheme$host$request_uri";
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+
+        add_header X-Cache-Status $upstream_cache_status always;
+        add_header X-CDN-Edge "cdn-simulator" always;
+
+        proxy_ignore_headers Set-Cookie;
+        proxy_cache_bypass $http_cache_control;
+    }
+}
+```
+
+```bash
+# Test and reload
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+## Optional: Let's Encrypt TLS
+
+If you have a domain name pointing to the edge node's public IP:
+
+```bash
+# Install certbot
+sudo apt install -y certbot python3-certbot-nginx
+
+# Obtain certificate (replace with your domain)
+sudo certbot --nginx -d cdn-edge.yourdomain.com --non-interactive --agree-tos -m your@email.com
+
+# Certbot automatically configures NGINX and sets up renewal
+```
+
+## Clearing the Cache
+
+To manually purge all cached content:
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Remove all cached files
+sudo rm -rf /var/cache/nginx/cdn/*
+
+# Reload NGINX to reset cache metadata
+sudo systemctl reload nginx
+```
+
+## Tuning for Larger Workloads
+
+For scenarios requiring more cache capacity:
+
+```nginx
+proxy_cache_path /var/cache/nginx/cdn
+                 levels=1:2
+                 keys_zone=cdn_cache:50m
+                 max_size=10g
+                 inactive=24h
+                 use_temp_path=off;
+```
+
+Increase the VM disk size in `variables.tf` if the cache exceeds the default 30 GB OS disk:
+
+```hcl
+os_disk {
+  caching              = "ReadWrite"
+  storage_account_type = "Premium_LRS"
+  disk_size_gb         = 64
+}
+```

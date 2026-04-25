@@ -1,0 +1,168 @@
+---
+title: Verify
+description: Smoke tests and cache validation for the CDN edge node
+sidebar:
+  order: 5
+---
+
+After deployment, run these checks to confirm the CDN edge node is functioning correctly.
+
+## Health Check
+
+Verify NGINX is running and responding:
+
+```bash
+curl -s "http://<PUBLIC_IP>/health" | jq .
+```
+
+Expected output:
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx"
+}
+```
+
+If using Terraform outputs:
+
+```bash
+curl -s "$(terraform output -raw health_check_url)" | jq .
+```
+
+## Cache Miss (First Request)
+
+The first request to any path will be a cache miss — the edge fetches from origin:
+
+```bash
+curl -I "http://<PUBLIC_IP>/"
+```
+
+Look for these headers in the response:
+
+```
+X-Cache-Status: MISS
+X-CDN-Edge: cdn-simulator
+```
+
+`MISS` means the content was not in cache and was fetched from the origin server.
+
+## Cache Hit (Subsequent Request)
+
+Repeat the same request immediately:
+
+```bash
+curl -I "http://<PUBLIC_IP>/"
+```
+
+Expected headers:
+
+```
+X-Cache-Status: HIT
+X-CDN-Edge: cdn-simulator
+```
+
+`HIT` confirms the response was served from the NGINX disk cache without contacting the origin.
+
+## Cache Directory Inspection
+
+SSH into the VM to verify cached content exists on disk:
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Check cache directory has content
+sudo find /var/cache/nginx/cdn -type f | head -20
+
+# Check cache size
+sudo du -sh /var/cache/nginx/cdn
+```
+
+## NGINX Status
+
+Verify NGINX is running and the configuration is valid:
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Check service status
+sudo systemctl status nginx
+
+# Validate configuration
+sudo nginx -t
+
+# View active connections (if stub_status is enabled)
+curl -s http://localhost/health
+```
+
+## Origin Connectivity
+
+Verify the edge node can reach the origin server:
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Test connectivity to origin (replace with your origin URL)
+curl -I "https://your-origin.example.com/"
+```
+
+If this fails, check:
+
+1. The `origin_server` variable is correct in the Terraform config
+2. The origin server allows inbound connections from the edge node's public IP
+3. DNS resolution works from the VM (`nslookup your-origin.example.com`)
+
+## End-to-End Test
+
+Run a full request cycle and verify the response chain:
+
+```bash
+# First request — MISS (fetches from origin)
+echo "=== Request 1 (expect MISS) ==="
+curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
+
+# Second request — HIT (served from cache)
+echo "=== Request 2 (expect HIT) ==="
+curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
+```
+
+Expected output:
+
+```
+=== Request 1 (expect MISS) ===
+HTTP 200 | Cache: MISS
+=== Request 2 (expect HIT) ===
+HTTP 200 | Cache: HIT
+```
+
+## Troubleshooting
+
+### NGINX not running
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo systemctl status nginx
+sudo journalctl -u nginx --no-pager -n 50
+```
+
+### Cloud-init not finished
+
+After `terraform apply`, cloud-init takes 2-3 minutes. Check progress:
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo cloud-init status
+sudo tail -f /var/log/cloud-init-output.log
+```
+
+### Cache always showing MISS
+
+- Verify the origin returns cacheable response codes (200, 301, 302)
+- Check that the origin does not send `Cache-Control: no-cache` or `no-store` headers
+- Check NGINX error logs: `sudo tail -f /var/log/nginx/error.log`
+
+### Connection refused on port 80/443
+
+- Verify the NSG rules are applied: `az network nsg rule list --nsg-name nsg-cdn-edge --resource-group rg-cdn-simulator -o table`
+- Verify NGINX is listening: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

@@ -1,0 +1,48 @@
+---
+title: CDN Simulator
+description: NGINX-based CDN edge node simulator for multi-vendor lab environments
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: Deploy a functional CDN edge node in Azure for integration testing with F5 Distributed Cloud.
+  image:
+    html: '<div style="font-size:4rem;">🌐</div>'
+  actions:
+    - text: Get Started
+      link: 01-overview/
+      icon: right-arrow
+      variant: primary
+    - text: Deploy Now
+      link: 03-deploy/
+      icon: rocket
+      variant: minimal
+---
+
+import { CardGrid } from '@astrojs/starlight/components';
+import LinkCard from '@f5xc-salesdemos/docs-theme/components/LinkCard.astro';
+
+## What This Provides
+
+<CardGrid>
+  <LinkCard
+    title="Single Edge Node"
+    description="One Ubuntu 24.04 VM running NGINX as a caching reverse proxy — the minimum viable CDN edge."
+    href="01-overview/"
+  />
+  <LinkCard
+    title="Terraform Deployment"
+    description="Complete Azure infrastructure as code: VNet, PIP, NSG, and VM with cloud-init provisioning."
+    href="03-deploy/"
+  />
+  <LinkCard
+    title="Origin Integration"
+    description="Configure the edge to forward cache misses to an F5 XC HTTP load balancer as the origin."
+    href="06-integrate/"
+  />
+  <LinkCard
+    title="Cache Verification"
+    description="Validate HIT/MISS behavior with X-Cache-Status headers and NGINX cache inspection."
+    href="05-verify/"
+  />
+</CardGrid>

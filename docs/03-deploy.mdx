@@ -1,0 +1,389 @@
+---
+title: Deploy
+description: Terraform plan for deploying the CDN edge node on Azure
+sidebar:
+  order: 3
+---
+
+## Directory Setup
+
+Create a working directory for the Terraform configuration:
+
+```bash
+mkdir -p cdn-edge-node && cd cdn-edge-node
+```
+
+## Terraform Configuration
+
+### Provider and Variables
+
+Create `main.tf`:
+
+```hcl
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+  subscription_id = var.subscription_id
+}
+```
+
+Create `variables.tf`:
+
+```hcl
+variable "subscription_id" {
+  description = "Azure subscription ID"
+  type        = string
+}
+
+variable "resource_group_name" {
+  description = "Name for the Azure resource group"
+  type        = string
+  default     = "rg-cdn-simulator"
+}
+
+variable "location" {
+  description = "Azure region for all resources"
+  type        = string
+  default     = "eastus2"
+}
+
+variable "vm_size" {
+  description = "Azure VM size (Standard_B2s provides 2 vCPU, 4 GiB RAM)"
+  type        = string
+  default     = "Standard_B2s"
+}
+
+variable "admin_username" {
+  description = "SSH admin username for the VM"
+  type        = string
+  default     = "azureuser"
+}
+
+variable "ssh_public_key_path" {
+  description = "Path to the SSH public key file"
+  type        = string
+  default     = "~/.ssh/id_ed25519.pub"
+}
+
+variable "origin_server" {
+  description = "Origin server URL that the CDN edge forwards cache misses to (e.g., the F5 XC HTTP LB VIP). Use scheme://host format."
+  type        = string
+  default     = "https://origin.example.com"
+}
+
+variable "environment_tag" {
+  description = "Environment tag applied to all resources"
+  type        = string
+  default     = "lab"
+}
+```
+
+### Network Infrastructure
+
+Create `network.tf`:
+
+```hcl
+resource "azurerm_resource_group" "cdn" {
+  name     = var.resource_group_name
+  location = var.location
+
+  tags = {
+    environment = var.environment_tag
+    component   = "cdn-simulator"
+  }
+}
+
+resource "azurerm_virtual_network" "cdn" {
+  name                = "vnet-cdn-simulator"
+  address_space       = ["10.100.0.0/16"]
+  location            = azurerm_resource_group.cdn.location
+  resource_group_name = azurerm_resource_group.cdn.name
+
+  tags = azurerm_resource_group.cdn.tags
+}
+
+resource "azurerm_subnet" "edge" {
+  name                 = "snet-edge"
+  resource_group_name  = azurerm_resource_group.cdn.name
+  virtual_network_name = azurerm_virtual_network.cdn.name
+  address_prefixes     = ["10.100.1.0/24"]
+}
+
+resource "azurerm_public_ip" "edge" {
+  name                = "pip-cdn-edge"
+  location            = azurerm_resource_group.cdn.location
+  resource_group_name = azurerm_resource_group.cdn.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+
+  tags = azurerm_resource_group.cdn.tags
+}
+
+resource "azurerm_network_security_group" "edge" {
+  name                = "nsg-cdn-edge"
+  location            = azurerm_resource_group.cdn.location
+  resource_group_name = azurerm_resource_group.cdn.name
+
+  security_rule {
+    name                       = "AllowHTTP"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "AllowHTTPS"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "AllowSSH"
+    priority                   = 120
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  tags = azurerm_resource_group.cdn.tags
+}
+
+resource "azurerm_network_interface" "edge" {
+  name                = "nic-cdn-edge"
+  location            = azurerm_resource_group.cdn.location
+  resource_group_name = azurerm_resource_group.cdn.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.edge.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.edge.id
+  }
+
+  tags = azurerm_resource_group.cdn.tags
+}
+
+resource "azurerm_network_interface_security_group_association" "edge" {
+  network_interface_id      = azurerm_network_interface.edge.id
+  network_security_group_id = azurerm_network_security_group.edge.id
+}
+```
+
+### Virtual Machine with Cloud-Init
+
+Create `vm.tf`:
+
+```hcl
+resource "azurerm_linux_virtual_machine" "edge" {
+  name                = "vm-cdn-edge"
+  resource_group_name = azurerm_resource_group.cdn.name
+  location            = azurerm_resource_group.cdn.location
+  size                = var.vm_size
+
+  admin_username                  = var.admin_username
+  disable_password_authentication = true
+
+  admin_ssh_key {
+    username   = var.admin_username
+    public_key = file(var.ssh_public_key_path)
+  }
+
+  network_interface_ids = [azurerm_network_interface.edge.id]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+    disk_size_gb         = 30
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "ubuntu-24_04-lts"
+    sku       = "server"
+    version   = "latest"
+  }
+
+  custom_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
+    origin_server = var.origin_server
+  }))
+
+  tags = azurerm_resource_group.cdn.tags
+}
+```
+
+### Cloud-Init Provisioning
+
+Create `cloud-init.yaml`:
+
+```yaml
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - nginx
+
+write_files:
+  - path: /etc/nginx/conf.d/cdn-edge.conf
+    content: |
+      proxy_cache_path /var/cache/nginx/cdn
+                       levels=1:2
+                       keys_zone=cdn_cache:10m
+                       max_size=1g
+                       inactive=60m
+                       use_temp_path=off;
+
+      server {
+          listen 80;
+          server_name _;
+
+          location /health {
+              access_log off;
+              return 200 '{"status":"healthy","component":"cdn-edge","engine":"nginx"}';
+              add_header Content-Type application/json;
+          }
+
+          location / {
+              proxy_pass ${origin_server};
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+
+              # CDN caching configuration
+              proxy_cache cdn_cache;
+              proxy_cache_valid 200 301 302 10m;
+              proxy_cache_valid 404 1m;
+              proxy_cache_key "$scheme$host$request_uri";
+              proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+
+              # Cache status header — visible to clients
+              add_header X-Cache-Status $upstream_cache_status always;
+              add_header X-CDN-Edge "cdn-simulator" always;
+
+              # Respect origin Cache-Control headers
+              proxy_ignore_headers Set-Cookie;
+              proxy_cache_bypass $http_cache_control;
+          }
+      }
+
+  - path: /etc/nginx/conf.d/default.conf
+    content: ""
+
+runcmd:
+  - mkdir -p /var/cache/nginx/cdn
+  - chown www-data:www-data /var/cache/nginx/cdn
+  - nginx -t
+  - systemctl enable nginx
+  - systemctl restart nginx
+```
+
+### Outputs
+
+Create `outputs.tf`:
+
+```hcl
+output "public_ip" {
+  description = "Public IP address of the CDN edge node"
+  value       = azurerm_public_ip.edge.ip_address
+}
+
+output "ssh_command" {
+  description = "SSH command to connect to the edge node"
+  value       = "ssh ${var.admin_username}@${azurerm_public_ip.edge.ip_address}"
+}
+
+output "edge_url" {
+  description = "HTTP URL of the CDN edge node"
+  value       = "http://${azurerm_public_ip.edge.ip_address}"
+}
+
+output "health_check_url" {
+  description = "Health check endpoint"
+  value       = "http://${azurerm_public_ip.edge.ip_address}/health"
+}
+
+output "resource_group" {
+  description = "Resource group containing all CDN simulator resources"
+  value       = azurerm_resource_group.cdn.name
+}
+```
+
+### Example Variables File
+
+Create `terraform.tfvars.example`:
+
+```hcl
+subscription_id     = "00000000-0000-0000-0000-000000000000"
+resource_group_name = "rg-cdn-simulator"
+location            = "eastus2"
+vm_size             = "Standard_B2s"
+admin_username      = "azureuser"
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+origin_server       = "https://your-f5xc-lb.example.com"
+environment_tag     = "lab"
+```
+
+## Deploy
+
+```bash
+# Copy and edit variables
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
+
+# Initialize Terraform
+terraform init
+
+# Review the plan
+terraform plan
+
+# Apply
+terraform apply
+```
+
+Terraform outputs the public IP, SSH command, and edge URL after successful deployment.
+
+## Post-Deploy
+
+After `terraform apply` completes, allow 2-3 minutes for cloud-init to finish installing and configuring NGINX. Verify the health endpoint:
+
+```bash
+curl -s "http://$(terraform output -raw public_ip)/health" | jq .
+```
+
+Expected response:
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx"
+}
+```
+
+Proceed to [NGINX Configuration](04-nginx-config/) for customization options or [Verify](05-verify/) for cache testing.

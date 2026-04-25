@@ -1,0 +1,139 @@
+---
+title: Integrate with F5 XC
+description: Connect the CDN edge node to F5 Distributed Cloud as the origin
+sidebar:
+  order: 6
+---
+
+This page covers how to wire the CDN edge node into a multi-vendor lab architecture where F5 Distributed Cloud serves as the origin behind the CDN edge.
+
+## Architecture
+
+```
+┌──────────┐     ┌──────────────────────┐     ┌──────────────────────┐     ┌────────────┐
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB       │────▶│ Origin App │
+│  Browser  │     │  This component      │     │  WAF + Bot + DDoS     │     │  Backend   │
+└──────────┘     │  Azure VM            │     │  Security policies    │     └────────────┘
+                 │  Public IP: x.x.x.x  │     │  VIP: lb.example.com  │
+                 └──────────────────────┘     └──────────────────────┘
+```
+
+The CDN edge node is a transparent caching layer. From F5 XC's perspective, the edge node is just another client. From the CDN's perspective, F5 XC is the origin server.
+
+## Step 1: Set the Origin Server
+
+Update the NGINX configuration to point to your F5 XC HTTP load balancer VIP.
+
+### Option A: During Terraform Deployment
+
+Set the `origin_server` variable in `terraform.tfvars` before running `terraform apply`:
+
+```hcl
+origin_server = "https://your-f5xc-lb.example.com"
+```
+
+### Option B: After Deployment
+
+SSH into the VM and update the NGINX config:
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Edit the CDN edge config
+sudo sed -i 's|proxy_pass .*;|proxy_pass https://your-f5xc-lb.example.com;|' \
+  /etc/nginx/conf.d/cdn-edge.conf
+
+# Verify and reload
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+## Step 2: Configure DNS or Host Resolution
+
+Route client traffic through the CDN edge first. Choose one approach:
+
+### Option A: DNS Record (Production-like)
+
+Create a DNS A record pointing your application domain to the CDN edge's public IP:
+
+```
+app.yourdomain.com  A  <CDN_EDGE_PUBLIC_IP>
+```
+
+### Option B: Hosts File (Quick Lab Testing)
+
+On the client machine, add a hosts file entry:
+
+```bash
+# Linux/macOS
+echo "<CDN_EDGE_PUBLIC_IP>  app.yourdomain.com" | sudo tee -a /etc/hosts
+
+# Windows (run as Administrator)
+echo <CDN_EDGE_PUBLIC_IP>  app.yourdomain.com >> C:\Windows\System32\drivers\etc\hosts
+```
+
+### Option C: Direct IP (Simplest)
+
+Access the CDN edge directly by IP. The NGINX config uses `server_name _` which accepts any hostname:
+
+```bash
+curl -H "Host: app.yourdomain.com" "http://<CDN_EDGE_PUBLIC_IP>/path"
+```
+
+## Step 3: Verify End-to-End
+
+### Request Flow Verification
+
+Send a request through the full chain and verify each hop:
+
+```bash
+# First request — cache MISS, full origin fetch through F5 XC
+curl -I "http://<CDN_EDGE_PUBLIC_IP>/"
+# Look for: X-Cache-Status: MISS
+
+# Second request — cache HIT, no origin contact
+curl -I "http://<CDN_EDGE_PUBLIC_IP>/"
+# Look for: X-Cache-Status: HIT
+```
+
+### Verify F5 XC Sees the Traffic
+
+In the F5 XC console:
+
+1. Navigate to **HTTP Load Balancers** > your load balancer
+2. Open **Requests** or **Security Analytics**
+3. Verify requests appear with the CDN edge's public IP as the source
+4. The `X-Forwarded-For` header will contain the original client IP (passed through by NGINX)
+
+### Verify WAF/Security Policies Apply
+
+If F5 XC has WAF or Bot Defense enabled, test that policies apply to traffic flowing through the CDN:
+
+```bash
+# Test WAF detection (SQL injection attempt through CDN)
+curl -I "http://<CDN_EDGE_PUBLIC_IP>/search?q=1%20OR%201=1"
+# F5 XC WAF should block this — the CDN edge forwards the request as-is
+```
+
+## Multi-Component Integration
+
+This CDN edge node is one modular component. A complete lab environment might include:
+
+| Component | Purpose | Deployed Separately |
+|---|---|---|
+| **CDN Edge** (this component) | Caching, TLS termination | Azure VM + NGINX |
+| **F5 XC HTTP Load Balancer** | Security policies, routing | F5 XC Console/API |
+| **Origin Application** | Backend workload | Any cloud or on-prem |
+| **DNS Zone** | Name resolution | F5 XC DNS or external |
+| **WAF Policy** | Web application firewall | F5 XC Console/API |
+
+Each component is deployed and documented independently. The human operator shares each documentation link with the AI assistant, which reads the instructions and deploys each piece.
+
+## F5 XC Origin Pool Configuration
+
+When configuring the F5 XC side, the origin pool should point to the actual backend application (not this CDN edge). The CDN edge's `proxy_pass` points to the F5 XC HTTP load balancer VIP, completing the chain:
+
+```
+CDN Edge (proxy_pass) → F5 XC HTTP LB VIP → Origin Pool → Backend App
+```
+
+The F5 XC HTTP load balancer is configured through other lab components (WAF, Bot Defense, etc.). This component only handles the CDN edge layer.

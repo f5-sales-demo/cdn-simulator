@@ -1,0 +1,68 @@
+---
+title: Overview
+description: Architecture and purpose of the CDN edge node simulator
+sidebar:
+  order: 1
+---
+
+## Purpose
+
+This component simulates a CDN edge node for lab and demo environments. It represents the role that vendors like Akamai, Cloudflare, Amazon CloudFront, or Fastly play in a customer's network architecture — the caching layer closest to end users that sits in front of an origin server.
+
+In production multi-vendor architectures, customers commonly pair a third-party CDN with F5 Distributed Cloud:
+
+```
+End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
+```
+
+This simulator replaces the commercial CDN with an NGINX-based edge node so the integration can be demonstrated and tested without vendor contracts or production infrastructure.
+
+## Architecture
+
+```
+┌─────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌────────────┐
+│  Client  │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB  │────▶│ Origin App │
+│          │     │  Ubuntu 24.04 Azure  │     │  (Origin Server) │     │            │
+└─────────┘     │  - TLS termination   │     └─────────────────┘     └────────────┘
+                │  - Disk-based cache  │
+                │  - X-Cache-Status    │
+                └──────────────────────┘
+```
+
+The NGINX edge node:
+
+- **Terminates TLS** at the edge (self-signed or Let's Encrypt)
+- **Caches responses** on disk using `proxy_cache_path`
+- **Forwards cache misses** to a configurable origin server (the F5 XC HTTP load balancer VIP)
+- **Reports cache status** via the `X-Cache-Status` response header (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
+
+## What This Simulates
+
+| CDN Function | NGINX Implementation |
+|---|---|
+| Edge caching | `proxy_cache` with disk-based storage |
+| Cache key generation | `proxy_cache_key` based on scheme, host, and URI |
+| Origin pull | `proxy_pass` to the F5 XC HTTP load balancer |
+| TLS termination | NGINX `ssl_certificate` directive |
+| Cache-Control respect | `proxy_cache_valid` with origin header passthrough |
+| Cache status reporting | `add_header X-Cache-Status $upstream_cache_status` |
+| Health endpoint | `/health` location returning 200 OK |
+
+## Modular Component Design
+
+This is one piece of a larger lab environment. Each component is self-contained and deployed independently:
+
+- **This component** provides the CDN edge (NGINX on Azure VM)
+- **Other components** provide the origin application, F5 XC configuration, DNS, WAF policies, etc.
+
+The human operator adds components one at a time. Each component's documentation is written so an AI assistant can read it and deploy the infrastructure autonomously.
+
+## Why NGINX
+
+NGINX was selected as the CDN simulation engine because:
+
+1. **F5 product** — F5 acquired NGINX Inc. in 2019; it is part of the F5 portfolio
+2. **Industry proven** — Cloudflare ran their entire CDN on NGINX for over a decade before migrating to Pingora; Netflix uses NGINX for their Open Connect CDN
+3. **Single process** — handles TLS termination and caching in one binary, unlike Varnish which requires a separate TLS proxy
+4. **Simple deployment** — `apt install nginx` on Ubuntu 24.04, two directives enable caching
+5. **Well documented** — extensive official documentation for content caching and reverse proxy configuration

@@ -1,0 +1,59 @@
+---
+title: Teardown
+description: Destroy the CDN edge node infrastructure and clean up resources
+sidebar:
+  order: 7
+---
+
+When the lab session is complete, destroy all Azure resources to stop billing.
+
+## Terraform Destroy
+
+From the directory containing the Terraform configuration:
+
+```bash
+# Review what will be destroyed
+terraform plan -destroy
+
+# Destroy all resources
+terraform destroy
+```
+
+Terraform will prompt for confirmation. Type `yes` to proceed.
+
+## Verify Cleanup
+
+Confirm all resources have been removed:
+
+```bash
+# Check resource group is gone
+az group show --name rg-cdn-simulator 2>&1 | grep -q "ResourceGroupNotFound" \
+  && echo "Resource group deleted" \
+  || echo "Resource group still exists"
+
+# List any remaining resources (should return empty)
+az resource list --resource-group rg-cdn-simulator -o table 2>/dev/null
+```
+
+## Clean Up Local State
+
+Remove Terraform state and cached files:
+
+```bash
+rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
+```
+
+## Revert DNS/Hosts Changes
+
+If you modified DNS or hosts files during [integration](06-integrate/), revert those changes:
+
+```bash
+# Remove hosts file entry (Linux/macOS)
+sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
+```
+
+If you created a DNS A record, delete it through your DNS provider.
+
+## Cost Reference
+
+While running, the CDN edge node costs approximately $39 USD/month. After `terraform destroy`, all charges stop. There are no residual costs from deleted resources.
