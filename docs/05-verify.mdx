@@ -1,11 +1,11 @@
 ---
 title: Verify
-description: Smoke tests and cache validation for the CDN edge node
+description: Smoke test commands with expected HTTP response codes, X-Cache-Status header values (HIT/MISS), health check JSON response, cache directory inspection, origin connectivity checks, and troubleshooting for cloud-init, NGINX startup, and NSG issues
 sidebar:
   order: 5
 ---
 
-After deployment, run these checks to confirm the CDN edge node is functioning correctly.
+After deployment, run these checks to confirm the CDN edge node is functioning correctly. Allow 2-3 minutes after `terraform apply` for cloud-init to finish installing NGINX.
 
 ## Health Check
 
@@ -134,6 +134,55 @@ Expected output:
 HTTP 200 | Cache: MISS
 === Request 2 (expect HIT) ===
 HTTP 200 | Cache: HIT
+```
+
+## Vendor Header Verification
+
+Verify all CDN vendor headers are being injected by requesting the `/headers` path (when using httpbin.org as origin):
+
+```bash
+curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
+```
+
+Expected response includes headers from all five vendors:
+
+```json
+{
+    "headers": {
+        "True-Client-Ip": "<YOUR_CLIENT_IP>",
+        "Cf-Connecting-Ip": "<YOUR_CLIENT_IP>",
+        "Cf-Ipcountry": "US",
+        "Cf-Ray": "<request_id>-SJC",
+        "Cf-Bot-Score": "85",
+        "Cf-Ja3-Hash": "e7d705a3286e19ea42f587b344ee6865",
+        "Cloudfront-Viewer-Country": "US",
+        "Cloudfront-Viewer-City": "San Jose",
+        "Cloudfront-Is-Desktop-Viewer": "true",
+        "Cloudfront-Is-Mobile-Viewer": "false",
+        "Fastly-Client-Ip": "<YOUR_CLIENT_IP>",
+        "X-Akamai-Edgescape": "georegion=263,country_code=US,...",
+        "X-Azure-Clientip": "<YOUR_CLIENT_IP>",
+        "X-Azure-Fdid": "a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1",
+        "X-Geo-Country-Code": "US"
+    }
+}
+```
+
+### Device Detection Test
+
+Test with a mobile User-Agent to verify device detection headers change:
+
+```bash
+curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
+  -H "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" \
+  | python3 -m json.tool | grep -E "Is-Mobile|Is-Desktop|is_mobile"
+```
+
+Expected:
+
+```
+"Cloudfront-Is-Desktop-Viewer": "false",
+"Cloudfront-Is-Mobile-Viewer": "true",
 ```
 
 ## Troubleshooting
