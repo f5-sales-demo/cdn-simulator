@@ -155,10 +155,12 @@ proxy_cache_key "$scheme$host$request_uri";
 proxy_cache_lock on;
 proxy_cache_lock_age 3s;
 proxy_cache_lock_timeout 3s;
-proxy_cache_revalidate on;
 proxy_cache_background_update on;
 proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
-proxy_ignore_headers Set-Cookie Cache-Control Expires;
+proxy_ignore_headers Set-Cookie Cache-Control Expires Vary;
+
+proxy_hide_header X-Cache-Status;
+proxy_hide_header Vary;
 ```
 
 | Directive | Value | Purpose |
@@ -166,10 +168,11 @@ proxy_ignore_headers Set-Cookie Cache-Control Expires;
 | `proxy_cache_valid 200 301 302 4h` | 4-hour TTL | Cached content valid for 4 hours (increased to reduce refresh wave throughput dips) |
 | `proxy_cache_lock on` | Thundering herd prevention | Only 1 request goes to origin per uncached URL; others wait for cache fill |
 | `proxy_cache_lock_age 3s` | Lock timeout | If first request hasn't completed in 3s, allow another through |
-| `proxy_cache_revalidate on` | Conditional requests | Sends If-Modified-Since on expiry — origin can return 304 without body |
 | `proxy_cache_background_update on` | Zero-latency refresh | Serves stale content immediately while refreshing in background |
 | `proxy_cache_use_stale` | Resilience | Serves stale content during origin errors (500/502/503/504) or while updating |
-| `proxy_ignore_headers` | Force caching | Ignores origin Set-Cookie, Cache-Control, Expires — the CDN decides TTL (Juice Shop sends max-age=0 which prevented caching) |
+| `proxy_ignore_headers` | Force caching | Ignores origin Set-Cookie, Cache-Control, Expires, Vary — the CDN decides TTL and Vary behavior (Juice Shop sends `max-age=0` and triple `Vary` headers which prevented effective caching) |
+| `proxy_hide_header X-Cache-Status` | Strip origin header | Origin NGINX adds its own X-Cache-Status — strip it so only the CDN's cache status is visible |
+| `proxy_hide_header Vary` | Prevent cache fragmentation | Origin sends multiple `Vary: Accept-Encoding` headers. Stripping them prevents cache key fragmentation across `Accept-Encoding` permutations. NGINX's `gzip_vary on` adds the correct single `Vary` header automatically |
 
 ### Proxy Timeouts
 
