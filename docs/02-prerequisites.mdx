@@ -1,6 +1,6 @@
 ---
 title: Prerequisites
-description: Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription permissions, and estimated monthly cost ($39 USD) for deploying the CDN edge node VM
+description: Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription permissions, and estimated monthly cost (~$140 USD for Standard_D4s_v5) for deploying the performance-optimized CDN edge node VM
 sidebar:
   order: 2
 ---
@@ -72,11 +72,11 @@ The URL of the F5 XC HTTP load balancer that this edge node will forward traffic
 
 | Resource | SKU | Estimated Monthly Cost |
 |---|---|---|
-| Ubuntu 24.04 VM | Standard_B2s (2 vCPU, 4 GiB) | ~$30 USD |
+| Ubuntu 24.04 VM | Standard_D4s_v5 (4 vCPU, 16 GiB) | ~$125 USD |
 | Public IP | Standard, Static | ~$4 USD |
 | OS Disk | 30 GiB Premium SSD | ~$5 USD |
 | VNet + NSG | — | No additional cost |
-| **Total** | | **~$39 USD/month** |
+| **Total** | | **~$134 USD/month** |
 
 :::tip
 Use `terraform destroy` when the lab is not in use to avoid ongoing charges. See [Teardown](07-teardown/) for the procedure.
