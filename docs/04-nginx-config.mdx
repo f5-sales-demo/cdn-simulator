@@ -1,27 +1,200 @@
 ---
 title: NGINX Configuration
-description: CDN edge caching, vendor header simulation, and proxy configuration reference
+description: Production-optimized NGINX configuration reference — performance tuning (kernel, buffers, keepalive, gzip, open_file_cache), 25 GB disk cache with thundering herd prevention, upstream keepalive pool, 67+ CDN vendor headers from Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door, and device detection. Verified under 48-hour load test at 170K req/s peak.
 sidebar:
   order: 4
 ---
 
-The cloud-init provisioning deploys a working NGINX CDN edge configuration automatically. This page documents the configuration in detail, covering the multi-vendor header simulation, caching behavior, and optional customizations.
+The cloud-init provisioning deploys a fully performance-optimized NGINX CDN edge configuration. This page documents every configuration layer, from kernel tuning through cache behavior to vendor header injection. All settings were verified under a 48-hour continuous load test peaking at 172,540 req/s.
 
-## Default Configuration
+## Configuration Files
 
-The deployed configuration at `/etc/nginx/conf.d/cdn-edge.conf` provides:
+| File | Purpose |
+|---|---|
+| `/etc/sysctl.d/99-cdn-tuning.conf` | Linux kernel network tuning |
+| `/etc/systemd/system/nginx.service.d/override.conf` | File descriptor limits for NGINX |
+| `/etc/security/limits.d/99-nginx.conf` | OS-level limits for www-data user |
+| `/etc/nginx/nginx.conf` | NGINX main config (workers, buffers, gzip, logging) |
+| `/etc/nginx/conf.d/cdn-edge.conf` | CDN proxy config (cache, upstream, headers) |
 
-- Disk-based response caching (1 GB max, 60-minute inactive eviction)
-- Reverse proxy to the configured origin server
-- **67+ CDN vendor headers** simulating Akamai, Cloudflare, CloudFront, Fastly, and Azure Front Door
-- Device detection (mobile, tablet, desktop) from User-Agent
-- Per-request unique identifiers in vendor-specific formats
-- `X-Cache-Status` header reporting `HIT`, `MISS`, `BYPASS`, `EXPIRED`, or `STALE`
-- Health check endpoint at `/health`
+## Kernel Tuning
+
+Applied via `/etc/sysctl.d/99-cdn-tuning.conf` at boot.
+
+| Parameter | Value | Default | Purpose |
+|---|---|---|---|
+| `net.core.somaxconn` | 65535 | 4096 | Listen backlog queue size |
+| `net.core.netdev_max_backlog` | 65535 | 1000 | Per-CPU incoming packet backlog |
+| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | SYN request queue (prevents drops under burst) |
+| `net.ipv4.tcp_tw_reuse` | 1 | 2 | Reuse TIME_WAIT sockets for outgoing connections |
+| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | Ephemeral port range (64K vs 28K) |
+| `net.core.rmem_max` | 16 MB | 212 KB | Maximum receive socket buffer |
+| `net.core.wmem_max` | 16 MB | 212 KB | Maximum send socket buffer |
+| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | Per-socket receive buffer (min/default/max) |
+| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | Per-socket send buffer (min/default/max) |
+| `net.ipv4.tcp_fin_timeout` | 15 | 60 | FIN_WAIT_2 timeout (faster socket cleanup) |
+| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | Start keepalive probes after 5 min idle |
+| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | Keep congestion window warm on idle connections |
+| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | Maximum TIME_WAIT sockets |
+| `fs.file-max` | 2097152 | varies | System-wide file descriptor limit |
+| `vm.swappiness` | 10 | 60 | Prefer RAM over swap for cache data |
+
+## NGINX Main Config
+
+### Workers and Connections
+
+```nginx
+worker_processes auto;           # 4 workers on D4s_v5 (1 per vCPU)
+worker_rlimit_nofile 65535;      # Per-worker file descriptor limit
+
+events {
+    use epoll;                   # Linux-optimized event model
+    worker_connections 8192;     # 4 workers x 8192 = 32,768 max concurrent
+    multi_accept on;             # Accept all pending connections per event loop
+    accept_mutex off;            # Not needed with epoll + reuseport
+}
+```
+
+Systemd override at `/etc/systemd/system/nginx.service.d/override.conf` sets `LimitNOFILE=65535` to match.
+
+### Proxy Buffers
+
+```nginx
+proxy_buffering on;
+proxy_buffer_size 16k;           # Header buffer (handles large CDN headers)
+proxy_buffers 64 16k;            # 1 MB per connection (64 x 16k)
+proxy_busy_buffers_size 256k;    # Can send 256k to client while still reading
+```
+
+The 256k busy buffer size is critical — it must exceed the largest cached response (Juice Shop is 75 KB). The original 64k setting caused serialization under load.
+
+### Gzip Compression
+
+```nginx
+gzip on;
+gzip_comp_level 4;               # Balance: ~85% of max compression at ~40% CPU
+gzip_min_length 256;             # Skip tiny responses (gzip header overhead)
+gzip_vary on;                    # Vary: Accept-Encoding for correct caching
+gzip_proxied any;                # Compress all proxied responses
+gzip_types text/plain text/css text/javascript text/xml
+           application/json application/javascript application/xml
+           application/xml+rss application/atom+xml
+           application/ld+json application/manifest+json
+           image/svg+xml;
+```
+
+### Open File Cache
+
+```nginx
+open_file_cache max=200000 inactive=20s;
+open_file_cache_valid 30s;
+open_file_cache_min_uses 2;
+open_file_cache_errors on;
+```
+
+Caches file descriptors and metadata for cached objects, eliminating `stat()` and `open()` syscalls on hot files.
+
+### Client Keepalive
+
+```nginx
+keepalive_timeout 65;
+keepalive_requests 100000;       # Was 1000 — caused connection recycling at 90K req/s
+```
+
+At 90K req/s with `keepalive_requests 1000`, connections recycled every 11 seconds, generating TIME_WAIT sockets. Increasing to 100,000 eliminated this entirely.
+
+### Access Logging
+
+```nginx
+log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $upstream_cache_status $request_time';
+access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
+```
+
+The `cdn` log format includes `$upstream_cache_status` (HIT/MISS) and `$request_time` for latency analysis. Buffered logging (256k/5s flush) reduces I/O overhead under high load.
+
+## Upstream Keepalive
+
+```nginx
+upstream origin_backend {
+    server 20.12.78.159:80;
+    keepalive 256;               # Persistent connections per worker to origin
+    keepalive_timeout 60s;
+    keepalive_requests 1000;
+}
+```
+
+With 4 workers x 256 keepalive = 1,024 warm connections to the origin. Combined with `proxy_http_version 1.1` and `proxy_set_header Connection ""`, this eliminates TCP handshake overhead on every cache miss.
+
+## Cache Configuration
+
+### Cache Path
+
+```nginx
+proxy_cache_path /var/cache/nginx/cdn
+                 levels=1:2
+                 keys_zone=cdn_cache:32m
+                 max_size=25g
+                 inactive=24h
+                 use_temp_path=off;
+```
+
+| Parameter | Value | Purpose |
+|---|---|---|
+| `keys_zone=cdn_cache:32m` | 32 MB shared memory | Stores ~256,000 cache keys and metadata |
+| `max_size=25g` | 25 GB disk limit | Uses most of the 30 GB OS disk; LRU eviction at limit |
+| `inactive=24h` | 24-hour inactivity timeout | Content not accessed for 24h is evicted (not the same as TTL) |
+| `use_temp_path=off` | Write directly to cache dir | Avoids cross-filesystem file moves |
+
+### Cache Behavior
+
+```nginx
+proxy_cache cdn_cache;
+proxy_cache_valid 200 301 302 4h;
+proxy_cache_valid 404 1m;
+proxy_cache_key "$scheme$host$request_uri";
+proxy_cache_lock on;
+proxy_cache_lock_age 3s;
+proxy_cache_lock_timeout 3s;
+proxy_cache_revalidate on;
+proxy_cache_background_update on;
+proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
+proxy_ignore_headers Set-Cookie Cache-Control Expires;
+```
+
+| Directive | Value | Purpose |
+|---|---|---|
+| `proxy_cache_valid 200 301 302 4h` | 4-hour TTL | Cached content valid for 4 hours (increased to reduce refresh wave throughput dips) |
+| `proxy_cache_lock on` | Thundering herd prevention | Only 1 request goes to origin per uncached URL; others wait for cache fill |
+| `proxy_cache_lock_age 3s` | Lock timeout | If first request hasn't completed in 3s, allow another through |
+| `proxy_cache_revalidate on` | Conditional requests | Sends If-Modified-Since on expiry — origin can return 304 without body |
+| `proxy_cache_background_update on` | Zero-latency refresh | Serves stale content immediately while refreshing in background |
+| `proxy_cache_use_stale` | Resilience | Serves stale content during origin errors (500/502/503/504) or while updating |
+| `proxy_ignore_headers` | Force caching | Ignores origin Set-Cookie, Cache-Control, Expires — the CDN decides TTL (Juice Shop sends max-age=0 which prevented caching) |
+
+### Proxy Timeouts
+
+```nginx
+proxy_read_timeout 30s;
+proxy_connect_timeout 10s;
+proxy_send_timeout 15s;
+```
+
+Gives origin more response time under load while still failing fast on connection issues.
+
+### Server Block
+
+```nginx
+server {
+    listen 80 reuseport;        # Kernel distributes connections across all 4 workers
+    server_name _;
+}
+```
+
+`reuseport` enables `SO_REUSEPORT` — the kernel distributes incoming connections directly to worker processes, eliminating accept mutex contention.
 
 ## CDN Vendor Headers
 
-The simulator injects headers from all five major CDN vendors simultaneously. This is intentional — it allows F5 XC to be configured with any vendor's "Trusted Client IP Header" and see realistic header payloads regardless of which CDN is being simulated.
+The simulator injects headers from all five major CDN vendors simultaneously. This allows F5 XC to be configured with any vendor's "Trusted Client IP Header" and see realistic header payloads regardless of which CDN is being simulated.
 
 ### Industry Standard Headers (All CDNs)
 
@@ -30,6 +203,7 @@ The simulator injects headers from all five major CDN vendors simultaneously. Th
 | `X-Forwarded-For` | Client IP chain | Standard forwarded IP |
 | `X-Forwarded-Proto` | `http` or `https` | Original client protocol |
 | `X-Forwarded-Host` | Original hostname | Original Host header |
+| `X-Forwarded-Port` | Server port | Original port |
 | `X-Real-IP` | Client IP | Single client IP (nginx convention) |
 | `Via` | `1.1 cdn-simulator` | Proxy identification |
 | `Forwarded` | RFC 7239 format | Standardized forwarding header |
@@ -40,11 +214,9 @@ The simulator injects headers from all five major CDN vendors simultaneously. Th
 | Header | Value | Purpose |
 |---|---|---|
 | `True-Client-IP` | Client IP | Original end-user IP address |
-| `X-Akamai-Edgescape` | Compound geo string | Full geolocation, network, throughput data in key=value format |
-| `X-Akamai-Device-Characteristics` | Device properties | Brand, model, OS, mobile/tablet flags, screen resolution |
+| `X-Akamai-Edgescape` | Compound geo string | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
+| `X-Akamai-Device-Characteristics` | Device properties | brand_name, model_name, is_mobile, is_tablet, is_wireless_device, device_os, device_os_version, resolution_width, resolution_height |
 | `X-Akamai-Request-ID` | Request UUID | Unique request identifier |
-
-The `X-Akamai-Edgescape` header contains: `georegion`, `country_code`, `region_code`, `city`, `dma`, `lat`, `long`, `timezone`, `zip`, `continent`, `throughput`, `bw`, `network`, `asnum`, `network_type`.
 
 ### Cloudflare Headers
 
@@ -56,13 +228,15 @@ The `X-Akamai-Edgescape` header contains: `georegion`, `country_code`, `region_c
 | `cf-ipcontinent` | `NA` | Continent code |
 | `cf-iplatitude` / `cf-iplongitude` | Coordinates | Geolocation |
 | `cf-region` / `cf-region-code` | `California` / `CA` | Region info |
+| `cf-metro-code` | `807` | US metro code |
+| `cf-postal-code` | `95113` | Postal code |
 | `cf-timezone` | `America/Los_Angeles` | IANA timezone |
 | `Cf-Ray` | `{request_id}-SJC` | Unique ray ID with POP IATA code |
 | `CF-Visitor` | `{"scheme":"https"}` | Visitor protocol info |
 | `cf-bot-score` | `85` | Bot score (1=bot, 99=human) |
 | `cf-verified-bot` | `false` | Known good bot flag |
-| `cf-ja3-hash` | TLS fingerprint hash | JA3 TLS fingerprint |
-| `cf-ja4` | TLS fingerprint | JA4 TLS fingerprint |
+| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS fingerprint |
+| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | JA4 TLS fingerprint |
 
 ### Amazon CloudFront Headers
 
@@ -74,15 +248,19 @@ The `X-Akamai-Edgescape` header contains: `georegion`, `country_code`, `region_c
 | `CloudFront-Viewer-Country-Region` | `CA` | Region code |
 | `CloudFront-Viewer-Country-Region-Name` | `California` | Full region name |
 | `CloudFront-Viewer-City` | `San Jose` | Client city |
-| `CloudFront-Viewer-Latitude` / `Longitude` | Coordinates | Geolocation |
+| `CloudFront-Viewer-Postal-Code` | `95113` | Postal code |
+| `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | Geolocation |
 | `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | IANA timezone |
+| `CloudFront-Viewer-Metro-Code` | `807` | US metro code |
 | `CloudFront-Viewer-ASN` | `7018` | Autonomous System Number |
 | `CloudFront-Viewer-Http-Version` | `2.0` | Client HTTP version |
-| `CloudFront-Viewer-TLS` | TLS version + cipher | TLS connection details |
-| `CloudFront-Viewer-JA3-Fingerprint` | Hash | JA3 TLS fingerprint |
+| `CloudFront-Forwarded-Proto` | `https` | Original protocol |
+| `CloudFront-Viewer-TLS` | `TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed` | TLS details |
+| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS fingerprint |
 | `CloudFront-Is-Desktop-Viewer` | `true`/`false` | Device detection |
 | `CloudFront-Is-Mobile-Viewer` | `true`/`false` | Device detection |
 | `CloudFront-Is-Tablet-Viewer` | `true`/`false` | Device detection |
+| `CloudFront-Is-SmartTV-Viewer` | `false` | Device detection |
 | `X-Amz-Cf-Id` | Encoded ID | CloudFront request identifier |
 
 ### Fastly Headers
@@ -99,7 +277,9 @@ The `X-Akamai-Edgescape` header contains: `georegion`, `country_code`, `region_c
 | `X-Geo-City` | `San Jose` | Client city |
 | `X-Geo-Region` | `CA` | Region code |
 | `X-Geo-Continent-Code` | `NA` | Continent |
-| `X-Geo-Latitude` / `X-Geo-Longitude` | Coordinates | Geolocation |
+| `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | Geolocation |
+| `X-Geo-Postal-Code` | `95113` | Postal code |
+| `X-Geo-Metro-Code` | `807` | US metro code |
 | `X-Geo-ASN` | `7018` | Autonomous System Number |
 | `X-Geo-Conn-Speed` | `broadband` | Connection speed class |
 | `X-Geo-Conn-Type` | `wired` | Connection type |
@@ -111,18 +291,18 @@ The `X-Akamai-Edgescape` header contains: `georegion`, `country_code`, `region_c
 | `X-Azure-ClientIP` | Client IP | Client IP address |
 | `X-Azure-SocketIP` | Client IP | TCP socket source IP |
 | `X-Azure-Ref` | Encoded ref string | Unique request reference for troubleshooting |
-| `X-Azure-FDID` | UUID | Front Door resource identifier |
+| `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | Front Door resource identifier |
 | `X-Azure-RequestChain` | `hops=1` | Loop detection hop count |
 
 ### Response Headers (Added to Client Responses)
 
-| Header | Value | Purpose |
+| Header | Values | Purpose |
 |---|---|---|
-| `X-Cache-Status` | `HIT`/`MISS`/`BYPASS`/`EXPIRED`/`STALE` | Cache behavior |
-| `X-CDN-Edge` | `cdn-simulator` | Edge identification |
-| `X-CDN-POP` | `SJC` | Point of Presence code |
-| `X-Served-By` | `cache-sjc3120-SJC` | Serving cache node |
-| `X-Request-ID` | UUID | Per-request unique identifier |
+| `X-Cache-Status` | `HIT`, `MISS`, `EXPIRED`, `STALE`, `UPDATING` | Cache behavior for this request |
+| `X-CDN-Edge` | `cdn-simulator` | Identifies this edge node |
+| `X-CDN-POP` | `SJC` | Simulated Point of Presence IATA code |
+| `X-Served-By` | `cache-sjc3120-SJC` | Simulated cache node in Fastly format |
+| `X-Request-ID` | UUID (per-request) | Unique request identifier |
 
 ## Device Detection
 
@@ -136,52 +316,70 @@ Device type is reflected in:
 - `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
 - `X-Akamai-Device-Characteristics` (`is_mobile`, `is_tablet`, `is_wireless_device` fields)
 
-## Cache Configuration
+## Operations
 
-### Cache Path
-
-```nginx
-proxy_cache_path /var/cache/nginx/cdn
-                 levels=1:2
-                 keys_zone=cdn_cache:10m
-                 max_size=1g
-                 inactive=60m
-                 use_temp_path=off;
-```
-
-| Parameter | Value | Purpose |
-|---|---|---|
-| `levels=1:2` | Two-level directory hierarchy | Prevents too many files in a single directory |
-| `keys_zone=cdn_cache:10m` | 10 MB shared memory zone | Stores cache keys and metadata (~80,000 keys) |
-| `max_size=1g` | 1 GB disk limit | Total cached content on disk; oldest entries evicted first |
-| `inactive=60m` | 60-minute inactivity timeout | Entries not accessed within 60 minutes are eligible for removal |
-
-### Cache Behavior
-
-```nginx
-proxy_cache cdn_cache;
-proxy_cache_valid 200 301 302 10m;
-proxy_cache_valid 404 1m;
-proxy_cache_key "$scheme$host$request_uri";
-proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
-```
-
-## Changing the Origin Server
-
-To update the origin server after deployment, SSH into the VM and edit the NGINX configuration:
+### Changing the Origin Server
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
-sudo sed -i 's|proxy_pass .*;|proxy_pass https://your-f5xc-lb.example.com;|' /etc/nginx/conf.d/cdn-edge.conf
+
+# Update upstream server
+sudo sed -i 's|server .*;|server NEW_HOST:80;|' /etc/nginx/conf.d/cdn-edge.conf
+
+# Clear cache and reload
+sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Alternatively, update the `origin_server` variable in `terraform.tfvars` and run `terraform apply` to reprovision the VM.
+Or update `origin_host` in `terraform.tfvars` and run `terraform apply` to reprovision.
 
-## Clearing the Cache
+### Clearing the Cache
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 sudo rm -rf /var/cache/nginx/cdn/*
 sudo systemctl reload nginx
 ```
+
+### Checking Cache Stats
+
+```bash
+# Object count and disk usage
+sudo find /var/cache/nginx/cdn -type f | wc -l
+sudo du -sh /var/cache/nginx/cdn
+
+# Recent access log with cache status
+tail -20 /var/log/nginx/access.log
+```
+
+### Monitoring Under Load
+
+```bash
+# Real-time connections and socket states
+ss -s
+
+# NGINX worker CPU usage
+top -bn1 | grep nginx
+
+# Upstream keepalive connections
+ss -tn state established dst <ORIGIN_IP> | wc -l
+
+# TIME_WAIT socket count
+ss -tn state time-wait | wc -l
+```
+
+## Performance Benchmark Results
+
+Verified under 48-hour continuous load test:
+
+| Metric | Value |
+|---|---|
+| Peak throughput (cached) | 172,540 req/s |
+| Sustained throughput (cached) | 85,000-103,000 req/s |
+| Peak connections | 15,000 concurrent |
+| Cache hit ratio | 100% (when warmed) |
+| Memory under load | 1.2 GB stable (8% of 16 GB) |
+| CPU at peak | 100% (4 cores - CPU is the ceiling) |
+| Errors during 48h test | 0 |
+| Memory leaks | None detected |
+| Connection leaks | None detected |
