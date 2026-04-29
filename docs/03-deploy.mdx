@@ -1,590 +1,73 @@
 ---
 title: Deploy
-description: Complete Terraform HCL (main.tf, variables.tf, network.tf, vm.tf, outputs.tf, cloud-init.yaml) for deploying the performance-optimized CDN edge node as an Azure Standard_D4s_v5 (4 vCPU, 16 GiB) Ubuntu 24.04 VM with kernel tuning, NGINX proxy buffer optimization, 25 GB disk cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers provisioned via cloud-init
+description: Terraform IaC deployment of the performance-optimized CDN edge node — Azure F-series compute-optimized VM with Ubuntu 24.04, kernel tuning, NGINX proxy cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers provisioned via cloud-init. All configuration files are in the terraform/ directory.
 sidebar:
   order: 3
 ---
 
-## Directory Setup
-
-Create a working directory for the Terraform configuration:
+All Terraform files are in the [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) directory. Clone the repository and deploy directly:
 
 ```bash
-mkdir -p cdn-edge-node && cd cdn-edge-node
+git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
+cd cdn-simulator/terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your Azure subscription ID and origin server
 ```
 
 ## Terraform Configuration
 
 ### Provider and Variables
 
-Create `main.tf`:
+`main.tf` configures the Azure provider:
 
-```hcl
-terraform {
-  required_version = ">= 1.5.0"
-
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.0"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-  subscription_id = var.subscription_id
-}
+```hcl file=../terraform/main.tf
 ```
 
-Create `variables.tf`:
+`variables.tf` defines all configurable parameters. The `vm_size` default is `Standard_F4s_v2` (4 vCPU, 8 GiB) — see [VM Sizing](#vm-sizing) for scaling guidance:
 
-```hcl
-variable "subscription_id" {
-  description = "Azure subscription ID"
-  type        = string
-}
-
-variable "resource_group_name" {
-  description = "Name for the Azure resource group"
-  type        = string
-  default     = "rg-cdn-simulator"
-}
-
-variable "location" {
-  description = "Azure region for all resources"
-  type        = string
-  default     = "eastus2"
-}
-
-variable "vm_size" {
-  description = "Azure VM size (Standard_D4s_v5 provides 4 vCPU, 16 GiB RAM, non-burstable)"
-  type        = string
-  default     = "Standard_D4s_v5"
-}
-
-variable "admin_username" {
-  description = "SSH admin username for the VM"
-  type        = string
-  default     = "azureuser"
-}
-
-variable "ssh_public_key_path" {
-  description = "Path to the SSH public key file"
-  type        = string
-  default     = "~/.ssh/id_ed25519.pub"
-}
-
-variable "origin_server" {
-  description = "Origin server URL for proxy_pass (scheme://host format)"
-  type        = string
-  default     = "http://20.12.78.159"
-}
-
-variable "origin_host" {
-  description = "Origin server host:port for NGINX upstream block (no scheme)"
-  type        = string
-  default     = "20.12.78.159:80"
-}
-
-variable "environment_tag" {
-  description = "Environment tag applied to all resources"
-  type        = string
-  default     = "lab"
-}
+```hcl file=../terraform/variables.tf
 ```
 
 ### Network Infrastructure
 
-Create `network.tf`:
+`network.tf` creates the VNet, subnet, public IP, NSG (ports 22/80/443), and NIC:
 
-```hcl
-resource "azurerm_resource_group" "cdn" {
-  name     = var.resource_group_name
-  location = var.location
-
-  tags = {
-    environment = var.environment_tag
-    component   = "cdn-simulator"
-  }
-}
-
-resource "azurerm_virtual_network" "cdn" {
-  name                = "vnet-cdn-simulator"
-  address_space       = ["10.100.0.0/16"]
-  location            = azurerm_resource_group.cdn.location
-  resource_group_name = azurerm_resource_group.cdn.name
-
-  tags = azurerm_resource_group.cdn.tags
-}
-
-resource "azurerm_subnet" "edge" {
-  name                 = "snet-edge"
-  resource_group_name  = azurerm_resource_group.cdn.name
-  virtual_network_name = azurerm_virtual_network.cdn.name
-  address_prefixes     = ["10.100.1.0/24"]
-}
-
-resource "azurerm_public_ip" "edge" {
-  name                = "pip-cdn-edge"
-  location            = azurerm_resource_group.cdn.location
-  resource_group_name = azurerm_resource_group.cdn.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-
-  tags = azurerm_resource_group.cdn.tags
-}
-
-resource "azurerm_network_security_group" "edge" {
-  name                = "nsg-cdn-edge"
-  location            = azurerm_resource_group.cdn.location
-  resource_group_name = azurerm_resource_group.cdn.name
-
-  security_rule {
-    name                       = "AllowHTTP"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
-  security_rule {
-    name                       = "AllowHTTPS"
-    priority                   = 110
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "443"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
-  security_rule {
-    name                       = "AllowSSH"
-    priority                   = 120
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
-  tags = azurerm_resource_group.cdn.tags
-}
-
-resource "azurerm_network_interface" "edge" {
-  name                = "nic-cdn-edge"
-  location            = azurerm_resource_group.cdn.location
-  resource_group_name = azurerm_resource_group.cdn.name
-
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = azurerm_subnet.edge.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.edge.id
-  }
-
-  tags = azurerm_resource_group.cdn.tags
-}
-
-resource "azurerm_network_interface_security_group_association" "edge" {
-  network_interface_id      = azurerm_network_interface.edge.id
-  network_security_group_id = azurerm_network_security_group.edge.id
-}
+```hcl file=../terraform/network.tf
 ```
 
 ### Virtual Machine with Cloud-Init
 
-Create `vm.tf`:
+`vm.tf` creates the Ubuntu 24.04 VM and passes the cloud-init template with origin server variables:
 
-```hcl
-resource "azurerm_linux_virtual_machine" "edge" {
-  name                = "vm-cdn-edge"
-  resource_group_name = azurerm_resource_group.cdn.name
-  location            = azurerm_resource_group.cdn.location
-  size                = var.vm_size
-
-  admin_username                  = var.admin_username
-  disable_password_authentication = true
-
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = file(var.ssh_public_key_path)
-  }
-
-  network_interface_ids = [azurerm_network_interface.edge.id]
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = 30
-  }
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "ubuntu-24_04-lts"
-    sku       = "server"
-    version   = "latest"
-  }
-
-  custom_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
-    origin_server = var.origin_server
-    origin_host   = var.origin_host
-  }))
-
-  tags = azurerm_resource_group.cdn.tags
-}
+```hcl file=../terraform/vm.tf
 ```
 
 ### Cloud-Init Provisioning
 
-Create `cloud-init.yaml`. This is the production-optimized configuration verified under 48 hours of continuous load testing at 170K req/s peak. It provisions kernel tuning, systemd limits, NGINX with performance-optimized buffers, 25 GB disk cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers. See [NGINX Configuration](../04-nginx-config/) for the complete header and tuning reference.
+`cloud-init.yaml` is the production-optimized configuration verified under 48 hours of continuous load testing at 350K req/s peak. It provisions kernel tuning, systemd limits, NGINX with performance-optimized buffers, 128 MB cache keys zone, upstream keepalive pool, gzip compression, and 67+ CDN vendor headers from Akamai, Cloudflare, CloudFront, Fastly, and Azure Front Door. See [NGINX Configuration](../04-nginx-config/) for the complete tuning reference.
 
-The cloud-init uses Terraform template variables: `${origin_server}` for the proxy_pass URL, `${origin_host}` for the upstream server address. NGINX variables like `${request_id}` must be escaped as `$${request_id}` in the Terraform templatefile.
+The cloud-init uses Terraform template variables: `${origin_host}` for the upstream server address. NGINX variables like `${request_id}` must be escaped as `$${request_id}` in the Terraform templatefile.
 
-```yaml
-#cloud-config
-package_update: true
-package_upgrade: true
-
-bootcmd:
-  - mkdir -p /var/cache/nginx/cdn
-  - chown www-data:www-data /var/cache/nginx/cdn
-
-packages:
-  - nginx
-
-write_files:
-  # Kernel tuning for high-throughput proxy
-  - path: /etc/sysctl.d/99-cdn-tuning.conf
-    content: |
-      net.core.somaxconn = 65535
-      net.core.netdev_max_backlog = 65535
-      net.ipv4.tcp_max_syn_backlog = 65535
-      net.ipv4.tcp_tw_reuse = 1
-      net.ipv4.ip_local_port_range = 1024 65535
-      net.core.rmem_max = 16777216
-      net.core.wmem_max = 16777216
-      net.ipv4.tcp_rmem = 4096 87380 16777216
-      net.ipv4.tcp_wmem = 4096 65536 16777216
-      net.ipv4.tcp_fin_timeout = 15
-      net.ipv4.tcp_keepalive_time = 300
-      net.ipv4.tcp_keepalive_intvl = 15
-      net.ipv4.tcp_keepalive_probes = 5
-      net.ipv4.tcp_slow_start_after_idle = 0
-      net.ipv4.tcp_max_tw_buckets = 2000000
-      fs.file-max = 2097152
-      vm.swappiness = 10
-
-  # Systemd file descriptor limits for NGINX
-  - path: /etc/systemd/system/nginx.service.d/override.conf
-    content: |
-      [Service]
-      LimitNOFILE=65535
-      LimitNPROC=65535
-
-  # OS-level limits for www-data
-  - path: /etc/security/limits.d/99-nginx.conf
-    content: |
-      www-data soft nofile 65535
-      www-data hard nofile 65535
-
-  # NGINX main config (performance-optimized)
-  - path: /etc/nginx/nginx.conf
-    content: |
-      user www-data;
-      worker_processes auto;
-      worker_rlimit_nofile 65535;
-      pid /run/nginx.pid;
-      error_log /var/log/nginx/error.log;
-      include /etc/nginx/modules-enabled/*.conf;
-
-      events {
-          use epoll;
-          worker_connections 8192;
-          multi_accept on;
-          accept_mutex off;
-      }
-
-      http {
-          sendfile on;
-          tcp_nopush on;
-          tcp_nodelay on;
-          types_hash_max_size 2048;
-          server_tokens off;
-
-          include /etc/nginx/mime.types;
-          default_type application/octet-stream;
-
-          log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $upstream_cache_status $request_time';
-          access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
-
-          keepalive_timeout 65;
-          keepalive_requests 100000;
-
-          proxy_buffering on;
-          proxy_buffer_size 16k;
-          proxy_buffers 64 16k;
-          proxy_busy_buffers_size 256k;
-
-          gzip on;
-          gzip_comp_level 4;
-          gzip_min_length 256;
-          gzip_vary on;
-          gzip_proxied any;
-          gzip_types text/plain text/css text/javascript text/xml
-                     application/json application/javascript application/xml
-                     application/xml+rss application/atom+xml
-                     application/ld+json application/manifest+json
-                     image/svg+xml;
-
-          open_file_cache max=200000 inactive=20s;
-          open_file_cache_valid 30s;
-          open_file_cache_min_uses 2;
-          open_file_cache_errors on;
-
-          include /etc/nginx/conf.d/*.conf;
-      }
-
-  # CDN edge proxy config
-  - path: /etc/nginx/conf.d/cdn-edge.conf
-    content: |
-      proxy_cache_path /var/cache/nginx/cdn
-                       levels=1:2
-                       keys_zone=cdn_cache:32m
-                       max_size=25g
-                       inactive=24h
-                       use_temp_path=off;
-
-      upstream origin_backend {
-          server ${origin_host};
-          keepalive 256;
-          keepalive_timeout 60s;
-          keepalive_requests 1000;
-      }
-
-      map $request_id $cdn_ray_id {
-          default "$${request_id}-SJC";
-      }
-      map $request_id $cdn_azure_ref {
-          default "0$${request_id}AAAAAA";
-      }
-      map $request_id $cdn_amz_cf_id {
-          default "E1$${request_id}==";
-      }
-      map $http_user_agent $is_mobile {
-          default "false";
-          "~*Mobile|Android|iPhone|iPod|BlackBerry|Opera Mini|IEMobile" "true";
-      }
-      map $http_user_agent $is_tablet {
-          default "false";
-          "~*iPad|Android(?!.*Mobile)|Tablet|Kindle|PlayBook" "true";
-      }
-      map $http_user_agent $is_desktop {
-          default "true";
-          "~*Mobile|Android|iPhone|iPod|BlackBerry|Opera Mini|IEMobile|iPad|Tablet|Kindle|PlayBook" "false";
-      }
-
-      server {
-          listen 80 reuseport;
-          server_name _;
-
-          location /health {
-              access_log off;
-              return 200 '{"status":"healthy","component":"cdn-edge","engine":"nginx","vendor_profiles":["akamai","cloudflare","cloudfront","fastly","azure-front-door"]}';
-              add_header Content-Type application/json;
-          }
-
-          location / {
-              proxy_pass http://origin_backend;
-              proxy_http_version 1.1;
-              proxy_set_header Connection "";
-              proxy_read_timeout 30s;
-              proxy_connect_timeout 10s;
-              proxy_send_timeout 15s;
-
-              # Standard headers
-              proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
-              proxy_set_header X-Forwarded-Proto  $scheme;
-              proxy_set_header X-Forwarded-Host   $host;
-              proxy_set_header X-Forwarded-Port   $server_port;
-              proxy_set_header X-Real-IP          $remote_addr;
-              proxy_set_header Via                "1.1 cdn-simulator";
-              proxy_set_header Forwarded          "for=$remote_addr;proto=$scheme;host=$host";
-              proxy_set_header CDN-Loop           "cdn-simulator";
-
-              # Akamai
-              proxy_set_header True-Client-IP              $remote_addr;
-              proxy_set_header X-Akamai-Edgescape          "georegion=263,country_code=US,region_code=CA,city=SANJOSE,dma=807,pmsa=7400,msa=7362,areacode=408,county=SANTACLARA,fips=06085,lat=37.3353,long=-121.8938,timezone=PST,zip=95113-95196,continent=NA,throughput=vhigh,bw=5000,network=att.net,asnum=7018,network_type=broadband";
-              proxy_set_header X-Akamai-Device-Characteristics "brand_name=Generic;model_name=Browser;is_mobile=$is_mobile;is_tablet=$is_tablet;is_wireless_device=$is_mobile;device_os=Linux;device_os_version=1.0;resolution_width=1920;resolution_height=1080";
-              proxy_set_header X-Akamai-Request-ID         $request_id;
-
-              # Cloudflare
-              proxy_set_header CF-Connecting-IP    $remote_addr;
-              proxy_set_header CF-IPCountry        "US";
-              proxy_set_header cf-ipcity           "San Jose";
-              proxy_set_header cf-ipcontinent      "NA";
-              proxy_set_header cf-iplatitude       "37.3353";
-              proxy_set_header cf-iplongitude      "-121.8938";
-              proxy_set_header cf-region           "California";
-              proxy_set_header cf-region-code      "CA";
-              proxy_set_header cf-metro-code       "807";
-              proxy_set_header cf-postal-code      "95113";
-              proxy_set_header cf-timezone         "America/Los_Angeles";
-              proxy_set_header Cf-Ray             $cdn_ray_id;
-              proxy_set_header CF-Visitor         '{"scheme":"https"}';
-              proxy_set_header cf-bot-score       "85";
-              proxy_set_header cf-verified-bot    "false";
-              proxy_set_header cf-ja3-hash        "e7d705a3286e19ea42f587b344ee6865";
-              proxy_set_header cf-ja4             "t13d1516h2_8daaf6152771_b0da82dd1658";
-
-              # CloudFront
-              proxy_set_header CloudFront-Viewer-Address         "$remote_addr:$remote_port";
-              proxy_set_header CloudFront-Viewer-Country         "US";
-              proxy_set_header CloudFront-Viewer-Country-Name    "United States";
-              proxy_set_header CloudFront-Viewer-Country-Region  "CA";
-              proxy_set_header CloudFront-Viewer-Country-Region-Name "California";
-              proxy_set_header CloudFront-Viewer-City            "San Jose";
-              proxy_set_header CloudFront-Viewer-Postal-Code     "95113";
-              proxy_set_header CloudFront-Viewer-Latitude        "37.33530";
-              proxy_set_header CloudFront-Viewer-Longitude       "-121.89300";
-              proxy_set_header CloudFront-Viewer-Time-Zone       "America/Los_Angeles";
-              proxy_set_header CloudFront-Viewer-Metro-Code      "807";
-              proxy_set_header CloudFront-Viewer-ASN             "7018";
-              proxy_set_header CloudFront-Viewer-Http-Version    "2.0";
-              proxy_set_header CloudFront-Forwarded-Proto        "https";
-              proxy_set_header CloudFront-Viewer-TLS             "TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed";
-              proxy_set_header CloudFront-Viewer-JA3-Fingerprint "e7d705a3286e19ea42f587b344ee6865";
-              proxy_set_header CloudFront-Is-Desktop-Viewer      $is_desktop;
-              proxy_set_header CloudFront-Is-Mobile-Viewer       $is_mobile;
-              proxy_set_header CloudFront-Is-Tablet-Viewer       $is_tablet;
-              proxy_set_header CloudFront-Is-SmartTV-Viewer      "false";
-              proxy_set_header X-Amz-Cf-Id                       $cdn_amz_cf_id;
-
-              # Fastly
-              proxy_set_header Fastly-Client-IP    $remote_addr;
-              proxy_set_header Fastly-SSL          "1";
-              proxy_set_header Fastly-Client       "1";
-              proxy_set_header Fastly-FF           "cache-sjc3120-SJC";
-              proxy_set_header X-Geo-Country-Code  "US";
-              proxy_set_header X-Geo-Country-Code3 "USA";
-              proxy_set_header X-Geo-Country-Name  "United States";
-              proxy_set_header X-Geo-City          "San Jose";
-              proxy_set_header X-Geo-Region        "CA";
-              proxy_set_header X-Geo-Continent-Code "NA";
-              proxy_set_header X-Geo-Latitude      "37.3353";
-              proxy_set_header X-Geo-Longitude     "-121.8938";
-              proxy_set_header X-Geo-Postal-Code   "95113";
-              proxy_set_header X-Geo-Metro-Code    "807";
-              proxy_set_header X-Geo-ASN           "7018";
-              proxy_set_header X-Geo-Conn-Speed    "broadband";
-              proxy_set_header X-Geo-Conn-Type     "wired";
-
-              # Azure Front Door
-              proxy_set_header X-Azure-ClientIP    $remote_addr;
-              proxy_set_header X-Azure-SocketIP    $remote_addr;
-              proxy_set_header X-Azure-Ref         $cdn_azure_ref;
-              proxy_set_header X-Azure-FDID        "a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1";
-              proxy_set_header X-Azure-RequestChain "hops=1";
-
-              # Cache (performance-optimized)
-              proxy_set_header Host $host;
-              proxy_cache cdn_cache;
-              proxy_cache_valid 200 301 302 4h;
-              proxy_cache_valid 404 1m;
-              proxy_cache_key "$scheme$host$request_uri";
-              proxy_cache_lock on;
-              proxy_cache_lock_age 3s;
-              proxy_cache_lock_timeout 3s;
-              proxy_cache_background_update on;
-              proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
-              proxy_ignore_headers Set-Cookie Cache-Control Expires Vary;
-
-              proxy_hide_header X-Cache-Status;
-              proxy_hide_header Vary;
-
-              add_header X-Cache-Status     $upstream_cache_status always;
-              add_header X-CDN-Edge         "cdn-simulator" always;
-              add_header X-CDN-POP          "SJC" always;
-              add_header X-Served-By        "cache-sjc3120-SJC" always;
-              add_header X-Request-ID       $request_id always;
-          }
-      }
-
-  - path: /etc/nginx/conf.d/default.conf
-    content: ""
-
-runcmd:
-  - sysctl -p /etc/sysctl.d/99-cdn-tuning.conf
-  - systemctl daemon-reload
-  - rm -f /etc/nginx/sites-enabled/default
-  - chown -R www-data:www-data /var/cache/nginx/cdn
-  - nginx -t
-  - systemctl enable nginx
-  - systemctl restart nginx
+```yaml file=../terraform/cloud-init.yaml
 ```
 
 ### Outputs
 
-Create `outputs.tf`:
+`outputs.tf` exposes the public IP, SSH command, edge URL, and health check endpoint:
 
-```hcl
-output "public_ip" {
-  description = "Public IP address of the CDN edge node"
-  value       = azurerm_public_ip.edge.ip_address
-}
-
-output "ssh_command" {
-  description = "SSH command to connect to the edge node"
-  value       = "ssh ${var.admin_username}@${azurerm_public_ip.edge.ip_address}"
-}
-
-output "edge_url" {
-  description = "HTTP URL of the CDN edge node"
-  value       = "http://${azurerm_public_ip.edge.ip_address}"
-}
-
-output "health_check_url" {
-  description = "Health check endpoint"
-  value       = "http://${azurerm_public_ip.edge.ip_address}/health"
-}
-
-output "resource_group" {
-  description = "Resource group containing all CDN simulator resources"
-  value       = azurerm_resource_group.cdn.name
-}
+```hcl file=../terraform/outputs.tf
 ```
 
 ### Example Variables File
 
-Create `terraform.tfvars.example`:
+Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in your values. The `.gitignore` excludes `terraform.tfvars` to prevent committing credentials:
 
-```hcl
-subscription_id     = "00000000-0000-0000-0000-000000000000"
-resource_group_name = "rg-cdn-simulator"
-location            = "eastus2"
-vm_size             = "Standard_D4s_v5"
-admin_username      = "azureuser"
-ssh_public_key_path = "~/.ssh/id_ed25519.pub"
-origin_server       = "http://20.12.78.159"
-origin_host         = "20.12.78.159:80"
-environment_tag     = "lab"
+```hcl file=../terraform/terraform.tfvars.example
 ```
 
 ## Deploy
 
 ```bash
-# Copy and edit variables
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your values
-
 # Initialize Terraform
 terraform init
 
@@ -596,6 +79,21 @@ terraform apply
 ```
 
 Terraform outputs the public IP, SSH command, and edge URL after successful deployment.
+
+## VM Sizing
+
+The F-series compute-optimized VMs are recommended for this CPU-bound NGINX proxy workload. The cloud-init kernel tuning and NGINX config scale automatically with vCPU count (`worker_processes auto`).
+
+| VM SKU | vCPU | RAM | Network | Use Case | Est. Monthly |
+|---|---|---|---|---|---|
+| Standard_F4s_v2 | 4 | 8 GiB | 10 Gbps | Lab/demo | ~$97 |
+| Standard_F8s_v2 | 8 | 16 GiB | 12.5 Gbps | Load testing | ~$194 |
+| Standard_F16s_v2 | 16 | 32 GiB | 12.5 Gbps | Heavy load testing | ~$389 |
+| Standard_F32s_v2 | 32 | 64 GiB | 16 Gbps | Production/benchmarking | ~$778 |
+
+:::tip
+Use `terraform destroy` when the lab is not in use to avoid ongoing charges. See [Teardown](../07-teardown/) for the procedure.
+:::
 
 ## Post-Deploy
 
@@ -615,4 +113,4 @@ Expected response:
 }
 ```
 
-Proceed to [NGINX Configuration](04-nginx-config/) for customization options or [Verify](05-verify/) for cache testing.
+Proceed to [NGINX Configuration](../04-nginx-config/) for customization options or [Verify](../05-verify/) for cache testing.
