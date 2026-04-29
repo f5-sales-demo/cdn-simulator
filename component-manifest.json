@@ -1,0 +1,15 @@
+{
+  "schema_version": "1",
+  "name": "cdn-simulator",
+  "role": "NGINX-based CDN edge node simulator",
+  "category": "lab-infrastructure",
+  "summary": "Azure Ubuntu 24.04 VM running NGINX as a CDN edge node simulator with 67+ vendor-specific headers (Akamai, Cloudflare, CloudFront, Fastly, Azure Front Door), cache behavior simulation, and origin pull for testing F5 XC CDN integration scenarios",
+  "provides": ["cdn-edge-simulation", "vendor-header-injection", "cache-behavior-testing", "origin-pull"],
+  "pairs_with": ["origin-server"],
+  "demos": ["cdn"],
+  "terraform": {
+    "required_vars": ["subscription_id", "origin_server", "origin_host"],
+    "vm_size": "Standard_F4s_v2",
+    "estimated_monthly_cost": "$122"
+  }
+}
