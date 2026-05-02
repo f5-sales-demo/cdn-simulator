@@ -1,7 +1,7 @@
-resource "azurerm_linux_virtual_machine" "edge" {
-  name                = "vm-cdn-edge"
-  resource_group_name = azurerm_resource_group.cdn.name
-  location            = azurerm_resource_group.cdn.location
+resource "azurerm_linux_virtual_machine" "main" {
+  name                = local.name.virtual_machine
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
   size                = var.vm_size
 
   admin_username                  = var.admin_username
@@ -9,15 +9,15 @@ resource "azurerm_linux_virtual_machine" "edge" {
 
   admin_ssh_key {
     username   = var.admin_username
-    public_key = file(var.ssh_public_key_path)
+    public_key = file(pathexpand(var.ssh_public_key_path))
   }
 
-  network_interface_ids = [azurerm_network_interface.edge.id]
+  network_interface_ids = [azurerm_network_interface.main.id]
 
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Premium_LRS"
-    disk_size_gb         = 30
+    disk_size_gb         = var.disk_size_gb
   }
 
   source_image_reference {
@@ -34,5 +34,5 @@ resource "azurerm_linux_virtual_machine" "edge" {
 
   boot_diagnostics {}
 
-  tags = azurerm_resource_group.cdn.tags
+  tags = azurerm_resource_group.main.tags
 }

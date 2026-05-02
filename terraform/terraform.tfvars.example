@@ -1,21 +1,17 @@
-# Copy this file to terraform.tfvars and fill in your values
-# terraform.tfvars is gitignored — never commit real credentials
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored — never commit real credentials.
 
-subscription_id     = "00000000-0000-0000-0000-000000000000"
-resource_group_name = "rg-cdn-simulator"
-location            = "eastus2"
-vm_size             = "Standard_F4s_v2"
-admin_username      = "azureuser"
-ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+# --- Required ---
+subscription_id = "00000000-0000-0000-0000-000000000000"
+origin_server   = "http://your-origin-ip"
+origin_host     = "your-origin-ip:80"
 
-# Direct to origin server (HTTP)
-# origin_server = "http://20.12.78.159"
-# origin_host   = "20.12.78.159:80"
-
-# Through F5 Distributed Cloud (HTTPS)
-# origin_server = "https://72.19.3.185"
-# origin_host   = "72.19.3.185:443"
-
-origin_server       = "http://your-origin-ip"
-origin_host         = "your-origin-ip:80"
-environment_tag     = "lab"
+# --- Optional overrides (defaults shown) ---
+# deployer           = ""                       # auto-resolved from Azure AD
+# location           = "eastus2"
+# environment        = "lab"
+# vm_size            = "Standard_F4s_v2"
+# disk_size_gb       = 30
+# admin_username     = "azureuser"
+# ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+# tags               = {}
