@@ -1,14 +1,24 @@
 locals {
   component = "cdn-simulator"
 
-  # --- Deployer resolution (3-tier fallback) ---
+  # --- Deployer resolution (4-tier fallback) ---
   # 1. Explicit override via var.deployer
-  # 2. Azure AD user: first-initial + surname
-  # 3. Object ID hash (service principals, managed identities)
-  deployer_from_user = (
+  # 2a. Azure AD: given_name initial + surname (e.g., "Robin" + "Mordasiewicz" → rmordasiewicz)
+  # 2b. Azure AD: mail prefix (e.g., R.Mordasiewicz@F5.com → rmordasiewicz)
+  # 3. Object ID hash (service principals, managed identities, missing profile data)
+  deployer_from_name = (
     var.deployer == "" && length(data.azuread_user.current) > 0
     ? try(
       lower("${substr(data.azuread_user.current[0].given_name, 0, 1)}${data.azuread_user.current[0].surname}"),
+      ""
+    )
+    : ""
+  )
+
+  deployer_from_mail = (
+    var.deployer == "" && length(data.azuread_user.current) > 0 && local.deployer_from_name == ""
+    ? try(
+      lower(split("@", data.azuread_user.current[0].mail)[0]),
       ""
     )
     : ""
@@ -18,7 +28,8 @@ locals {
 
   deployer_resolved = coalesce(
     var.deployer,
-    local.deployer_from_user,
+    local.deployer_from_name,
+    local.deployer_from_mail,
     local.deployer_from_oid
   )
 
