@@ -1,6 +1,6 @@
 ---
 title: Teardown
-description: Run terraform destroy to remove all Azure resources (resource group, VM, VNet, PIP, NSG), clean up local Terraform state, and revert DNS or hosts file changes. Monthly cost stops immediately on destroy.
+description: Run terraform destroy to remove all Azure resources (resource group, VM, VNet, PIP, NSG), clean up local Terraform state, and revert DNS or hosts file changes.
 sidebar:
   order: 7
 ---
@@ -27,12 +27,10 @@ Confirm all resources have been removed:
 
 ```bash
 # Check resource group is gone
-az group show --name rg-cdn-simulator 2>&1 | grep -q "ResourceGroupNotFound" \
+az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
+  | grep -q "ResourceGroupNotFound" \
   && echo "Resource group deleted" \
   || echo "Resource group still exists"
-
-# List any remaining resources (should return empty)
-az resource list --resource-group rg-cdn-simulator -o table 2>/dev/null
 ```
 
 ## Clean Up Local State
@@ -54,6 +52,3 @@ sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 
 If you created a DNS A record, delete it through your DNS provider.
 
-## Cost Reference
-
-While running, the CDN edge node costs approximately $39 USD/month. After `terraform destroy`, all charges stop. There are no residual costs from deleted resources.

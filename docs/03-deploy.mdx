@@ -16,14 +16,21 @@ cp terraform.tfvars.example terraform.tfvars
 
 ## Terraform Configuration
 
-### Provider and Variables
+### Terraform File Structure
 
-`main.tf` configures the Azure provider:
+The terraform directory contains 9 files following the Demo Resource Standard:
 
-```hcl file=./_data/main.tf
-```
+- `versions.tf` — Terraform and provider version constraints (azurerm ~> 4.0, azuread ~> 3.0)
+- `providers.tf` — Azure RM and Azure AD provider configuration
+- `data.tf` — Azure AD data sources for deployer auto-resolution
+- `locals.tf` — Deployer resolution, Azure Cloud Adoption Framework resource naming, standard tags
+- `main.tf` — Resource group (named `rg-cdn-simulator-{environment}-{deployer}`)
+- `variables.tf` — All input variables (3 required, 8 optional)
+- `network.tf` — VNet (10.100.0.0/16), subnet, public IP, NSG (ports 22/80/443), NIC
+- `vm.tf` — Ubuntu 24.04 VM with cloud-init via templatefile()
+- `outputs.tf` — 17 outputs (15 standard + 2 component-specific)
 
-`variables.tf` defines all configurable parameters. The `vm_size` default is `Standard_F4s_v2` (4 vCPU, 8 GiB) — see [VM Sizing](#vm-sizing) for scaling guidance:
+`variables.tf` defines 11 input variables organized into General, Compute, and Component-Specific sections. The `deployer` identifier is auto-resolved from your Azure AD account — you only need to set `subscription_id`, `origin_server`, and `origin_host`:
 
 ```hcl file=./_data/variables.tf
 ```
@@ -37,23 +44,23 @@ cp terraform.tfvars.example terraform.tfvars
 
 ### Virtual Machine with Cloud-Init
 
-`vm.tf` creates the Ubuntu 24.04 VM and passes the cloud-init template with origin server variables:
+`vm.tf` creates the Ubuntu 24.04 VM. The SSH public key path is expanded via `pathexpand()` to handle `~`. Cloud-init template receives `origin_server` and `origin_host` variables:
 
 ```hcl file=./_data/vm.tf
 ```
 
 ### Cloud-Init Provisioning
 
-`cloud-init.yaml` is the production-optimized configuration verified under 48 hours of continuous load testing at 350K req/s peak. It provisions kernel tuning, systemd limits, NGINX with performance-optimized buffers, 128 MB cache keys zone, upstream keepalive pool, gzip compression, and 67+ CDN vendor headers from Akamai, Cloudflare, CloudFront, Fastly, and Azure Front Door. See [NGINX Configuration](../04-nginx-config/) for the complete tuning reference.
+`cloud-init.yaml` provisions the VM with kernel tuning, systemd limits, NGINX with performance-optimized configuration, 128 MB cache keys zone, upstream keepalive pool, gzip compression, and 67+ CDN vendor headers. A shared helper library (`/usr/local/lib/cloud-init-helpers.sh`) provides retry logic and progress logging to `/var/log/cloud-init-progress.log`.
 
-The cloud-init uses Terraform template variables: `${origin_host}` for the upstream server address. NGINX variables like `${request_id}` must be escaped as `$${request_id}` in the Terraform templatefile.
+The cloud-init uses Terraform template variables: `${origin_server}` and `${origin_host}` for the upstream configuration. NGINX variables like `${request_id}` are escaped as `$${request_id}` in the Terraform templatefile.
 
 ```yaml file=./_data/cloud-init.yaml
 ```
 
 ### Outputs
 
-`outputs.tf` exposes the public IP, SSH command, edge URL, and health check endpoint:
+`outputs.tf` exposes 17 outputs following the Demo Resource Standard — 15 standard outputs shared by all demo resources (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) plus 2 component-specific outputs (`edge_url`, `health_check_url`):
 
 ```hcl file=./_data/outputs.tf
 ```
@@ -82,18 +89,7 @@ Terraform outputs the public IP, SSH command, and edge URL after successful depl
 
 ## VM Sizing
 
-The F-series compute-optimized VMs are recommended for this CPU-bound NGINX proxy workload. The cloud-init kernel tuning and NGINX config scale automatically with vCPU count (`worker_processes auto`).
-
-| VM SKU | vCPU | RAM | Network | Use Case | Est. Monthly |
-|---|---|---|---|---|---|
-| Standard_F4s_v2 | 4 | 8 GiB | 10 Gbps | Lab/demo | ~$97 |
-| Standard_F8s_v2 | 8 | 16 GiB | 12.5 Gbps | Load testing | ~$194 |
-| Standard_F16s_v2 | 16 | 32 GiB | 12.5 Gbps | Heavy load testing | ~$389 |
-| Standard_F32s_v2 | 32 | 64 GiB | 16 Gbps | Production/benchmarking | ~$778 |
-
-:::tip
-Use `terraform destroy` when the lab is not in use to avoid ongoing charges. See [Teardown](../07-teardown/) for the procedure.
-:::
+The F-series compute-optimized VMs are recommended for this CPU-bound NGINX proxy workload. The default `Standard_F4s_v2` (4 vCPU, 8 GiB) is suitable for lab and demo use. Override the `vm_size` variable for load testing or production benchmarking scenarios. Cloud-init kernel tuning and NGINX config scale automatically with vCPU count (`worker_processes auto`).
 
 ## Post-Deploy
 
@@ -109,7 +105,14 @@ Expected response:
 {
   "status": "healthy",
   "component": "cdn-edge",
-  "engine": "nginx"
+  "engine": "nginx",
+  "vendor_profiles": [
+    "akamai",
+    "cloudflare",
+    "cloudfront",
+    "fastly",
+    "azure-front-door"
+  ]
 }
 ```
 
