@@ -21,7 +21,14 @@ Expected output:
 {
   "status": "healthy",
   "component": "cdn-edge",
-  "engine": "nginx"
+  "engine": "nginx",
+  "vendor_profiles": [
+    "akamai",
+    "cloudflare",
+    "cloudfront",
+    "fastly",
+    "azure-front-door"
+  ]
 }
 ```
 
@@ -112,6 +119,22 @@ If this fails, check:
 1. The `origin_server` variable is correct in the Terraform config
 2. The origin server allows inbound connections from the edge node's public IP
 3. DNS resolution works from the VM (`nslookup your-origin.example.com`)
+
+## Cloud-Init Progress
+
+Monitor provisioning progress via the cloud-init log:
+
+```bash
+ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
+```
+
+Expected phases: `[init]`, `[nic]` (dynamic NIC detection), `[complete]`.
+
+If cloud-init reports errors:
+
+```bash
+ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
+```
 
 ## End-to-End Test
 
@@ -213,5 +236,5 @@ sudo tail -f /var/log/cloud-init-output.log
 
 ### Connection refused on port 80/443
 
-- Verify the NSG rules are applied: `az network nsg rule list --nsg-name nsg-cdn-edge --resource-group rg-cdn-simulator -o table`
+- Verify the NSG rules are applied: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
 - Verify NGINX is listening: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`
