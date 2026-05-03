@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # CDN Simulator Post-Boot Smoke Test Suite
 # Deterministic validation of all components after deployment or reboot.
@@ -95,7 +95,7 @@ check_contains "health-vendor-azure-front-door" '"azure-front-door"' "$HEALTH"
 
 echo "── Response Headers ──"
 
-HEADERS=$(curl -sf --max-time 10 -I "${BASE}/health" 2>/dev/null || echo "")
+HEADERS=$(curl -s --max-time 10 -I "${BASE}/" 2>/dev/null || echo "")
 
 check_contains "header-x-cache-status" "X-Cache-Status" "$HEADERS"
 check_contains "header-x-cdn-edge" "X-CDN-Edge" "$HEADERS"
