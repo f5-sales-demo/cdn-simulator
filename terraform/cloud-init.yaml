@@ -4,7 +4,7 @@ package_upgrade: true
 
 bootcmd:
   - mkdir -p /var/cache/nginx/cdn
-  - chown www-data:www-data /var/cache/nginx/cdn
+  - chown www-data:www-data /var/cache/nginx/cdn 2>/dev/null || true
 
 packages:
   - nginx
@@ -275,15 +275,58 @@ write_files:
   - path: /etc/nginx/conf.d/default.conf
     content: ""
 
+  - path: /usr/local/lib/cloud-init-helpers.sh
+    permissions: "0644"
+    content: |
+      #!/bin/sh
+      PROGRESS_LOG="/var/log/cloud-init-progress.log"
+      log_phase() {
+        _phase="$1"; shift
+        _msg="$${*:-started}"
+        _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        printf '[%s] [%s] %s\n' "$_ts" "$_phase" "$_msg" | tee -a "$PROGRESS_LOG" >&2
+      }
+      retry_cmd() {
+        _max="$1"; _base="$2"; shift 2
+        _attempt=1
+        while [ "$_attempt" -le "$_max" ]; do
+          if "$@"; then return 0; fi
+          if [ "$_attempt" -lt "$_max" ]; then
+            _wait=$(( _base * _attempt ))
+            log_phase "retry" "attempt $_attempt/$_max failed ($1) — retrying in $${_wait}s"
+            sleep "$_wait"
+          fi
+          _attempt=$(( _attempt + 1 ))
+        done
+        log_phase "retry" "FAILED after $_max attempts: $1"
+        return 1
+      }
+
 runcmd:
-  - sysctl -p /etc/sysctl.d/99-cdn-tuning.conf
+  - |
+    . /usr/local/lib/cloud-init-helpers.sh
+    log_phase "init" "cdn-simulator provisioning started"
+  - sysctl -p /etc/sysctl.d/99-cdn-tuning.conf || exit 1
   - systemctl daemon-reload
   - rm -f /etc/nginx/sites-enabled/default
   - chown -R www-data:www-data /var/cache/nginx/cdn
-  - nginx -t
+  - nginx -t || exit 1
   - systemctl enable nginx
   - systemctl restart nginx
   - systemctl enable irqbalance
   - systemctl start irqbalance
-  - echo 131072 > /proc/sys/net/core/rps_sock_flow_entries
-  - for i in $(seq 0 $(($(nproc)-1))); do echo 8192 > /sys/class/net/eth0/queues/rx-$i/rps_flow_cnt 2>/dev/null; done
+  - |
+    . /usr/local/lib/cloud-init-helpers.sh
+    NIC=$(ip -o link show | awk -F': ' '/state UP/{print $2}' | grep -v lo | head -1)
+    if [ -n "$NIC" ]; then
+      log_phase "nic" "configuring RPS/RFS for $NIC"
+      echo 65536 > /proc/sys/net/core/rps_sock_flow_entries 2>/dev/null || true
+      for i in $(seq 0 $(($(nproc)-1))); do
+        echo 8192 > /sys/class/net/$NIC/queues/rx-$i/rps_flow_cnt 2>/dev/null || true
+      done
+    else
+      log_phase "nic" "no active NIC found — skipping RPS/RFS"
+    fi
+  - |
+    . /usr/local/lib/cloud-init-helpers.sh
+    log_phase "complete" "cdn-simulator provisioned"
