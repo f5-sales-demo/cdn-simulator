@@ -116,4 +116,25 @@ Expected response:
 }
 ```
 
+## Wiring from Upstream Components
+
+The CDN simulator requires a deployed origin server. Use the origin server's terraform outputs to populate the required variables:
+
+```bash
+cd ../origin-server/terraform
+origin_ip=$(terraform output -raw public_ip)
+
+cd ../../cdn-simulator/terraform
+cat > terraform.tfvars <<EOF
+subscription_id = "your-subscription-id"
+origin_server   = "http://${origin_ip}"
+origin_host     = "${origin_ip}:80"
+EOF
+```
+
+| Required Variable | Source | Format |
+|---|---|---|
+| `origin_server` | Origin server `public_ip` output | `http://<ip>` (include scheme) |
+| `origin_host` | Origin server `public_ip` output | `<ip>:80` (no scheme, include port) |
+
 Proceed to [NGINX Configuration](../04-nginx-config/) for customization options or [Verify](../05-verify/) for cache testing.
