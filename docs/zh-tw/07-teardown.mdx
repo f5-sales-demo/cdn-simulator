@@ -1,0 +1,59 @@
+---
+title: 拆除環境
+description: >-
+  Run terraform destroy to remove all Azure resources (resource group, VM, VNet,
+  PIP, NSG), clean up local Terraform state, and revert DNS or hosts file
+  changes.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: 2abd4bf5d8c8
+  translator: machine
+---
+
+當實驗課程完成後，請銷毀所有 Azure 資源以停止計費。
+
+## Terraform 銷毀
+
+從包含 Terraform 配置的目錄中執行：
+
+```bash
+# Review what will be destroyed
+terraform plan -destroy
+
+# Destroy all resources
+terraform destroy
+```
+
+Terraform 會提示確認。輸入 `yes` 以繼續。
+
+## 驗證清理結果
+
+確認所有資源已被移除：
+
+```bash
+# Check resource group is gone
+az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
+  | grep -q "ResourceGroupNotFound" \
+  && echo "Resource group deleted" \
+  || echo "Resource group still exists"
+```
+
+## 清理本機狀態
+
+移除 Terraform 狀態和快取檔案：
+
+```bash
+rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
+```
+
+## 還原 DNS/Hosts 變更
+
+如果您在[整合](06-integrate/)過程中修改了 DNS 或 hosts 檔案，請還原這些變更：
+
+```bash
+# Remove hosts file entry (Linux/macOS)
+sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
+```
+
+如果您建立了 DNS A 記錄，請透過您的 DNS 供應商將其刪除。

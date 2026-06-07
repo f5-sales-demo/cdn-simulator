@@ -1,0 +1,140 @@
+---
+title: Vue d'ensemble
+description: >-
+  Architecture, points de terminaison, simulation d'en-têtes de fournisseurs et
+  conception modulaire du simulateur de nœud de périphérie CDN basé sur NGINX
+  déployé sur Ubuntu 24.04 dans Azure
+sidebar:
+  order: 1
+i18n:
+  sourceHash: f7a6771523b7
+  translator: machine
+---
+
+## Objectif
+
+Ce composant simule un nœud de périphérie CDN pour les environnements de laboratoire et de démonstration. Il représente le rôle que jouent des fournisseurs comme Akamai, Cloudflare, Amazon CloudFront ou Fastly dans l'architecture réseau d'un client — la couche de mise en cache la plus proche des utilisateurs finaux qui se situe devant un serveur d'origine.
+
+Dans les architectures multi-fournisseurs en production, les clients associent couramment un CDN tiers avec F5 Distributed Cloud :
+
+```
+End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
+```
+
+Ce simulateur remplace le CDN commercial par un nœud de périphérie basé sur NGINX afin que l'intégration puisse être démontrée et testée sans contrats fournisseurs ni infrastructure de production.
+
+## Architecture
+
+```
+┌─────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌────────────┐
+│  Client  │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB  │────▶│ Origin App │
+│          │     │  Ubuntu 24.04 Azure  │     │  (Origin Server) │     │            │
+└─────────┘     │  - TLS termination   │     └─────────────────┘     └────────────┘
+                │  - Disk-based cache  │
+                │  - X-Cache-Status    │
+                └──────────────────────┘
+```
+
+Le nœud de périphérie NGINX :
+
+- **Termine le TLS** à la périphérie (auto-signé ou Let's Encrypt)
+- **Met en cache les réponses** sur disque en utilisant `proxy_cache_path`
+- **Transmet les défauts de cache** vers un serveur d'origine configurable (le VIP de l'équilibreur de charge HTTP F5 XC)
+- **Signale l'état du cache** via l'en-tête de réponse `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
+
+## Ce que cela simule
+
+| Fonction CDN | Implémentation NGINX |
+|---|---|
+| Mise en cache en périphérie | `proxy_cache` avec stockage sur disque |
+| Génération de clé de cache | `proxy_cache_key` basée sur le schéma, l'hôte et l'URI |
+| Extraction depuis l'origine | `proxy_pass` vers l'équilibreur de charge HTTP F5 XC |
+| Terminaison TLS | Directive NGINX `ssl_certificate` |
+| Respect du Cache-Control | `proxy_cache_valid` avec transmission des en-têtes d'origine |
+| Rapport d'état du cache | `add_header X-Cache-Status $upstream_cache_status` |
+| Point de terminaison de santé | Emplacement `/health` retournant 200 OK |
+
+## Points de terminaison et comportement requête/réponse
+
+### Vérification de santé
+
+```
+GET /health
+```
+
+Réponse (200 OK, `Content-Type: application/json`) :
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": ["akamai", "cloudflare", "cloudfront", "fastly", "azure-front-door"]
+}
+```
+
+### Proxy CDN (tous les autres chemins)
+
+```
+GET /<any-path>
+```
+
+En-têtes de requête injectés vers l'origine (67+ en-têtes de 5 fournisseurs) :
+
+| Catégorie | En-têtes ajoutés |
+|---|---|
+| IP client | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
+| Géolocalisation | `X-Akamai-Edgescape` (composé), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
+| Détection d'appareil | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
+| TLS/Empreinte | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
+| Détection de bot | `cf-bot-score` (85 = probablement humain), `cf-verified-bot` |
+| Traçage de requête | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
+| Identité de la périphérie | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
+| Standard | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
+
+En-têtes de réponse ajoutés à chaque réponse transmise par proxy :
+
+| En-tête | Valeurs | Objectif |
+|---|---|---|
+| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | Comportement du cache pour cette requête |
+| `X-CDN-Edge` | `cdn-simulator` | Identifie ce nœud de périphérie |
+| `X-CDN-POP` | `SJC` | Code IATA simulé du point de présence |
+| `X-Served-By` | `cache-sjc3120-SJC` | Nœud de cache simulé au format Fastly |
+| `X-Request-ID` | UUID (par requête) | Identifiant unique de requête |
+
+### Comportement du cache
+
+- Première requête vers un chemin quelconque : `X-Cache-Status: MISS` (récupéré depuis l'origine, maintenant en cache)
+- Requêtes identiques ultérieures : `X-Cache-Status: HIT` (servi depuis le cache disque)
+- Clé de cache : `$scheme$host$request_uri` (schéma + nom d'hôte + chemin complet + chaîne de requête)
+- TTL du cache : 10 minutes pour 200/301/302, 1 minute pour 404
+- Service périmé : retourne le contenu en cache lors d'erreurs d'origine (500/502/503/504)
+
+### Accès à la VM
+
+| Méthode d'accès | Commande/Chemin |
+|---|---|
+| SSH | `ssh azureuser@<PUBLIC_IP>` |
+| Configuration NGINX | `/etc/nginx/conf.d/cdn-edge.conf` |
+| Logs NGINX | `/var/log/nginx/access.log` et `/var/log/nginx/error.log` |
+| Répertoire de cache | `/var/cache/nginx/cdn/` |
+| Log cloud-init | `/var/log/cloud-init-output.log` |
+
+## Conception modulaire des composants
+
+Ceci est un élément d'un environnement de laboratoire plus large. Chaque composant est autonome et déployé indépendamment :
+
+- **Ce composant** fournit la périphérie CDN (NGINX sur une VM Azure)
+- **Les autres composants** fournissent l'application d'origine, la configuration F5 XC, le DNS, les politiques WAF, etc.
+
+L'opérateur humain ajoute les composants un par un. La documentation de chaque composant est rédigée de sorte qu'un assistant IA puisse la lire et déployer l'infrastructure de manière autonome.
+
+## Pourquoi NGINX
+
+NGINX a été sélectionné comme moteur de simulation CDN car :
+
+1. **Produit F5** — F5 a acquis NGINX Inc. en 2019 ; il fait partie du portefeuille F5
+2. **Éprouvé dans l'industrie** — Cloudflare a fait fonctionner l'intégralité de son CDN sur NGINX pendant plus d'une décennie avant de migrer vers Pingora ; Netflix utilise NGINX pour son CDN Open Connect
+3. **Processus unique** — gère la terminaison TLS et la mise en cache dans un seul binaire, contrairement à Varnish qui nécessite un proxy TLS séparé
+4. **Déploiement simple** — `apt install nginx` sur Ubuntu 24.04, deux directives activent la mise en cache
+5. **Bien documenté** — documentation officielle complète pour la mise en cache de contenu et la configuration de proxy inverse

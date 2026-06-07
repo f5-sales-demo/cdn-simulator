@@ -1,0 +1,247 @@
+---
+title: Verify
+description: >-
+  Smoke test commands with expected HTTP response codes, X-Cache-Status header
+  values (HIT/MISS), health check JSON response, cache directory inspection,
+  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
+  and NSG issues
+sidebar:
+  order: 5
+i18n:
+  sourceHash: 939ce6f55688
+  translator: machine
+---
+
+Après le déploiement, exécutez ces vérifications pour confirmer que le nœud edge du CDN fonctionne correctement. Attendez 2 à 3 minutes après `terraform apply` pour que cloud-init termine l'installation de NGINX.
+
+## Vérification de santé
+
+Vérifiez que NGINX est en cours d'exécution et répond :
+
+```bash
+curl -s "http://<PUBLIC_IP>/health" | jq .
+```
+
+Sortie attendue :
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": [
+    "akamai",
+    "cloudflare",
+    "cloudfront",
+    "fastly",
+    "azure-front-door"
+  ]
+}
+```
+
+Si vous utilisez les sorties Terraform :
+
+```bash
+curl -s "$(terraform output -raw health_check_url)" | jq .
+```
+
+## Défaut de cache (première requête)
+
+La première requête vers n'importe quel chemin sera un défaut de cache — le nœud edge récupère le contenu depuis l'origine :
+
+```bash
+curl -I "http://<PUBLIC_IP>/"
+```
+
+Recherchez ces en-têtes dans la réponse :
+
+```
+X-Cache-Status: MISS
+X-CDN-Edge: cdn-simulator
+```
+
+`MISS` signifie que le contenu n'était pas en cache et a été récupéré depuis le serveur d'origine.
+
+## Succès de cache (requête suivante)
+
+Répétez la même requête immédiatement :
+
+```bash
+curl -I "http://<PUBLIC_IP>/"
+```
+
+En-têtes attendus :
+
+```
+X-Cache-Status: HIT
+X-CDN-Edge: cdn-simulator
+```
+
+`HIT` confirme que la réponse a été servie depuis le cache disque de NGINX sans contacter l'origine.
+
+## Inspection du répertoire de cache
+
+Connectez-vous en SSH à la VM pour vérifier que le contenu mis en cache existe sur le disque :
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Vérifier que le répertoire de cache contient du contenu
+sudo find /var/cache/nginx/cdn -type f | head -20
+
+# Vérifier la taille du cache
+sudo du -sh /var/cache/nginx/cdn
+```
+
+## Statut de NGINX
+
+Vérifiez que NGINX est en cours d'exécution et que la configuration est valide :
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Vérifier le statut du service
+sudo systemctl status nginx
+
+# Valider la configuration
+sudo nginx -t
+
+# Voir les connexions actives (si stub_status est activé)
+curl -s http://localhost/health
+```
+
+## Connectivité avec l'origine
+
+Vérifiez que le nœud edge peut atteindre le serveur d'origine :
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Tester la connectivité vers l'origine (remplacez par l'URL de votre origine)
+curl -I "https://your-origin.example.com/"
+```
+
+En cas d'échec, vérifiez :
+
+1. La variable `origin_server` est correcte dans la configuration Terraform
+2. Le serveur d'origine autorise les connexions entrantes depuis l'IP publique du nœud edge
+3. La résolution DNS fonctionne depuis la VM (`nslookup your-origin.example.com`)
+
+## Progression de Cloud-Init
+
+Surveillez la progression du provisionnement via le journal cloud-init :
+
+```bash
+ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
+```
+
+Phases attendues : `[init]`, `[nic]` (détection dynamique de la carte réseau), `[complete]`.
+
+Si cloud-init signale des erreurs :
+
+```bash
+ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
+```
+
+## Test de bout en bout
+
+Exécutez un cycle complet de requêtes et vérifiez la chaîne de réponse :
+
+```bash
+# Première requête — MISS (récupération depuis l'origine)
+echo "=== Request 1 (expect MISS) ==="
+curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
+
+# Deuxième requête — HIT (servie depuis le cache)
+echo "=== Request 2 (expect HIT) ==="
+curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
+```
+
+Sortie attendue :
+
+```
+=== Request 1 (expect MISS) ===
+HTTP 200 | Cache: MISS
+=== Request 2 (expect HIT) ===
+HTTP 200 | Cache: HIT
+```
+
+## Vérification des en-têtes des fournisseurs
+
+Vérifiez que tous les en-têtes des fournisseurs CDN sont injectés en interrogeant le chemin `/headers` (lorsque httpbin.org est utilisé comme origine) :
+
+```bash
+curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
+```
+
+La réponse attendue inclut les en-têtes des cinq fournisseurs :
+
+```json
+{
+    "headers": {
+        "True-Client-Ip": "<YOUR_CLIENT_IP>",
+        "Cf-Connecting-Ip": "<YOUR_CLIENT_IP>",
+        "Cf-Ipcountry": "US",
+        "Cf-Ray": "<request_id>-SJC",
+        "Cf-Bot-Score": "85",
+        "Cf-Ja3-Hash": "e7d705a3286e19ea42f587b344ee6865",
+        "Cloudfront-Viewer-Country": "US",
+        "Cloudfront-Viewer-City": "San Jose",
+        "Cloudfront-Is-Desktop-Viewer": "true",
+        "Cloudfront-Is-Mobile-Viewer": "false",
+        "Fastly-Client-Ip": "<YOUR_CLIENT_IP>",
+        "X-Akamai-Edgescape": "georegion=263,country_code=US,...",
+        "X-Azure-Clientip": "<YOUR_CLIENT_IP>",
+        "X-Azure-Fdid": "a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1",
+        "X-Geo-Country-Code": "US"
+    }
+}
+```
+
+### Test de détection d'appareil
+
+Testez avec un User-Agent mobile pour vérifier que les en-têtes de détection d'appareil changent :
+
+```bash
+curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
+  -H "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" \
+  | python3 -m json.tool | grep -E "Is-Mobile|Is-Desktop|is_mobile"
+```
+
+Résultat attendu :
+
+```
+"Cloudfront-Is-Desktop-Viewer": "false",
+"Cloudfront-Is-Mobile-Viewer": "true",
+```
+
+## Dépannage
+
+### NGINX n'est pas en cours d'exécution
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo systemctl status nginx
+sudo journalctl -u nginx --no-pager -n 50
+```
+
+### Cloud-init n'est pas terminé
+
+Après `terraform apply`, cloud-init prend 2 à 3 minutes. Vérifiez la progression :
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo cloud-init status
+sudo tail -f /var/log/cloud-init-output.log
+```
+
+### Le cache affiche toujours MISS
+
+- Vérifiez que l'origine renvoie des codes de réponse pouvant être mis en cache (200, 301, 302)
+- Vérifiez que l'origine n'envoie pas d'en-têtes `Cache-Control: no-cache` ou `no-store`
+- Consultez les journaux d'erreurs NGINX : `sudo tail -f /var/log/nginx/error.log`
+
+### Connexion refusée sur le port 80/443
+
+- Vérifiez que les règles NSG sont appliquées : `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- Vérifiez que NGINX écoute : `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

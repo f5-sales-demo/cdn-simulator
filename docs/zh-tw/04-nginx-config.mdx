@@ -1,0 +1,396 @@
+---
+title: NGINX 設定
+description: >-
+  Production-optimized NGINX configuration reference — performance tuning
+  (kernel, buffers, keepalive, gzip, open_file_cache), 25 GB disk cache with
+  thundering herd prevention, upstream keepalive pool, 67+ CDN vendor headers
+  from Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door, and device
+  detection. Verified under 48-hour load test at 170K req/s peak.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: 0a5211740122
+  translator: machine
+---
+
+cloud-init 佈建會部署一套完全效能最佳化的 NGINX CDN 邊緣設定。本頁面記錄每一層設定，從核心調校到快取行為再到供應商標頭注入。所有設定均在 48 小時持續負載測試中驗證，峰值達 172,540 req/s。
+
+## 設定檔案
+
+| 檔案 | 用途 |
+|---|---|
+| `/etc/sysctl.d/99-cdn-tuning.conf` | Linux 核心網路調校 |
+| `/etc/systemd/system/nginx.service.d/override.conf` | NGINX 的檔案描述符限制 |
+| `/etc/security/limits.d/99-nginx.conf` | www-data 使用者的作業系統層級限制 |
+| `/etc/nginx/nginx.conf` | NGINX 主設定檔（workers、buffers、gzip、logging） |
+| `/etc/nginx/conf.d/cdn-edge.conf` | CDN 代理設定（快取、上游、標頭） |
+
+## 核心調校
+
+透過 `/etc/sysctl.d/99-cdn-tuning.conf` 在開機時套用。
+
+| 參數 | 值 | 預設值 | 用途 |
+|---|---|---|---|
+| `net.core.somaxconn` | 65535 | 4096 | 監聽佇列（backlog）大小 |
+| `net.core.netdev_max_backlog` | 65535 | 1000 | 每 CPU 傳入封包佇列 |
+| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | SYN 請求佇列（防止突發時丟棄） |
+| `net.ipv4.tcp_tw_reuse` | 1 | 2 | 對外連線重用 TIME_WAIT 的 socket |
+| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | 臨時埠範圍（64K 對比 28K） |
+| `net.core.rmem_max` | 16 MB | 212 KB | 最大接收 socket 緩衝區 |
+| `net.core.wmem_max` | 16 MB | 212 KB | 最大傳送 socket 緩衝區 |
+| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | 每 socket 接收緩衝區（最小/預設/最大） |
+| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | 每 socket 傳送緩衝區（最小/預設/最大） |
+| `net.ipv4.tcp_fin_timeout` | 15 | 60 | FIN_WAIT_2 逾時（加速 socket 清理） |
+| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | 閒置 5 分鐘後開始 keepalive 探測 |
+| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | 閒置連線保持壅塞視窗溫熱 |
+| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | TIME_WAIT socket 最大數量 |
+| `fs.file-max` | 2097152 | 視系統而定 | 系統層級檔案描述符限制 |
+| `vm.swappiness` | 10 | 60 | 快取資料優先使用 RAM 而非 swap |
+
+## NGINX 主設定
+
+### Workers 與連線
+
+```nginx
+worker_processes auto;           # 4 workers on D4s_v5 (1 per vCPU)
+worker_rlimit_nofile 65535;      # Per-worker file descriptor limit
+
+events {
+    use epoll;                   # Linux-optimized event model
+    worker_connections 8192;     # 4 workers x 8192 = 32,768 max concurrent
+    multi_accept on;             # Accept all pending connections per event loop
+    accept_mutex off;            # Not needed with epoll + reuseport
+}
+```
+
+位於 `/etc/systemd/system/nginx.service.d/override.conf` 的 Systemd override 設定 `LimitNOFILE=65535` 以匹配。
+
+### 代理緩衝區
+
+```nginx
+proxy_buffering on;
+proxy_buffer_size 16k;           # Header buffer (handles large CDN headers)
+proxy_buffers 64 16k;            # 1 MB per connection (64 x 16k)
+proxy_busy_buffers_size 256k;    # Can send 256k to client while still reading
+```
+
+256k 的 busy buffer 大小至關重要——它必須超過最大的快取回應大小（Juice Shop 為 75 KB）。原始的 64k 設定在高負載下造成序列化問題。
+
+### Gzip 壓縮
+
+```nginx
+gzip on;
+gzip_comp_level 4;               # Balance: ~85% of max compression at ~40% CPU
+gzip_min_length 256;             # Skip tiny responses (gzip header overhead)
+gzip_vary on;                    # Vary: Accept-Encoding for correct caching
+gzip_proxied any;                # Compress all proxied responses
+gzip_types text/plain text/css text/javascript text/xml
+           application/json application/javascript application/xml
+           application/xml+rss application/atom+xml
+           application/ld+json application/manifest+json
+           image/svg+xml;
+```
+
+### 開啟檔案快取
+
+```nginx
+open_file_cache max=200000 inactive=20s;
+open_file_cache_valid 30s;
+open_file_cache_min_uses 2;
+open_file_cache_errors on;
+```
+
+快取檔案描述符和快取物件的 metadata，消除對熱門檔案的 `stat()` 和 `open()` 系統呼叫。
+
+### 用戶端 Keepalive
+
+```nginx
+keepalive_timeout 65;
+keepalive_requests 100000;       # Was 1000 — caused connection recycling at 90K req/s
+```
+
+在 90K req/s 且 `keepalive_requests 1000` 的情況下，連線每 11 秒就會回收一次，產生 TIME_WAIT socket。將此值增加到 100,000 後完全消除了此問題。
+
+### 存取日誌
+
+```nginx
+log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $upstream_cache_status $request_time';
+access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
+```
+
+`cdn` 日誌格式包含 `$upstream_cache_status`（HIT/MISS）和 `$request_time` 用於延遲分析。緩衝日誌（256k/5s 刷新）可減少高負載下的 I/O 開銷。
+
+## 上游 Keepalive
+
+```nginx
+upstream origin_backend {
+    server 20.12.78.159:80;
+    keepalive 256;               # Persistent connections per worker to origin
+    keepalive_timeout 60s;
+    keepalive_requests 1000;
+}
+```
+
+4 個 worker x 256 keepalive = 1,024 條溫熱的連線至源站。搭配 `proxy_http_version 1.1` 和 `proxy_set_header Connection ""`，可在每次快取未命中時消除 TCP 握手開銷。
+
+## 快取設定
+
+### 快取路徑
+
+```nginx
+proxy_cache_path /var/cache/nginx/cdn
+                 levels=1:2
+                 keys_zone=cdn_cache:32m
+                 max_size=25g
+                 inactive=24h
+                 use_temp_path=off;
+```
+
+| 參數 | 值 | 用途 |
+|---|---|---|
+| `keys_zone=cdn_cache:32m` | 32 MB 共享記憶體 | 儲存約 256,000 個快取鍵和 metadata |
+| `max_size=25g` | 25 GB 磁碟限制 | 使用 30 GB 作業系統磁碟的大部分空間；達到限制時進行 LRU 淘汰 |
+| `inactive=24h` | 24 小時閒置逾時 | 24 小時未被存取的內容會被淘汰（與 TTL 不同） |
+| `use_temp_path=off` | 直接寫入快取目錄 | 避免跨檔案系統的檔案搬移 |
+
+### 快取行為
+
+```nginx
+proxy_cache cdn_cache;
+proxy_cache_valid 200 301 302 4h;
+proxy_cache_valid 404 1m;
+proxy_cache_key "$scheme$host$request_uri";
+proxy_cache_lock on;
+proxy_cache_lock_age 3s;
+proxy_cache_lock_timeout 3s;
+proxy_cache_background_update on;
+proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
+proxy_ignore_headers Set-Cookie Cache-Control Expires Vary;
+
+proxy_hide_header X-Cache-Status;
+proxy_hide_header Vary;
+```
+
+| 指令 | 值 | 用途 |
+|---|---|---|
+| `proxy_cache_valid 200 301 302 4h` | 4 小時 TTL | 快取內容有效期為 4 小時（增加此值以減少刷新波造成的吞吐量下降） |
+| `proxy_cache_lock on` | 驚群效應防護 | 每個未快取 URL 僅有 1 個請求發往源站；其餘等待快取填充 |
+| `proxy_cache_lock_age 3s` | 鎖定逾時 | 若第一個請求在 3 秒內未完成，允許另一個請求通過 |
+| `proxy_cache_background_update on` | 零延遲刷新 | 立即提供過期內容，同時在背景刷新 |
+| `proxy_cache_use_stale` | 容錯能力 | 在源站錯誤（500/502/503/504）或更新期間提供過期內容 |
+| `proxy_ignore_headers` | 強制快取 | 忽略源站的 Set-Cookie、Cache-Control、Expires、Vary——由 CDN 決定 TTL 和 Vary 行為（Juice Shop 會傳送 `max-age=0` 和三重 `Vary` 標頭，這會阻止有效快取） |
+| `proxy_hide_header X-Cache-Status` | 移除源站標頭 | 源站 NGINX 會加入自己的 X-Cache-Status——移除它以確保只顯示 CDN 的快取狀態 |
+| `proxy_hide_header Vary` | 防止快取碎片化 | 源站傳送多個 `Vary: Accept-Encoding` 標頭。移除它們可防止快取鍵在 `Accept-Encoding` 排列組合間碎片化。NGINX 的 `gzip_vary on` 會自動加入正確的單一 `Vary` 標頭 |
+
+### 代理逾時
+
+```nginx
+proxy_read_timeout 30s;
+proxy_connect_timeout 10s;
+proxy_send_timeout 15s;
+```
+
+在高負載下給予源站更多回應時間，同時對連線問題仍能快速失敗。
+
+### Server 區塊
+
+```nginx
+server {
+    listen 80 reuseport;        # Kernel distributes connections across all 4 workers
+    server_name _;
+}
+```
+
+`reuseport` 啟用 `SO_REUSEPORT`——核心直接將傳入連線分配到各 worker 行程，消除 accept mutex 競爭。
+
+## CDN 供應商標頭
+
+模擬器同時注入所有五家主要 CDN 供應商的標頭。這讓 F5 XC 可以使用任何供應商的「受信任用戶端 IP 標頭」進行設定，無論模擬的是哪家 CDN，都能看到真實的標頭負載。
+
+### 業界標準標頭（所有 CDN）
+
+| 標頭 | 值 | 用途 |
+|---|---|---|
+| `X-Forwarded-For` | 用戶端 IP 鏈 | 標準轉發 IP |
+| `X-Forwarded-Proto` | `http` 或 `https` | 原始用戶端協定 |
+| `X-Forwarded-Host` | 原始主機名稱 | 原始 Host 標頭 |
+| `X-Forwarded-Port` | 伺服器埠 | 原始埠 |
+| `X-Real-IP` | 用戶端 IP | 單一用戶端 IP（nginx 慣例） |
+| `Via` | `1.1 cdn-simulator` | 代理識別 |
+| `Forwarded` | RFC 7239 格式 | 標準化轉發標頭 |
+| `CDN-Loop` | `cdn-simulator` | 迴圈偵測 |
+
+### Akamai 標頭
+
+| 標頭 | 值 | 用途 |
+|---|---|---|
+| `True-Client-IP` | 用戶端 IP | 原始終端使用者 IP 位址 |
+| `X-Akamai-Edgescape` | 複合地理字串 | georegion、country_code、region_code、city、dma、pmsa、msa、areacode、county、fips、lat、long、timezone、zip、continent、throughput、bw、network、asnum、network_type |
+| `X-Akamai-Device-Characteristics` | 裝置屬性 | brand_name、model_name、is_mobile、is_tablet、is_wireless_device、device_os、device_os_version、resolution_width、resolution_height |
+| `X-Akamai-Request-ID` | 請求 UUID | 唯一請求識別碼 |
+
+### Cloudflare 標頭
+
+| 標頭 | 值 | 用途 |
+|---|---|---|
+| `CF-Connecting-IP` | 用戶端 IP | 真實用戶端 IP（始終存在） |
+| `CF-IPCountry` | `US` | 兩字母國家代碼 |
+| `cf-ipcity` | `San Jose` | 用戶端城市 |
+| `cf-ipcontinent` | `NA` | 大洲代碼 |
+| `cf-iplatitude` / `cf-iplongitude` | 座標 | 地理位置 |
+| `cf-region` / `cf-region-code` | `California` / `CA` | 地區資訊 |
+| `cf-metro-code` | `807` | 美國都會區代碼 |
+| `cf-postal-code` | `95113` | 郵遞區號 |
+| `cf-timezone` | `America/Los_Angeles` | IANA 時區 |
+| `Cf-Ray` | `{request_id}-SJC` | 唯一 ray ID 含 POP IATA 代碼 |
+| `CF-Visitor` | `{"scheme":"https"}` | 訪客協定資訊 |
+| `cf-bot-score` | `85` | 機器人分數（1=機器人，99=人類） |
+| `cf-verified-bot` | `false` | 已知良好機器人旗標 |
+| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS 指紋 |
+| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | JA4 TLS 指紋 |
+
+### Amazon CloudFront 標頭
+
+| 標頭 | 值 | 用途 |
+|---|---|---|
+| `CloudFront-Viewer-Address` | `IP:port` | 用戶端 IP 和來源埠 |
+| `CloudFront-Viewer-Country` | `US` | 國家代碼 |
+| `CloudFront-Viewer-Country-Name` | `United States` | 完整國家名稱 |
+| `CloudFront-Viewer-Country-Region` | `CA` | 地區代碼 |
+| `CloudFront-Viewer-Country-Region-Name` | `California` | 完整地區名稱 |
+| `CloudFront-Viewer-City` | `San Jose` | 用戶端城市 |
+| `CloudFront-Viewer-Postal-Code` | `95113` | 郵遞區號 |
+| `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | 地理位置 |
+| `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | IANA 時區 |
+| `CloudFront-Viewer-Metro-Code` | `807` | 美國都會區代碼 |
+| `CloudFront-Viewer-ASN` | `7018` | 自治系統編號 |
+| `CloudFront-Viewer-Http-Version` | `2.0` | 用戶端 HTTP 版本 |
+| `CloudFront-Forwarded-Proto` | `https` | 原始協定 |
+| `CloudFront-Viewer-TLS` | `TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed` | TLS 詳細資訊 |
+| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS 指紋 |
+| `CloudFront-Is-Desktop-Viewer` | `true`/`false` | 裝置偵測 |
+| `CloudFront-Is-Mobile-Viewer` | `true`/`false` | 裝置偵測 |
+| `CloudFront-Is-Tablet-Viewer` | `true`/`false` | 裝置偵測 |
+| `CloudFront-Is-SmartTV-Viewer` | `false` | 裝置偵測 |
+| `X-Amz-Cf-Id` | 編碼 ID | CloudFront 請求識別碼 |
+
+### Fastly 標頭
+
+| 標頭 | 值 | 用途 |
+|---|---|---|
+| `Fastly-Client-IP` | 用戶端 IP | 真實用戶端 IP |
+| `Fastly-SSL` | `1` | 連線使用 TLS |
+| `Fastly-Client` | `1` | 面向用戶端的請求（非 shield） |
+| `Fastly-FF` | `cache-sjc3120-SJC` | 快取節點識別 |
+| `X-Geo-Country-Code` | `US` | 國家（VCL 變數慣例） |
+| `X-Geo-Country-Code3` | `USA` | 三字母國家代碼 |
+| `X-Geo-Country-Name` | `United States` | 完整國家名稱 |
+| `X-Geo-City` | `San Jose` | 用戶端城市 |
+| `X-Geo-Region` | `CA` | 地區代碼 |
+| `X-Geo-Continent-Code` | `NA` | 大洲 |
+| `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | 地理位置 |
+| `X-Geo-Postal-Code` | `95113` | 郵遞區號 |
+| `X-Geo-Metro-Code` | `807` | 美國都會區代碼 |
+| `X-Geo-ASN` | `7018` | 自治系統編號 |
+| `X-Geo-Conn-Speed` | `broadband` | 連線速度類別 |
+| `X-Geo-Conn-Type` | `wired` | 連線類型 |
+
+### Azure Front Door 標頭
+
+| 標頭 | 值 | 用途 |
+|---|---|---|
+| `X-Azure-ClientIP` | 用戶端 IP | 用戶端 IP 位址 |
+| `X-Azure-SocketIP` | 用戶端 IP | TCP socket 來源 IP |
+| `X-Azure-Ref` | 編碼參考字串 | 用於疑難排解的唯一請求參考 |
+| `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | Front Door 資源識別碼 |
+| `X-Azure-RequestChain` | `hops=1` | 迴圈偵測跳數 |
+
+### 回應標頭（加入至用戶端回應）
+
+| 標頭 | 值 | 用途 |
+|---|---|---|
+| `X-Cache-Status` | `HIT`、`MISS`、`EXPIRED`、`STALE`、`UPDATING` | 此請求的快取行為 |
+| `X-CDN-Edge` | `cdn-simulator` | 識別此邊緣節點 |
+| `X-CDN-POP` | `SJC` | 模擬的服務據點 IATA 代碼 |
+| `X-Served-By` | `cache-sjc3120-SJC` | Fastly 格式的模擬快取節點 |
+| `X-Request-ID` | UUID（每個請求） | 唯一請求識別碼 |
+
+## 裝置偵測
+
+模擬器使用 NGINX `map` 指令從 `User-Agent` 標頭偵測裝置類型：
+
+- **行動裝置**：匹配 iPhone、Android（非平板）、iPod、BlackBerry、Opera Mini、IEMobile
+- **平板**：匹配 iPad、Android 平板、Kindle、PlayBook
+- **桌面**：當行動裝置和平板均未匹配時的預設值
+
+裝置類型反映在：
+- `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
+- `X-Akamai-Device-Characteristics`（`is_mobile`、`is_tablet`、`is_wireless_device` 欄位）
+
+## 營運操作
+
+### 變更源站伺服器
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Update upstream server
+sudo sed -i 's|server .*;|server NEW_HOST:80;|' /etc/nginx/conf.d/cdn-edge.conf
+
+# Clear cache and reload
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+或在 `terraform.tfvars` 中更新 `origin_host` 並執行 `terraform apply` 來重新佈建。
+
+### 清除快取
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo systemctl reload nginx
+```
+
+### 檢查快取統計
+
+```bash
+# Object count and disk usage
+sudo find /var/cache/nginx/cdn -type f | wc -l
+sudo du -sh /var/cache/nginx/cdn
+
+# Recent access log with cache status
+tail -20 /var/log/nginx/access.log
+```
+
+### 負載下的監控
+
+```bash
+# Real-time connections and socket states
+ss -s
+
+# NGINX worker CPU usage
+top -bn1 | grep nginx
+
+# Upstream keepalive connections
+ss -tn state established dst <ORIGIN_IP> | wc -l
+
+# TIME_WAIT socket count
+ss -tn state time-wait | wc -l
+```
+
+## 效能基準測試結果
+
+在 48 小時持續負載測試中驗證：
+
+| 指標 | 值 |
+|---|---|
+| 峰值吞吐量（已快取） | 172,540 req/s |
+| 持續吞吐量（已快取） | 85,000-103,000 req/s |
+| 峰值連線數 | 15,000 並行 |
+| 快取命中率 | 100%（預熱後） |
+| 負載下記憶體 | 1.2 GB 穩定（16 GB 的 8%） |
+| 峰值 CPU | 100%（4 核心——CPU 為瓶頸） |
+| 48 小時測試期間錯誤數 | 0 |
+| 記憶體洩漏 | 未偵測到 |
+| 連線洩漏 | 未偵測到 |

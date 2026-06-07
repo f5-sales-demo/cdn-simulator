@@ -1,0 +1,79 @@
+---
+title: पूर्वापेक्षाएँ
+description: >-
+  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
+  permissions, and Azure AD requirements for deploying the performance-optimized
+  CDN edge node VM
+sidebar:
+  order: 2
+i18n:
+  sourceHash: fafd7c61e178
+  translator: machine
+---
+
+## आवश्यक
+
+### Azure सब्सक्रिप्शन
+
+एक सक्रिय Azure सब्सक्रिप्शन जिसमें निम्नलिखित बनाने की अनुमति हो:
+
+- रिसोर्स ग्रुप
+- वर्चुअल नेटवर्क और सबनेट
+- नेटवर्क सिक्योरिटी ग्रुप
+- पब्लिक IP एड्रेस
+- वर्चुअल मशीन
+
+### Azure CLI
+
+Azure CLI इंस्टॉल और प्रमाणित करें:
+
+```bash
+# Install (if not present)
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Authenticate
+az login
+
+# Verify subscription
+az account show --query '{name:name, id:id}' -o table
+```
+
+### Terraform
+
+Terraform >= 1.5 आवश्यक है:
+
+```bash
+# Verify installation
+terraform version
+
+# If not installed, use HashiCorp's APT repository
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+```
+
+### SSH कुंजी जोड़ी
+
+VM एक्सेस के लिए एक SSH कुंजी जोड़ी:
+
+```bash
+# Generate if you don't have one
+ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
+```
+
+### Azure AD अनुमतियाँ
+
+आपके Azure AD खाते में `User.Read` अनुमतियाँ होनी चाहिए। डिप्लॉयर पहचानकर्ता (जो रिसोर्स नामकरण में उपयोग किया जाता है) आपकी Azure AD प्रोफ़ाइल से स्वचालित रूप से प्राप्त होता है। सर्विस प्रिंसिपल या मैनेज्ड आइडेंटिटी प्रमाणीकरण के लिए, `deployer` Terraform वेरिएबल को स्पष्ट रूप से सेट करें।
+
+## वैकल्पिक
+
+### कस्टम डोमेन
+
+यदि आप स्व-हस्ताक्षरित के बजाय वास्तविक TLS प्रमाणपत्र चाहते हैं:
+
+- DNS नियंत्रण वाला एक डोमेन नाम
+- Azure Public IP की ओर इंगित करने वाले A रिकॉर्ड बनाने की क्षमता
+
+### ऑरिजिन सर्वर URL
+
+F5 XC HTTP लोड बैलेंसर का URL जिस पर यह एज नोड ट्रैफ़िक फॉरवर्ड करेगा। इसे डिप्लॉयमेंट के बाद कॉन्फ़िगर किया जा सकता है — डिफ़ॉल्ट NGINX कॉन्फ़िग एक प्लेसहोल्डर का उपयोग करता है जिसे आप NGINX कॉन्फ़िगरेशन में अपडेट करते हैं।

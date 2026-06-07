@@ -1,0 +1,211 @@
+---
+title: Integrazione con il Server di Origine
+description: >-
+  Connect the CDN edge to the origin-server lab component (direct integration),
+  discover applications via the published endpoint manifest, verify end-to-end
+  traffic flow with header inspection and log correlation. Covers both direct
+  origin and future F5 XC insertion architectures.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 7e12e7a4634c
+  translator: machine
+---
+
+Questa pagina copre due fasi di integrazione:
+
+1. **Integrazione diretta** — il CDN edge inoltra direttamente al server di origine (test di base)
+2. **Inserimento F5 XC** — il bilanciatore di carico HTTP F5 XC viene inserito tra il CDN e il server di origine (demo di sicurezza)
+
+Iniziare con l'integrazione diretta per stabilire la base di riferimento, quindi inserire F5 XC quando pronti.
+
+## Riferimento del Server di Origine
+
+Il componente lab [origin-server](https://f5xc-salesdemos.github.io/origin-server/) fornisce applicazioni web vulnerabili per i test di sicurezza.
+
+| Proprietà | Valore |
+|---|---|
+| Documentazione | [f5xc-salesdemos.github.io/origin-server](https://f5xc-salesdemos.github.io/origin-server/) |
+| Repository | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
+| Porta predefinita | 80 |
+| Controllo di integrità | `GET /health` |
+
+### Applicazioni Disponibili
+
+Recuperare il catalogo attuale delle applicazioni dal manifesto pubblicato dell'origin-server:
+
+```bash
+MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
+  | python3 -c "import sys,json; assets=json.load(sys.stdin).get('assets',[]); print(next((a['browser_download_url'] for a in assets if a['name']=='manifest.json'),''))")
+curl -sf "$MANIFEST_URL" | python3 -m json.tool
+```
+
+Se non esiste ancora alcuna release, utilizzare direttamente il sorgente del repository:
+
+```bash
+curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
+```
+
+Il manifesto elenca tutti i percorsi delle applicazioni, i controlli di integrità, le immagini dei container e le mappature delle funzionalità demo.
+
+### Percorsi delle Applicazioni
+
+| Percorso | Applicazione | Funzionalità Demo |
+|---|---|---|
+| `/` | Pagina di destinazione | — |
+| `/health` | Controllo di integrità | — |
+| `/juice-shop/` | OWASP Juice Shop | WAF, Bot Defense, API Security |
+| `/dvwa/` | DVWA | WAF, Bot Defense |
+| `/vampi/` | VAmPI | API Security |
+| `/httpbin/` | httpbin | Diagnostica |
+| `/whoami/` | whoami | Verifica degli header |
+| `/csd-demo/` | CSD Demo | Client-Side Defense |
+
+## Fase 1: Integrazione Diretta (Base di Riferimento)
+
+```
+┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
+│           │     │  20.65.90.112        │     │  20.12.78.159       │
+└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
+                 │  Disk cache           │     │  VAmPI, httpbin,    │
+                 └──────────────────────┘     │  whoami, CSD Demo   │
+                                              └─────────────────────┘
+```
+
+### Configurare l'Origine
+
+Impostare l'IP del server di origine nella configurazione NGINX del CDN edge:
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass http://<ORIGIN_IP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Oppure impostarlo al momento del deploy Terraform tramite `terraform.tfvars`:
+
+```hcl
+origin_server = "http://<ORIGIN_IP>"
+```
+
+### Verificare Tutte le Applicazioni
+
+Testare ogni applicazione di origine attraverso il CDN:
+
+```bash
+CDN=<CDN_EDGE_IP>
+
+# Health check (CDN locale)
+curl -sf "http://$CDN/health" | python3 -m json.tool
+
+# Pagina di destinazione
+curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
+
+# Juice Shop
+curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
+
+# DVWA (segue il redirect al login)
+curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
+
+# VAmPI API
+curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
+
+# httpbin headers (mostra gli header CDN in JSON)
+curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
+
+# whoami (mostra TUTTI gli header ricevuti dal server di origine)
+curl -sf "http://$CDN/whoami/"
+
+# CSD Demo
+curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
+```
+
+Tutti i percorsi dovrebbero restituire HTTP 200 (DVWA restituisce 302 e poi 200 seguendo il redirect).
+
+### Verificare gli Header CDN sul Server di Origine
+
+L'endpoint `/whoami/` mostra ogni header ricevuto dal server di origine. Quando si accede attraverso il CDN, vengono visualizzati tutti i 67+ header dei vendor:
+
+```bash
+curl -sf "http://$CDN/whoami/"
+```
+
+Verificare che siano presenti questi header chiave:
+
+| Vendor | Header | Valore Atteso |
+|---|---|---|
+| Standard | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
+| Akamai | `True-Client-Ip` | `<your_ip>` |
+| Cloudflare | `Cf-Connecting-Ip` | `<your_ip>` |
+| CloudFront | `Cloudfront-Viewer-Country` | `US` |
+| Fastly | `Fastly-Client-Ip` | `<your_ip>` |
+| Azure FD | `X-Azure-Clientip` | `<your_ip>` |
+
+### Correlazione Incrociata dei Log
+
+Confrontare i log di accesso su entrambi i server per verificare il flusso del traffico:
+
+```bash
+# Log del CDN edge — mostra l'IP del vostro client come sorgente
+ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
+
+# Log del server di origine — mostra l'IP del CDN edge come sorgente
+ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
+```
+
+Il log del server di origine dovrebbe mostrare l'IP del CDN edge come client connesso, mentre l'IP reale del client è trasportato negli header `X-Forwarded-For` e negli header specifici del vendor.
+
+### Comportamento della Cache
+
+```bash
+# Prima richiesta — MISS (recuperata dal server di origine)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+
+# Seconda richiesta — HIT (servita dalla cache CDN)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+```
+
+## Fase 2: Inserimento F5 XC (Demo di Sicurezza)
+
+Dopo i test di base, inserire un bilanciatore di carico HTTP F5 XC tra il CDN e il server di origine:
+
+```
+┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
+│           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
+└──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
+```
+
+1. **Creare il bilanciatore di carico HTTP F5 XC** con il server di origine nel suo pool di origini
+2. **Aggiornare il CDN edge** per puntare al VIP F5 XC invece che direttamente al server di origine:
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass https://<F5XC_LB_VIP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+3. **Verificare l'applicazione del WAF** attraverso l'intera catena:
+
+```bash
+# SQL injection attraverso il CDN → il WAF F5 XC dovrebbe bloccare
+curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
+
+# La richiesta normale dovrebbe passare
+curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
+```
+
+4. **Configurare l'Header IP Client Affidabile** in F5 XC per leggere l'IP reale del client dagli header CDN (ad esempio, `True-Client-IP` per la simulazione Akamai, `CF-Connecting-IP` per la simulazione Cloudflare)
+
+## Architettura Multi-Componente
+
+| Componente | Repository | Scopo |
+|---|---|---|
+| **CDN Edge** (questo) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | Caching, header dei vendor |
+| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | Applicazioni web vulnerabili |
+| **Configurazione F5 XC** | Vari (waf, api-protection, bot-*, ecc.) | Policy di sicurezza |
+
+Ogni componente pubblica documentazione che gli assistenti AI leggono per distribuire l'infrastruttura. L'origin-server pubblica un [manifesto degli endpoint](https://github.com/f5xc-salesdemos/origin-server/releases/latest) come artefatto di una GitHub Release che elenca tutti i percorsi delle applicazioni e i controlli di integrità.

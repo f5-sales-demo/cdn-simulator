@@ -1,0 +1,139 @@
+---
+title: ภาพรวม
+description: >-
+  Architecture, endpoints, vendor header simulation, and modular design of the
+  NGINX-based CDN edge node simulator deployed on Ubuntu 24.04 in Azure
+sidebar:
+  order: 1
+i18n:
+  sourceHash: f7a6771523b7
+  translator: machine
+---
+
+## วัตถุประสงค์
+
+คอมโพเนนต์นี้จำลอง CDN edge node สำหรับสภาพแวดล้อมแล็บและการสาธิต โดยทำหน้าที่แทนบทบาทที่ผู้ให้บริการอย่าง Akamai, Cloudflare, Amazon CloudFront หรือ Fastly มีในสถาปัตยกรรมเครือข่ายของลูกค้า — ชั้นแคชที่อยู่ใกล้กับผู้ใช้ปลายทางมากที่สุดซึ่งวางอยู่หน้า origin server
+
+ในสถาปัตยกรรมแบบหลายผู้ให้บริการในระบบโปรดักชัน ลูกค้ามักจะใช้ CDN ของบุคคลที่สามร่วมกับ F5 Distributed Cloud:
+
+```
+End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
+```
+
+ตัวจำลองนี้แทนที่ CDN เชิงพาณิชย์ด้วย edge node ที่ใช้ NGINX เพื่อให้สามารถสาธิตและทดสอบการเชื่อมต่อได้โดยไม่ต้องมีสัญญากับผู้ให้บริการหรือโครงสร้างพื้นฐานโปรดักชัน
+
+## สถาปัตยกรรม
+
+```
+┌─────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌────────────┐
+│  Client  │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB  │────▶│ Origin App │
+│          │     │  Ubuntu 24.04 Azure  │     │  (Origin Server) │     │            │
+└─────────┘     │  - TLS termination   │     └─────────────────┘     └────────────┘
+                │  - Disk-based cache  │
+                │  - X-Cache-Status    │
+                └──────────────────────┘
+```
+
+NGINX edge node:
+
+- **ยุติ TLS** ที่ edge (self-signed หรือ Let's Encrypt)
+- **แคชการตอบกลับ** บนดิสก์โดยใช้ `proxy_cache_path`
+- **ส่งต่อ cache miss** ไปยัง origin server ที่กำหนดค่าได้ (F5 XC HTTP load balancer VIP)
+- **รายงานสถานะแคช** ผ่าน response header `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
+
+## สิ่งที่จำลอง
+
+| ฟังก์ชัน CDN | การใช้งาน NGINX |
+|---|---|
+| Edge caching | `proxy_cache` พร้อมที่เก็บข้อมูลบนดิสก์ |
+| การสร้าง cache key | `proxy_cache_key` อิงจาก scheme, host และ URI |
+| Origin pull | `proxy_pass` ไปยัง F5 XC HTTP load balancer |
+| การยุติ TLS | NGINX directive `ssl_certificate` |
+| การเคารพ Cache-Control | `proxy_cache_valid` พร้อม origin header passthrough |
+| การรายงานสถานะแคช | `add_header X-Cache-Status $upstream_cache_status` |
+| Health endpoint | location `/health` ที่ส่งคืน 200 OK |
+
+## Endpoint และพฤติกรรม Request/Response
+
+### Health Check
+
+```
+GET /health
+```
+
+การตอบกลับ (200 OK, `Content-Type: application/json`):
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": ["akamai", "cloudflare", "cloudfront", "fastly", "azure-front-door"]
+}
+```
+
+### CDN Proxy (เส้นทางอื่นทั้งหมด)
+
+```
+GET /<any-path>
+```
+
+Request header ที่ถูกเพิ่มเมื่อส่งไปยัง origin (67+ header จาก 5 ผู้ให้บริการ):
+
+| หมวดหมู่ | Header ที่เพิ่ม |
+|---|---|
+| Client IP | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
+| ตำแหน่งทางภูมิศาสตร์ | `X-Akamai-Edgescape` (compound), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
+| การตรวจจับอุปกรณ์ | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
+| TLS/Fingerprint | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
+| การตรวจจับบอต | `cf-bot-score` (85 = น่าจะเป็นมนุษย์), `cf-verified-bot` |
+| การติดตาม Request | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
+| ตัวระบุ Edge | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
+| มาตรฐาน | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
+
+Response header ที่เพิ่มในทุก proxied response:
+
+| Header | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | พฤติกรรมแคชสำหรับ request นี้ |
+| `X-CDN-Edge` | `cdn-simulator` | ระบุ edge node นี้ |
+| `X-CDN-POP` | `SJC` | รหัส IATA ของ Point of Presence ที่จำลอง |
+| `X-Served-By` | `cache-sjc3120-SJC` | cache node ที่จำลองในรูปแบบ Fastly |
+| `X-Request-ID` | UUID (ต่อ request) | ตัวระบุ request ที่ไม่ซ้ำกัน |
+
+### พฤติกรรมแคช
+
+- Request แรกไปยังเส้นทางใดๆ: `X-Cache-Status: MISS` (ดึงจาก origin แล้วถูกแคชไว้)
+- Request ที่เหมือนกันในครั้งถัดไป: `X-Cache-Status: HIT` (ให้บริการจากแคชบนดิสก์)
+- Cache key: `$scheme$host$request_uri` (scheme + hostname + เส้นทางเต็ม + query string)
+- Cache TTL: 10 นาทีสำหรับ 200/301/302, 1 นาทีสำหรับ 404
+- การให้บริการแบบ stale: ส่งคืนเนื้อหาที่แคชไว้เมื่อ origin เกิดข้อผิดพลาด (500/502/503/504)
+
+### การเข้าถึง VM
+
+| วิธีการเข้าถึง | คำสั่ง/เส้นทาง |
+|---|---|
+| SSH | `ssh azureuser@<PUBLIC_IP>` |
+| การกำหนดค่า NGINX | `/etc/nginx/conf.d/cdn-edge.conf` |
+| ล็อก NGINX | `/var/log/nginx/access.log` และ `/var/log/nginx/error.log` |
+| ไดเรกทอรีแคช | `/var/cache/nginx/cdn/` |
+| ล็อก Cloud-init | `/var/log/cloud-init-output.log` |
+
+## การออกแบบคอมโพเนนต์แบบโมดูลาร์
+
+นี่คือส่วนหนึ่งของสภาพแวดล้อมแล็บที่ใหญ่กว่า แต่ละคอมโพเนนต์เป็นหน่วยอิสระและถูก deploy แยกจากกัน:
+
+- **คอมโพเนนต์นี้** ให้บริการ CDN edge (NGINX บน Azure VM)
+- **คอมโพเนนต์อื่นๆ** ให้บริการ origin application, การกำหนดค่า F5 XC, DNS, นโยบาย WAF เป็นต้น
+
+ผู้ดำเนินการเพิ่มคอมโพเนนต์ทีละรายการ เอกสารของแต่ละคอมโพเนนต์ถูกเขียนขึ้นเพื่อให้ AI assistant สามารถอ่านและ deploy โครงสร้างพื้นฐานได้อย่างอัตโนมัติ
+
+## ทำไมจึงเลือก NGINX
+
+NGINX ถูกเลือกเป็นเอนจินจำลอง CDN เนื่องจาก:
+
+1. **ผลิตภัณฑ์ของ F5** — F5 เข้าซื้อ NGINX Inc. ในปี 2019; เป็นส่วนหนึ่งของพอร์ตโฟลิโอ F5
+2. **พิสูจน์แล้วในอุตสาหกรรม** — Cloudflare ใช้ NGINX สำหรับ CDN ทั้งหมดของพวกเขามานานกว่าทศวรรษก่อนที่จะย้ายไปยัง Pingora; Netflix ใช้ NGINX สำหรับ Open Connect CDN ของพวกเขา
+3. **โปรเซสเดียว** — จัดการการยุติ TLS และแคชใน binary เดียว ไม่เหมือน Varnish ที่ต้องใช้ TLS proxy แยกต่างหาก
+4. **Deploy ง่าย** — `apt install nginx` บน Ubuntu 24.04, directive เพียงสองตัวเปิดใช้งานแคช
+5. **มีเอกสารครบถ้วน** — เอกสารอย่างเป็นทางการที่ครอบคลุมสำหรับ content caching และการกำหนดค่า reverse proxy

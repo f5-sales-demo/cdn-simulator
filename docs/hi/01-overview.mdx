@@ -1,0 +1,139 @@
+---
+title: अवलोकन
+description: >-
+  Architecture, endpoints, vendor header simulation, and modular design of the
+  NGINX-based CDN edge node simulator deployed on Ubuntu 24.04 in Azure
+sidebar:
+  order: 1
+i18n:
+  sourceHash: f7a6771523b7
+  translator: machine
+---
+
+## उद्देश्य
+
+यह कंपोनेंट लैब और डेमो वातावरणों के लिए एक CDN एज नोड का अनुकरण करता है। यह उस भूमिका का प्रतिनिधित्व करता है जो Akamai, Cloudflare, Amazon CloudFront, या Fastly जैसे वेंडर किसी ग्राहक के नेटवर्क आर्किटेक्चर में निभाते हैं — अंतिम उपयोगकर्ताओं के सबसे निकट स्थित कैशिंग लेयर जो ओरिजिन सर्वर के सामने बैठती है।
+
+प्रोडक्शन मल्टी-वेंडर आर्किटेक्चर में, ग्राहक आमतौर पर एक तृतीय-पक्ष CDN को F5 Distributed Cloud के साथ जोड़ते हैं:
+
+```
+End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
+```
+
+यह सिम्युलेटर कमर्शियल CDN को NGINX-आधारित एज नोड से प्रतिस्थापित करता है ताकि वेंडर कॉन्ट्रैक्ट या प्रोडक्शन इन्फ्रास्ट्रक्चर के बिना इंटीग्रेशन का प्रदर्शन और परीक्षण किया जा सके।
+
+## आर्किटेक्चर
+
+```
+┌─────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌────────────┐
+│  Client  │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB  │────▶│ Origin App │
+│          │     │  Ubuntu 24.04 Azure  │     │  (Origin Server) │     │            │
+└─────────┘     │  - TLS termination   │     └─────────────────┘     └────────────┘
+                │  - Disk-based cache  │
+                │  - X-Cache-Status    │
+                └──────────────────────┘
+```
+
+NGINX एज नोड:
+
+- **एज पर TLS समाप्त करता है** (स्व-हस्ताक्षरित या Let's Encrypt)
+- **डिस्क पर प्रतिक्रियाएँ कैश करता है** `proxy_cache_path` का उपयोग करके
+- **कैश मिस को अग्रेषित करता है** एक कॉन्फ़िगर करने योग्य ओरिजिन सर्वर (F5 XC HTTP लोड बैलेंसर VIP) को
+- **कैश स्थिति की रिपोर्ट करता है** `X-Cache-Status` रिस्पॉन्स हेडर (`HIT`, `MISS`, `BYPASS`, `EXPIRED`) के माध्यम से
+
+## यह क्या अनुकरण करता है
+
+| CDN कार्य | NGINX कार्यान्वयन |
+|---|---|
+| एज कैशिंग | डिस्क-आधारित स्टोरेज के साथ `proxy_cache` |
+| कैश कुंजी जनरेशन | स्कीम, होस्ट और URI पर आधारित `proxy_cache_key` |
+| ओरिजिन पुल | F5 XC HTTP लोड बैलेंसर को `proxy_pass` |
+| TLS समाप्ति | NGINX `ssl_certificate` डायरेक्टिव |
+| Cache-Control सम्मान | ओरिजिन हेडर पासथ्रू के साथ `proxy_cache_valid` |
+| कैश स्थिति रिपोर्टिंग | `add_header X-Cache-Status $upstream_cache_status` |
+| हेल्थ एंडपॉइंट | 200 OK लौटाने वाला `/health` लोकेशन |
+
+## एंडपॉइंट और अनुरोध/प्रतिक्रिया व्यवहार
+
+### हेल्थ चेक
+
+```
+GET /health
+```
+
+प्रतिक्रिया (200 OK, `Content-Type: application/json`):
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": ["akamai", "cloudflare", "cloudfront", "fastly", "azure-front-door"]
+}
+```
+
+### CDN प्रॉक्सी (अन्य सभी पथ)
+
+```
+GET /<any-path>
+```
+
+ओरिजिन की ओर इंजेक्ट किए गए अनुरोध हेडर (5 वेंडर से 67+ हेडर):
+
+| श्रेणी | जोड़े गए हेडर |
+|---|---|
+| क्लाइंट IP | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
+| जियोलोकेशन | `X-Akamai-Edgescape` (संयुक्त), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
+| डिवाइस डिटेक्शन | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
+| TLS/फिंगरप्रिंट | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
+| बॉट डिटेक्शन | `cf-bot-score` (85 = संभवतः मानव), `cf-verified-bot` |
+| अनुरोध ट्रेसिंग | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
+| एज पहचान | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
+| मानक | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
+
+प्रत्येक प्रॉक्सी की गई प्रतिक्रिया में जोड़े गए रिस्पॉन्स हेडर:
+
+| हेडर | मान | उद्देश्य |
+|---|---|---|
+| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | इस अनुरोध के लिए कैश व्यवहार |
+| `X-CDN-Edge` | `cdn-simulator` | इस एज नोड की पहचान |
+| `X-CDN-POP` | `SJC` | अनुकरित Point of Presence IATA कोड |
+| `X-Served-By` | `cache-sjc3120-SJC` | Fastly प्रारूप में अनुकरित कैश नोड |
+| `X-Request-ID` | UUID (प्रति-अनुरोध) | अद्वितीय अनुरोध पहचानकर्ता |
+
+### कैश व्यवहार
+
+- किसी भी पथ पर पहला अनुरोध: `X-Cache-Status: MISS` (ओरिजिन से प्राप्त, अब कैश किया गया)
+- बाद के समान अनुरोध: `X-Cache-Status: HIT` (डिस्क कैश से सर्व किया गया)
+- कैश कुंजी: `$scheme$host$request_uri` (स्कीम + होस्टनाम + पूर्ण पथ + क्वेरी स्ट्रिंग)
+- कैश TTL: 200/301/302 के लिए 10 मिनट, 404 के लिए 1 मिनट
+- स्टेल सर्विंग: ओरिजिन त्रुटियों (500/502/503/504) पर कैश की गई सामग्री लौटाता है
+
+### VM एक्सेस
+
+| एक्सेस विधि | कमांड/पथ |
+|---|---|
+| SSH | `ssh azureuser@<PUBLIC_IP>` |
+| NGINX कॉन्फ़िग | `/etc/nginx/conf.d/cdn-edge.conf` |
+| NGINX लॉग | `/var/log/nginx/access.log` और `/var/log/nginx/error.log` |
+| कैश डायरेक्टरी | `/var/cache/nginx/cdn/` |
+| Cloud-init लॉग | `/var/log/cloud-init-output.log` |
+
+## मॉड्यूलर कंपोनेंट डिज़ाइन
+
+यह एक बड़े लैब वातावरण का एक हिस्सा है। प्रत्येक कंपोनेंट स्व-निहित है और स्वतंत्र रूप से डिप्लॉय किया जाता है:
+
+- **यह कंपोनेंट** CDN एज प्रदान करता है (Azure VM पर NGINX)
+- **अन्य कंपोनेंट** ओरिजिन एप्लिकेशन, F5 XC कॉन्फ़िगरेशन, DNS, WAF नीतियाँ, आदि प्रदान करते हैं
+
+मानव ऑपरेटर एक बार में एक कंपोनेंट जोड़ता है। प्रत्येक कंपोनेंट का दस्तावेज़ीकरण इस प्रकार लिखा गया है कि एक AI सहायक इसे पढ़ सके और इन्फ्रास्ट्रक्चर को स्वायत्त रूप से डिप्लॉय कर सके।
+
+## NGINX क्यों
+
+NGINX को CDN सिमुलेशन इंजन के रूप में इसलिए चुना गया क्योंकि:
+
+1. **F5 उत्पाद** — F5 ने 2019 में NGINX Inc. का अधिग्रहण किया; यह F5 पोर्टफोलियो का हिस्सा है
+2. **उद्योग में सिद्ध** — Cloudflare ने Pingora में माइग्रेट करने से पहले एक दशक से अधिक समय तक अपना पूरा CDN NGINX पर चलाया; Netflix अपने Open Connect CDN के लिए NGINX का उपयोग करता है
+3. **एकल प्रक्रिया** — एक बाइनरी में TLS समाप्ति और कैशिंग को संभालता है, Varnish के विपरीत जिसे एक अलग TLS प्रॉक्सी की आवश्यकता होती है
+4. **सरल डिप्लॉयमेंट** — Ubuntu 24.04 पर `apt install nginx`, दो डायरेक्टिव कैशिंग सक्षम करते हैं
+5. **अच्छी तरह से प्रलेखित** — कंटेंट कैशिंग और रिवर्स प्रॉक्सी कॉन्फ़िगरेशन के लिए व्यापक आधिकारिक दस्तावेज़ीकरण

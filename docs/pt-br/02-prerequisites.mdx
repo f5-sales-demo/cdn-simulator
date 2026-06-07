@@ -1,0 +1,79 @@
+---
+title: Pré-requisitos
+description: >-
+  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
+  permissions, and Azure AD requirements for deploying the performance-optimized
+  CDN edge node VM
+sidebar:
+  order: 2
+i18n:
+  sourceHash: fafd7c61e178
+  translator: machine
+---
+
+## Obrigatórios
+
+### Assinatura do Azure
+
+Uma assinatura ativa do Azure com permissão para criar:
+
+- Grupos de recursos
+- Redes virtuais e sub-redes
+- Grupos de segurança de rede
+- Endereços IP públicos
+- Máquinas virtuais
+
+### Azure CLI
+
+Instale e autentique o Azure CLI:
+
+```bash
+# Install (if not present)
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Authenticate
+az login
+
+# Verify subscription
+az account show --query '{name:name, id:id}' -o table
+```
+
+### Terraform
+
+Terraform >= 1.5 é obrigatório:
+
+```bash
+# Verify installation
+terraform version
+
+# If not installed, use HashiCorp's APT repository
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+```
+
+### Par de Chaves SSH
+
+Um par de chaves SSH para acesso à VM:
+
+```bash
+# Generate if you don't have one
+ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
+```
+
+### Permissões do Azure AD
+
+Sua conta do Azure AD deve ter permissões `User.Read`. O identificador do implantador (usado na nomenclatura de recursos) é derivado automaticamente do seu perfil do Azure AD. Para autenticação com service principal ou identidade gerenciada, defina a variável Terraform `deployer` explicitamente.
+
+## Opcionais
+
+### Domínio Personalizado
+
+Se você deseja certificados TLS reais em vez de autoassinados:
+
+- Um nome de domínio com controle de DNS
+- Capacidade de criar registros A apontando para o IP Público do Azure
+
+### URL do Servidor de Origem
+
+A URL do balanceador de carga HTTP do F5 XC para o qual este nó de borda encaminhará o tráfego. Isso pode ser configurado após a implantação — a configuração padrão do NGINX usa um valor de espaço reservado que você atualiza na configuração do NGINX.

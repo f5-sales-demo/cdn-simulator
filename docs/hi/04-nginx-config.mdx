@@ -1,0 +1,396 @@
+---
+title: NGINX कॉन्फ़िगरेशन
+description: >-
+  Production-optimized NGINX configuration reference — performance tuning
+  (kernel, buffers, keepalive, gzip, open_file_cache), 25 GB disk cache with
+  thundering herd prevention, upstream keepalive pool, 67+ CDN vendor headers
+  from Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door, and device
+  detection. Verified under 48-hour load test at 170K req/s peak.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: 0a5211740122
+  translator: machine
+---
+
+cloud-init प्रोविज़निंग एक पूरी तरह से प्रदर्शन-अनुकूलित NGINX CDN एज कॉन्फ़िगरेशन डिप्लॉय करता है। यह पेज कर्नल ट्यूनिंग से लेकर कैश व्यवहार और वेंडर हेडर इंजेक्शन तक, हर कॉन्फ़िगरेशन लेयर का दस्तावेज़ीकरण करता है। सभी सेटिंग्स 48 घंटे के निरंतर लोड टेस्ट में 172,540 req/s पीक पर सत्यापित की गई थीं।
+
+## कॉन्फ़िगरेशन फ़ाइलें
+
+| फ़ाइल | उद्देश्य |
+|---|---|
+| `/etc/sysctl.d/99-cdn-tuning.conf` | Linux कर्नल नेटवर्क ट्यूनिंग |
+| `/etc/systemd/system/nginx.service.d/override.conf` | NGINX के लिए फ़ाइल डिस्क्रिप्टर सीमाएँ |
+| `/etc/security/limits.d/99-nginx.conf` | www-data उपयोगकर्ता के लिए OS-स्तरीय सीमाएँ |
+| `/etc/nginx/nginx.conf` | NGINX मुख्य कॉन्फ़िग (workers, buffers, gzip, logging) |
+| `/etc/nginx/conf.d/cdn-edge.conf` | CDN प्रॉक्सी कॉन्फ़िग (cache, upstream, headers) |
+
+## कर्नल ट्यूनिंग
+
+बूट समय पर `/etc/sysctl.d/99-cdn-tuning.conf` के माध्यम से लागू।
+
+| पैरामीटर | मान | डिफ़ॉल्ट | उद्देश्य |
+|---|---|---|---|
+| `net.core.somaxconn` | 65535 | 4096 | लिसन बैकलॉग क्यू आकार |
+| `net.core.netdev_max_backlog` | 65535 | 1000 | प्रति-CPU इनकमिंग पैकेट बैकलॉग |
+| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | SYN अनुरोध क्यू (बर्स्ट के दौरान ड्रॉप रोकता है) |
+| `net.ipv4.tcp_tw_reuse` | 1 | 2 | आउटगोइंग कनेक्शन के लिए TIME_WAIT सॉकेट पुनः उपयोग |
+| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | एफ़ेमरल पोर्ट रेंज (64K बनाम 28K) |
+| `net.core.rmem_max` | 16 MB | 212 KB | अधिकतम रिसीव सॉकेट बफ़र |
+| `net.core.wmem_max` | 16 MB | 212 KB | अधिकतम सेंड सॉकेट बफ़र |
+| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | प्रति-सॉकेट रिसीव बफ़र (न्यूनतम/डिफ़ॉल्ट/अधिकतम) |
+| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | प्रति-सॉकेट सेंड बफ़र (न्यूनतम/डिफ़ॉल्ट/अधिकतम) |
+| `net.ipv4.tcp_fin_timeout` | 15 | 60 | FIN_WAIT_2 टाइमआउट (तेज़ सॉकेट क्लीनअप) |
+| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | 5 मिनट निष्क्रिय के बाद keepalive प्रोब शुरू करें |
+| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | निष्क्रिय कनेक्शन पर कंजेशन विंडो गर्म रखें |
+| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | अधिकतम TIME_WAIT सॉकेट |
+| `fs.file-max` | 2097152 | भिन्न-भिन्न | सिस्टम-व्यापी फ़ाइल डिस्क्रिप्टर सीमा |
+| `vm.swappiness` | 10 | 60 | कैश डेटा के लिए swap की बजाय RAM को प्राथमिकता |
+
+## NGINX मुख्य कॉन्फ़िग
+
+### वर्कर्स और कनेक्शन
+
+```nginx
+worker_processes auto;           # 4 workers on D4s_v5 (1 per vCPU)
+worker_rlimit_nofile 65535;      # Per-worker file descriptor limit
+
+events {
+    use epoll;                   # Linux-optimized event model
+    worker_connections 8192;     # 4 workers x 8192 = 32,768 max concurrent
+    multi_accept on;             # Accept all pending connections per event loop
+    accept_mutex off;            # Not needed with epoll + reuseport
+}
+```
+
+`/etc/systemd/system/nginx.service.d/override.conf` पर Systemd ओवरराइड मिलान के लिए `LimitNOFILE=65535` सेट करता है।
+
+### प्रॉक्सी बफ़र्स
+
+```nginx
+proxy_buffering on;
+proxy_buffer_size 16k;           # Header buffer (handles large CDN headers)
+proxy_buffers 64 16k;            # 1 MB per connection (64 x 16k)
+proxy_busy_buffers_size 256k;    # Can send 256k to client while still reading
+```
+
+256k busy buffer आकार अत्यंत महत्वपूर्ण है — इसे सबसे बड़े कैश्ड रिस्पॉन्स से अधिक होना चाहिए (Juice Shop 75 KB है)। मूल 64k सेटिंग लोड के दौरान सीरियलाइज़ेशन का कारण बन रही थी।
+
+### Gzip कम्प्रेशन
+
+```nginx
+gzip on;
+gzip_comp_level 4;               # Balance: ~85% of max compression at ~40% CPU
+gzip_min_length 256;             # Skip tiny responses (gzip header overhead)
+gzip_vary on;                    # Vary: Accept-Encoding for correct caching
+gzip_proxied any;                # Compress all proxied responses
+gzip_types text/plain text/css text/javascript text/xml
+           application/json application/javascript application/xml
+           application/xml+rss application/atom+xml
+           application/ld+json application/manifest+json
+           image/svg+xml;
+```
+
+### ओपन फ़ाइल कैश
+
+```nginx
+open_file_cache max=200000 inactive=20s;
+open_file_cache_valid 30s;
+open_file_cache_min_uses 2;
+open_file_cache_errors on;
+```
+
+कैश्ड ऑब्जेक्ट्स के लिए फ़ाइल डिस्क्रिप्टर और मेटाडेटा कैश करता है, जो हॉट फ़ाइलों पर `stat()` और `open()` syscalls को समाप्त करता है।
+
+### क्लाइंट Keepalive
+
+```nginx
+keepalive_timeout 65;
+keepalive_requests 100000;       # Was 1000 — caused connection recycling at 90K req/s
+```
+
+90K req/s पर `keepalive_requests 1000` के साथ, कनेक्शन हर 11 सेकंड में रीसायकल हो रहे थे, जो TIME_WAIT सॉकेट उत्पन्न कर रहे थे। 100,000 तक बढ़ाने से यह पूरी तरह समाप्त हो गया।
+
+### एक्सेस लॉगिंग
+
+```nginx
+log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $upstream_cache_status $request_time';
+access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
+```
+
+`cdn` लॉग फ़ॉर्मेट में लेटेंसी विश्लेषण के लिए `$upstream_cache_status` (HIT/MISS) और `$request_time` शामिल हैं। बफ़र्ड लॉगिंग (256k/5s फ़्लश) उच्च लोड के दौरान I/O ओवरहेड कम करती है।
+
+## अपस्ट्रीम Keepalive
+
+```nginx
+upstream origin_backend {
+    server 20.12.78.159:80;
+    keepalive 256;               # Persistent connections per worker to origin
+    keepalive_timeout 60s;
+    keepalive_requests 1000;
+}
+```
+
+4 वर्कर्स x 256 keepalive = ऑरिजिन के लिए 1,024 वार्म कनेक्शन। `proxy_http_version 1.1` और `proxy_set_header Connection ""` के साथ मिलाकर, यह हर कैश मिस पर TCP हैंडशेक ओवरहेड को समाप्त करता है।
+
+## कैश कॉन्फ़िगरेशन
+
+### कैश पथ
+
+```nginx
+proxy_cache_path /var/cache/nginx/cdn
+                 levels=1:2
+                 keys_zone=cdn_cache:32m
+                 max_size=25g
+                 inactive=24h
+                 use_temp_path=off;
+```
+
+| पैरामीटर | मान | उद्देश्य |
+|---|---|---|
+| `keys_zone=cdn_cache:32m` | 32 MB शेयर्ड मेमोरी | ~256,000 कैश कुंजियाँ और मेटाडेटा संग्रहीत करता है |
+| `max_size=25g` | 25 GB डिस्क सीमा | 30 GB OS डिस्क का अधिकांश उपयोग करता है; सीमा पर LRU इविक्शन |
+| `inactive=24h` | 24 घंटे निष्क्रियता टाइमआउट | 24 घंटे तक एक्सेस न की गई सामग्री इविक्ट होती है (TTL के समान नहीं) |
+| `use_temp_path=off` | सीधे कैश डायरेक्टरी में लिखें | क्रॉस-फ़ाइलसिस्टम फ़ाइल मूव से बचता है |
+
+### कैश व्यवहार
+
+```nginx
+proxy_cache cdn_cache;
+proxy_cache_valid 200 301 302 4h;
+proxy_cache_valid 404 1m;
+proxy_cache_key "$scheme$host$request_uri";
+proxy_cache_lock on;
+proxy_cache_lock_age 3s;
+proxy_cache_lock_timeout 3s;
+proxy_cache_background_update on;
+proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
+proxy_ignore_headers Set-Cookie Cache-Control Expires Vary;
+
+proxy_hide_header X-Cache-Status;
+proxy_hide_header Vary;
+```
+
+| डायरेक्टिव | मान | उद्देश्य |
+|---|---|---|
+| `proxy_cache_valid 200 301 302 4h` | 4 घंटे TTL | कैश्ड सामग्री 4 घंटे के लिए वैध (रिफ़्रेश वेव थ्रूपुट डिप्स कम करने के लिए बढ़ाया गया) |
+| `proxy_cache_lock on` | थंडरिंग हर्ड रोकथाम | प्रति अनकैश्ड URL केवल 1 अनुरोध ऑरिजिन पर जाता है; अन्य कैश फ़िल की प्रतीक्षा करते हैं |
+| `proxy_cache_lock_age 3s` | लॉक टाइमआउट | यदि पहला अनुरोध 3 सेकंड में पूरा नहीं हुआ, तो दूसरे को अनुमति दें |
+| `proxy_cache_background_update on` | शून्य-लेटेंसी रिफ़्रेश | बैकग्राउंड में रिफ़्रेश करते हुए तुरंत स्टेल सामग्री प्रदान करता है |
+| `proxy_cache_use_stale` | लचीलापन | ऑरिजिन त्रुटियों (500/502/503/504) या अपडेट के दौरान स्टेल सामग्री प्रदान करता है |
+| `proxy_ignore_headers` | कैशिंग बाध्य करें | ऑरिजिन Set-Cookie, Cache-Control, Expires, Vary को अनदेखा करता है — CDN TTL और Vary व्यवहार तय करता है (Juice Shop `max-age=0` और ट्रिपल `Vary` हेडर भेजता है जो प्रभावी कैशिंग को रोकते थे) |
+| `proxy_hide_header X-Cache-Status` | ऑरिजिन हेडर हटाएँ | ऑरिजिन NGINX अपना X-Cache-Status जोड़ता है — इसे हटाएँ ताकि केवल CDN का कैश स्टेटस दिखे |
+| `proxy_hide_header Vary` | कैश फ़्रैग्मेंटेशन रोकें | ऑरिजिन कई `Vary: Accept-Encoding` हेडर भेजता है। इन्हें हटाने से `Accept-Encoding` क्रमपरिवर्तनों में कैश कुंजी फ़्रैग्मेंटेशन रुकता है। NGINX का `gzip_vary on` स्वचालित रूप से सही एकल `Vary` हेडर जोड़ता है |
+
+### प्रॉक्सी टाइमआउट
+
+```nginx
+proxy_read_timeout 30s;
+proxy_connect_timeout 10s;
+proxy_send_timeout 15s;
+```
+
+लोड के दौरान ऑरिजिन को अधिक रिस्पॉन्स समय देता है जबकि कनेक्शन समस्याओं पर तेज़ी से विफल होता है।
+
+### सर्वर ब्लॉक
+
+```nginx
+server {
+    listen 80 reuseport;        # Kernel distributes connections across all 4 workers
+    server_name _;
+}
+```
+
+`reuseport` `SO_REUSEPORT` सक्षम करता है — कर्नल इनकमिंग कनेक्शन सीधे वर्कर प्रोसेस में वितरित करता है, जो accept mutex कंटेंशन को समाप्त करता है।
+
+## CDN वेंडर हेडर्स
+
+सिम्युलेटर सभी पाँच प्रमुख CDN वेंडर्स के हेडर्स एक साथ इंजेक्ट करता है। यह F5 XC को किसी भी वेंडर के "Trusted Client IP Header" के साथ कॉन्फ़िगर करने की अनुमति देता है और यथार्थवादी हेडर पेलोड देखता है, चाहे कोई भी CDN सिम्युलेट किया जा रहा हो।
+
+### इंडस्ट्री स्टैंडर्ड हेडर्स (सभी CDN)
+
+| हेडर | मान | उद्देश्य |
+|---|---|---|
+| `X-Forwarded-For` | क्लाइंट IP चेन | स्टैंडर्ड फ़ॉरवर्डेड IP |
+| `X-Forwarded-Proto` | `http` या `https` | मूल क्लाइंट प्रोटोकॉल |
+| `X-Forwarded-Host` | मूल होस्टनेम | मूल Host हेडर |
+| `X-Forwarded-Port` | सर्वर पोर्ट | मूल पोर्ट |
+| `X-Real-IP` | क्लाइंट IP | एकल क्लाइंट IP (nginx कन्वेंशन) |
+| `Via` | `1.1 cdn-simulator` | प्रॉक्सी पहचान |
+| `Forwarded` | RFC 7239 फ़ॉर्मेट | मानकीकृत फ़ॉरवर्डिंग हेडर |
+| `CDN-Loop` | `cdn-simulator` | लूप डिटेक्शन |
+
+### Akamai हेडर्स
+
+| हेडर | मान | उद्देश्य |
+|---|---|---|
+| `True-Client-IP` | क्लाइंट IP | मूल अंतिम-उपयोगकर्ता IP पता |
+| `X-Akamai-Edgescape` | कम्पाउंड जियो स्ट्रिंग | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
+| `X-Akamai-Device-Characteristics` | डिवाइस गुण | brand_name, model_name, is_mobile, is_tablet, is_wireless_device, device_os, device_os_version, resolution_width, resolution_height |
+| `X-Akamai-Request-ID` | अनुरोध UUID | विशिष्ट अनुरोध पहचानकर्ता |
+
+### Cloudflare हेडर्स
+
+| हेडर | मान | उद्देश्य |
+|---|---|---|
+| `CF-Connecting-IP` | क्लाइंट IP | वास्तविक क्लाइंट IP (हमेशा मौजूद) |
+| `CF-IPCountry` | `US` | दो-अक्षर देश कोड |
+| `cf-ipcity` | `San Jose` | क्लाइंट शहर |
+| `cf-ipcontinent` | `NA` | महाद्वीप कोड |
+| `cf-iplatitude` / `cf-iplongitude` | निर्देशांक | जियोलोकेशन |
+| `cf-region` / `cf-region-code` | `California` / `CA` | क्षेत्र जानकारी |
+| `cf-metro-code` | `807` | US मेट्रो कोड |
+| `cf-postal-code` | `95113` | पोस्टल कोड |
+| `cf-timezone` | `America/Los_Angeles` | IANA टाइमज़ोन |
+| `Cf-Ray` | `{request_id}-SJC` | POP IATA कोड के साथ विशिष्ट रे ID |
+| `CF-Visitor` | `{"scheme":"https"}` | विज़िटर प्रोटोकॉल जानकारी |
+| `cf-bot-score` | `85` | बॉट स्कोर (1=बॉट, 99=मानव) |
+| `cf-verified-bot` | `false` | ज्ञात अच्छे बॉट का फ़्लैग |
+| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS फ़िंगरप्रिंट |
+| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | JA4 TLS फ़िंगरप्रिंट |
+
+### Amazon CloudFront हेडर्स
+
+| हेडर | मान | उद्देश्य |
+|---|---|---|
+| `CloudFront-Viewer-Address` | `IP:port` | क्लाइंट IP और सोर्स पोर्ट |
+| `CloudFront-Viewer-Country` | `US` | देश कोड |
+| `CloudFront-Viewer-Country-Name` | `United States` | पूर्ण देश नाम |
+| `CloudFront-Viewer-Country-Region` | `CA` | क्षेत्र कोड |
+| `CloudFront-Viewer-Country-Region-Name` | `California` | पूर्ण क्षेत्र नाम |
+| `CloudFront-Viewer-City` | `San Jose` | क्लाइंट शहर |
+| `CloudFront-Viewer-Postal-Code` | `95113` | पोस्टल कोड |
+| `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | जियोलोकेशन |
+| `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | IANA टाइमज़ोन |
+| `CloudFront-Viewer-Metro-Code` | `807` | US मेट्रो कोड |
+| `CloudFront-Viewer-ASN` | `7018` | ऑटोनॉमस सिस्टम नंबर |
+| `CloudFront-Viewer-Http-Version` | `2.0` | क्लाइंट HTTP संस्करण |
+| `CloudFront-Forwarded-Proto` | `https` | मूल प्रोटोकॉल |
+| `CloudFront-Viewer-TLS` | `TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed` | TLS विवरण |
+| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS फ़िंगरप्रिंट |
+| `CloudFront-Is-Desktop-Viewer` | `true`/`false` | डिवाइस डिटेक्शन |
+| `CloudFront-Is-Mobile-Viewer` | `true`/`false` | डिवाइस डिटेक्शन |
+| `CloudFront-Is-Tablet-Viewer` | `true`/`false` | डिवाइस डिटेक्शन |
+| `CloudFront-Is-SmartTV-Viewer` | `false` | डिवाइस डिटेक्शन |
+| `X-Amz-Cf-Id` | एनकोडेड ID | CloudFront अनुरोध पहचानकर्ता |
+
+### Fastly हेडर्स
+
+| हेडर | मान | उद्देश्य |
+|---|---|---|
+| `Fastly-Client-IP` | क्लाइंट IP | वास्तविक क्लाइंट IP |
+| `Fastly-SSL` | `1` | कनेक्शन TLS पर था |
+| `Fastly-Client` | `1` | क्लाइंट-फ़ेसिंग अनुरोध (शील्ड नहीं) |
+| `Fastly-FF` | `cache-sjc3120-SJC` | कैश नोड पहचान |
+| `X-Geo-Country-Code` | `US` | देश (VCL वेरिएबल कन्वेंशन) |
+| `X-Geo-Country-Code3` | `USA` | तीन-अक्षर देश कोड |
+| `X-Geo-Country-Name` | `United States` | पूर्ण देश नाम |
+| `X-Geo-City` | `San Jose` | क्लाइंट शहर |
+| `X-Geo-Region` | `CA` | क्षेत्र कोड |
+| `X-Geo-Continent-Code` | `NA` | महाद्वीप |
+| `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | जियोलोकेशन |
+| `X-Geo-Postal-Code` | `95113` | पोस्टल कोड |
+| `X-Geo-Metro-Code` | `807` | US मेट्रो कोड |
+| `X-Geo-ASN` | `7018` | ऑटोनॉमस सिस्टम नंबर |
+| `X-Geo-Conn-Speed` | `broadband` | कनेक्शन स्पीड क्लास |
+| `X-Geo-Conn-Type` | `wired` | कनेक्शन प्रकार |
+
+### Azure Front Door हेडर्स
+
+| हेडर | मान | उद्देश्य |
+|---|---|---|
+| `X-Azure-ClientIP` | क्लाइंट IP | क्लाइंट IP पता |
+| `X-Azure-SocketIP` | क्लाइंट IP | TCP सॉकेट सोर्स IP |
+| `X-Azure-Ref` | एनकोडेड रेफ़ स्ट्रिंग | समस्या निवारण के लिए विशिष्ट अनुरोध संदर्भ |
+| `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | Front Door संसाधन पहचानकर्ता |
+| `X-Azure-RequestChain` | `hops=1` | लूप डिटेक्शन हॉप काउंट |
+
+### रिस्पॉन्स हेडर्स (क्लाइंट रिस्पॉन्स में जोड़े गए)
+
+| हेडर | मान | उद्देश्य |
+|---|---|---|
+| `X-Cache-Status` | `HIT`, `MISS`, `EXPIRED`, `STALE`, `UPDATING` | इस अनुरोध के लिए कैश व्यवहार |
+| `X-CDN-Edge` | `cdn-simulator` | इस एज नोड की पहचान |
+| `X-CDN-POP` | `SJC` | सिम्युलेटेड पॉइंट ऑफ़ प्रेज़ेंस IATA कोड |
+| `X-Served-By` | `cache-sjc3120-SJC` | Fastly फ़ॉर्मेट में सिम्युलेटेड कैश नोड |
+| `X-Request-ID` | UUID (प्रति-अनुरोध) | विशिष्ट अनुरोध पहचानकर्ता |
+
+## डिवाइस डिटेक्शन
+
+सिम्युलेटर NGINX `map` डायरेक्टिव का उपयोग करके `User-Agent` हेडर से डिवाइस प्रकार का पता लगाता है:
+
+- **मोबाइल**: iPhone, Android (गैर-टैबलेट), iPod, BlackBerry, Opera Mini, IEMobile से मेल खाता है
+- **टैबलेट**: iPad, Android टैबलेट, Kindle, PlayBook से मेल खाता है
+- **डेस्कटॉप**: जब न मोबाइल और न ही टैबलेट मेल खाता हो तो डिफ़ॉल्ट
+
+डिवाइस प्रकार इनमें प्रतिबिंबित होता है:
+- `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
+- `X-Akamai-Device-Characteristics` (`is_mobile`, `is_tablet`, `is_wireless_device` फ़ील्ड)
+
+## संचालन
+
+### ऑरिजिन सर्वर बदलना
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Update upstream server
+sudo sed -i 's|server .*;|server NEW_HOST:80;|' /etc/nginx/conf.d/cdn-edge.conf
+
+# Clear cache and reload
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+या `terraform.tfvars` में `origin_host` अपडेट करें और पुनः प्रोविज़न करने के लिए `terraform apply` चलाएँ।
+
+### कैश साफ़ करना
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo systemctl reload nginx
+```
+
+### कैश स्टैट्स जाँचना
+
+```bash
+# Object count and disk usage
+sudo find /var/cache/nginx/cdn -type f | wc -l
+sudo du -sh /var/cache/nginx/cdn
+
+# Recent access log with cache status
+tail -20 /var/log/nginx/access.log
+```
+
+### लोड के दौरान मॉनिटरिंग
+
+```bash
+# Real-time connections and socket states
+ss -s
+
+# NGINX worker CPU usage
+top -bn1 | grep nginx
+
+# Upstream keepalive connections
+ss -tn state established dst <ORIGIN_IP> | wc -l
+
+# TIME_WAIT socket count
+ss -tn state time-wait | wc -l
+```
+
+## प्रदर्शन बेंचमार्क परिणाम
+
+48 घंटे के निरंतर लोड टेस्ट में सत्यापित:
+
+| मेट्रिक | मान |
+|---|---|
+| पीक थ्रूपुट (कैश्ड) | 172,540 req/s |
+| सस्टेन्ड थ्रूपुट (कैश्ड) | 85,000-103,000 req/s |
+| पीक कनेक्शन | 15,000 समवर्ती |
+| कैश हिट अनुपात | 100% (वार्म होने पर) |
+| लोड के दौरान मेमोरी | 1.2 GB स्थिर (16 GB का 8%) |
+| पीक पर CPU | 100% (4 कोर - CPU अधिकतम सीमा है) |
+| 48 घंटे टेस्ट के दौरान त्रुटियाँ | 0 |
+| मेमोरी लीक | कोई नहीं पाई गई |
+| कनेक्शन लीक | कोई नहीं पाई गई |

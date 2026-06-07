@@ -1,0 +1,70 @@
+---
+title: محاكي CDN
+description: >-
+  NGINX-based CDN edge node simulator that injects realistic headers from
+  Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys
+  as an Ubuntu 24.04 Azure VM via Terraform with NGINX caching reverse proxy.
+  Used as a modular lab component in front of F5 Distributed Cloud HTTP load
+  balancers.
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: >-
+    Deploy a functional CDN edge node in Azure for integration testing with F5
+    Distributed Cloud.
+  image:
+    html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
+  actions:
+    - text: Get Started
+      link: 01-overview/
+      icon: right-arrow
+      variant: primary
+    - text: Deploy Now
+      link: 03-deploy/
+      icon: rocket
+      variant: minimal
+i18n:
+  sourceHash: 7c6769192b97
+  translator: machine
+---
+
+## ما يوفره هذا المشروع
+
+- **[عقدة حافة واحدة](01-overview/)** — جهاز افتراضي واحد يعمل بنظام Ubuntu 24.04 ويشغّل NGINX كوكيل عكسي مع تخزين مؤقت، وهو الحد الأدنى لحافة CDN قابلة للتشغيل
+- **[نشر بواسطة Terraform](03-deploy/)** — بنية تحتية كاملة في Azure كرمز برمجي: VNet وPIP وNSG وجهاز افتراضي مع توفير cloud-init
+- **[أكثر من 67 ترويسة لموردي CDN](04-nginx-config/)** — يحاكي ترويسات الطلبات الخاصة بـ Akamai وCloudflare وCloudFront وFastly وAzure Front Door بما في ذلك True-Client-IP وCF-Connecting-IP والموقع الجغرافي واكتشاف الأجهزة وبصمات JA3/JA4 ودرجات تقييم البوتات
+- **[التكامل مع الأصل](06-integrate/)** — قم بتكوين الحافة لإعادة توجيه الطلبات غير المخزنة مؤقتاً إلى موازن حمل HTTP في F5 XC كخادم أصل
+- **[التحقق من التخزين المؤقت](05-verify/)** — تحقق من سلوك HIT/MISS باستخدام ترويسات X-Cache-Status وفحص التخزين المؤقت في NGINX
+
+## مرجع سريع
+
+بعد النشر، تكشف عقدة حافة CDN عن:
+
+| نقطة النهاية | الطريقة | الغرض |
+|---|---|---|
+| `http://<PUBLIC_IP>/health` | GET | فحص الصحة — يُرجع JSON مع حالة المكونات وملفات تعريف الموردين |
+| `http://<PUBLIC_IP>/` | GET | وكيل CDN — يخزن مؤقتاً ويُعيد توجيه الطلبات إلى خادم الأصل |
+| `http://<PUBLIC_IP>/<any-path>` | GET | وكيل CDN — يتم توكيل جميع المسارات مع التخزين المؤقت وترويسات الموردين |
+
+ترويسات الاستجابة المضافة إلى كل استجابة موكّلة:
+
+| الترويسة | مثال | الغرض |
+|---|---|---|
+| `X-Cache-Status` | `HIT` أو `MISS` | ما إذا كانت الاستجابة قُدِّمت من التخزين المؤقت |
+| `X-CDN-Edge` | `cdn-simulator` | يُعرّف عقدة الحافة هذه |
+| `X-CDN-POP` | `SJC` | رمز نقطة التواجد المُحاكاة |
+| `X-Served-By` | `cache-sjc3120-SJC` | معرّف عقدة التخزين المؤقت المُحاكاة |
+| `X-Request-ID` | UUID | معرّف فريد لكل طلب |
+
+## دليل التوثيق
+
+| الصفحة | الجمهور | الغرض |
+|---|---|---|
+| [نظرة عامة](01-overview/) | بشري + ذكاء اصطناعي | البنية المعمارية، سياق تعدد الموردين، ما يحاكيه هذا المشروع |
+| [المتطلبات المسبقة](02-prerequisites/) | ذكاء اصطناعي | الأدوات المطلوبة، اشتراك Azure، مفاتيح SSH، تقدير التكلفة |
+| [النشر](03-deploy/) | ذكاء اصطناعي | كود Terraform HCL الكامل — انسخه وطبّقه للنشر |
+| [تكوين NGINX](04-nginx-config/) | بشري + ذكاء اصطناعي | جميع ترويسات موردي CDN الأكثر من 67 مع القيم الدقيقة والأغراض |
+| [التحقق](05-verify/) | ذكاء اصطناعي | أوامر اختبار أولي مع سلوك الطلب/الاستجابة المتوقع |
+| [التكامل مع F5 XC](06-integrate/) | بشري + ذكاء اصطناعي | ربط الحافة بـ F5 XC كأصل، التحقق الشامل |
+| [الإزالة](07-teardown/) | ذكاء اصطناعي | تدمير جميع الموارد، أوامر التنظيف |

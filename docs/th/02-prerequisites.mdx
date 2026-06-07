@@ -1,0 +1,79 @@
+---
+title: ข้อกำหนดเบื้องต้น
+description: >-
+  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
+  permissions, and Azure AD requirements for deploying the performance-optimized
+  CDN edge node VM
+sidebar:
+  order: 2
+i18n:
+  sourceHash: fafd7c61e178
+  translator: machine
+---
+
+## สิ่งที่จำเป็น
+
+### Azure Subscription
+
+Azure subscription ที่ใช้งานอยู่ พร้อมสิทธิ์ในการสร้าง:
+
+- Resource groups
+- Virtual networks และ subnets
+- Network security groups
+- Public IP addresses
+- Virtual machines
+
+### Azure CLI
+
+ติดตั้งและยืนยันตัวตนกับ Azure CLI:
+
+```bash
+# Install (if not present)
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Authenticate
+az login
+
+# Verify subscription
+az account show --query '{name:name, id:id}' -o table
+```
+
+### Terraform
+
+ต้องใช้ Terraform >= 1.5:
+
+```bash
+# Verify installation
+terraform version
+
+# If not installed, use HashiCorp's APT repository
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+```
+
+### คู่กุญแจ SSH
+
+คู่กุญแจ SSH สำหรับการเข้าถึง VM:
+
+```bash
+# Generate if you don't have one
+ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
+```
+
+### สิทธิ์ Azure AD
+
+บัญชี Azure AD ของคุณต้องมีสิทธิ์ `User.Read` ตัวระบุผู้ทำการ deploy (ใช้ในการตั้งชื่อ resource) จะถูกดึงมาจากโปรไฟล์ Azure AD ของคุณโดยอัตโนมัติ สำหรับการยืนยันตัวตนด้วย service principal หรือ managed identity ให้ตั้งค่าตัวแปร Terraform `deployer` อย่างชัดเจน
+
+## ตัวเลือกเพิ่มเติม
+
+### โดเมนที่กำหนดเอง
+
+หากคุณต้องการใบรับรอง TLS จริงแทนใบรับรองแบบ self-signed:
+
+- ชื่อโดเมนที่สามารถควบคุม DNS ได้
+- ความสามารถในการสร้าง A records ที่ชี้ไปยัง Azure Public IP
+
+### URL ของ Origin Server
+
+URL ของ F5 XC HTTP load balancer ที่ edge node นี้จะส่งต่อทราฟฟิกไป ค่านี้สามารถกำหนดได้หลังจากการ deploy — การตั้งค่า NGINX เริ่มต้นจะใช้ค่า placeholder ที่คุณสามารถอัปเดตในการกำหนดค่า NGINX

@@ -1,0 +1,148 @@
+---
+title: Deploy
+description: >-
+  Terraform IaC deployment of the performance-optimized CDN edge node — Azure
+  F-series compute-optimized VM with Ubuntu 24.04, kernel tuning, NGINX proxy
+  cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers
+  provisioned via cloud-init. All configuration files are in the terraform/
+  directory.
+sidebar:
+  order: 3
+i18n:
+  sourceHash: ad66166f6858
+  translator: machine
+---
+
+ไฟล์ Terraform ทั้งหมดอยู่ในไดเรกทอรี [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) โคลนรีโพซิทอรีและดีพลอยได้โดยตรง:
+
+```bash
+git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
+cd cdn-simulator/terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your Azure subscription ID and origin server
+```
+
+## การกำหนดค่า Terraform
+
+### โครงสร้างไฟล์ Terraform
+
+ไดเรกทอรี terraform ประกอบด้วย 9 ไฟล์ตามมาตรฐาน Demo Resource Standard:
+
+- `versions.tf` — ข้อจำกัดเวอร์ชันของ Terraform และ provider (azurerm ~> 4.0, azuread ~> 3.0)
+- `providers.tf` — การกำหนดค่า Azure RM และ Azure AD provider
+- `data.tf` — Azure AD data sources สำหรับการระบุตัวตนผู้ดีพลอยอัตโนมัติ
+- `locals.tf` — การระบุตัวตนผู้ดีพลอย, การตั้งชื่อทรัพยากรตาม Azure Cloud Adoption Framework, แท็กมาตรฐาน
+- `main.tf` — Resource group (ชื่อ `rg-cdn-simulator-{environment}-{deployer}`)
+- `variables.tf` — ตัวแปร input ทั้งหมด (จำเป็น 3 ตัว, ไม่บังคับ 8 ตัว)
+- `network.tf` — VNet (10.100.0.0/16), subnet, public IP, NSG (พอร์ต 22/80/443), NIC
+- `vm.tf` — VM Ubuntu 24.04 พร้อม cloud-init ผ่าน templatefile()
+- `outputs.tf` — เอาต์พุต 17 รายการ (มาตรฐาน 15 + เฉพาะคอมโพเนนต์ 2)
+
+`variables.tf` กำหนดตัวแปร input 11 ตัว จัดเป็นส่วน General, Compute และ Component-Specific ตัวระบุ `deployer` จะถูกระบุอัตโนมัติจากบัญชี Azure AD ของคุณ — คุณเพียงแค่ต้องตั้งค่า `subscription_id`, `origin_server` และ `origin_host`:
+
+```hcl file=./_data/variables.tf
+```
+
+### โครงสร้างพื้นฐานเครือข่าย
+
+`network.tf` สร้าง VNet, subnet, public IP, NSG (พอร์ต 22/80/443) และ NIC:
+
+```hcl file=./_data/network.tf
+```
+
+### Virtual Machine พร้อม Cloud-Init
+
+`vm.tf` สร้าง VM Ubuntu 24.04 พาธ SSH public key จะถูกขยายผ่าน `pathexpand()` เพื่อรองรับ `~` เทมเพลต Cloud-init จะรับตัวแปร `origin_server` และ `origin_host`:
+
+```hcl file=./_data/vm.tf
+```
+
+### การจัดเตรียมด้วย Cloud-Init
+
+`cloud-init.yaml` จัดเตรียม VM ด้วยการปรับแต่ง kernel, ขีดจำกัด systemd, NGINX พร้อมการกำหนดค่าที่ปรับประสิทธิภาพแล้ว, โซน cache keys ขนาด 128 MB, พูล upstream keepalive, การบีบอัด gzip และเฮดเดอร์ CDN vendor กว่า 67 รายการ ไลบรารีตัวช่วยที่ใช้ร่วมกัน (`/usr/local/lib/cloud-init-helpers.sh`) ให้ลอจิกการลองใหม่และการบันทึกความคืบหน้าไปยัง `/var/log/cloud-init-progress.log`
+
+Cloud-init ใช้ตัวแปรเทมเพลต Terraform: `${origin_server}` และ `${origin_host}` สำหรับการกำหนดค่า upstream ตัวแปร NGINX เช่น `${request_id}` จะถูกเอสเคปเป็น `$${request_id}` ในเทมเพลตไฟล์ Terraform
+
+```yaml file=./_data/cloud-init.yaml
+```
+
+### เอาต์พุต
+
+`outputs.tf` แสดงเอาต์พุต 17 รายการตามมาตรฐาน Demo Resource Standard — เอาต์พุตมาตรฐาน 15 รายการที่ใช้ร่วมกันในทรัพยากรสาธิตทั้งหมด (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) บวกเอาต์พุตเฉพาะคอมโพเนนต์ 2 รายการ (`edge_url`, `health_check_url`):
+
+```hcl file=./_data/outputs.tf
+```
+
+### ไฟล์ตัวแปรตัวอย่าง
+
+คัดลอก `terraform.tfvars.example` เป็น `terraform.tfvars` และกรอกค่าของคุณ `.gitignore` จะยกเว้น `terraform.tfvars` เพื่อป้องกันการคอมมิตข้อมูลรับรอง:
+
+```hcl file=./_data/terraform.tfvars.example
+```
+
+## ดีพลอย
+
+```bash
+# Initialize Terraform
+terraform init
+
+# Review the plan
+terraform plan
+
+# Apply
+terraform apply
+```
+
+Terraform จะแสดง public IP, คำสั่ง SSH และ edge URL หลังจากดีพลอยสำเร็จ
+
+## การกำหนดขนาด VM
+
+VM ซีรีส์ F-series ที่ปรับให้เหมาะกับการประมวลผล แนะนำสำหรับเวิร์กโหลด NGINX proxy ที่ใช้ CPU เป็นหลักนี้ ค่าเริ่มต้น `Standard_F4s_v2` (4 vCPU, 8 GiB) เหมาะสำหรับการใช้งานในห้องปฏิบัติการและสาธิต สามารถแทนที่ตัวแปร `vm_size` สำหรับสถานการณ์ทดสอบโหลดหรือการทดสอบประสิทธิภาพสำหรับโปรดักชัน การปรับแต่ง kernel ผ่าน cloud-init และการกำหนดค่า NGINX จะปรับขนาดอัตโนมัติตามจำนวน vCPU (`worker_processes auto`)
+
+## หลังการดีพลอย
+
+หลังจาก `terraform apply` เสร็จสมบูรณ์ ให้รอ 2-3 นาทีเพื่อให้ cloud-init ทำการติดตั้งและกำหนดค่า NGINX เสร็จสิ้น ตรวจสอบ health endpoint:
+
+```bash
+curl -s "http://$(terraform output -raw public_ip)/health" | jq .
+```
+
+การตอบกลับที่คาดหวัง:
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": [
+    "akamai",
+    "cloudflare",
+    "cloudfront",
+    "fastly",
+    "azure-front-door"
+  ]
+}
+```
+
+## การเชื่อมต่อจากคอมโพเนนต์ Upstream
+
+CDN simulator ต้องการ origin server ที่ดีพลอยแล้ว ใช้เอาต์พุต terraform ของ origin server เพื่อกรอกตัวแปรที่จำเป็น:
+
+```bash
+cd ../origin-server/terraform
+origin_ip=$(terraform output -raw public_ip)
+
+cd ../../cdn-simulator/terraform
+cat > terraform.tfvars <<EOF
+subscription_id = "your-subscription-id"
+origin_server   = "http://${origin_ip}"
+origin_host     = "${origin_ip}:80"
+EOF
+```
+
+| ตัวแปรที่จำเป็น | แหล่งที่มา | รูปแบบ |
+|---|---|---|
+| `origin_server` | เอาต์พุต `public_ip` ของ Origin server | `http://<ip>` (รวม scheme) |
+| `origin_host` | เอาต์พุต `public_ip` ของ Origin server | `<ip>:80` (ไม่มี scheme, รวมพอร์ต) |
+
+ดำเนินการต่อที่ [การกำหนดค่า NGINX](../04-nginx-config/) สำหรับตัวเลือกการปรับแต่ง หรือ [ตรวจสอบ](../05-verify/) สำหรับการทดสอบแคช

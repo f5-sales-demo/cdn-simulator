@@ -1,0 +1,70 @@
+---
+title: CDN Simulator
+description: >-
+  NGINX-based CDN edge node simulator that injects realistic headers from
+  Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys
+  as an Ubuntu 24.04 Azure VM via Terraform with NGINX caching reverse proxy.
+  Used as a modular lab component in front of F5 Distributed Cloud HTTP load
+  balancers.
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: >-
+    Deploy a functional CDN edge node in Azure for integration testing with F5
+    Distributed Cloud.
+  image:
+    html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
+  actions:
+    - text: Get Started
+      link: 01-overview/
+      icon: right-arrow
+      variant: primary
+    - text: Deploy Now
+      link: 03-deploy/
+      icon: rocket
+      variant: minimal
+i18n:
+  sourceHash: 7c6769192b97
+  translator: machine
+---
+
+## สิ่งที่ระบบนี้มอบให้
+
+- **[Edge Node เดี่ยว](01-overview/)** — VM Ubuntu 24.04 หนึ่งเครื่องที่รัน NGINX เป็น caching reverse proxy ซึ่งเป็น CDN edge ขั้นต่ำที่ใช้งานได้
+- **[การ Deploy ด้วย Terraform](03-deploy/)** — โครงสร้างพื้นฐาน Azure แบบ infrastructure as code ครบถ้วน: VNet, PIP, NSG และ VM พร้อมการ provisioning ด้วย cloud-init
+- **[CDN Vendor Headers มากกว่า 67 รายการ](04-nginx-config/)** — จำลอง request headers ของ Akamai, Cloudflare, CloudFront, Fastly และ Azure Front Door รวมถึง True-Client-IP, CF-Connecting-IP, geolocation, device detection, JA3/JA4 fingerprints และ bot scores
+- **[การเชื่อมต่อกับ Origin](06-integrate/)** — กำหนดค่า edge เพื่อส่งต่อ cache miss ไปยัง F5 XC HTTP load balancer ในฐานะ origin
+- **[การตรวจสอบ Cache](05-verify/)** — ตรวจสอบพฤติกรรม HIT/MISS ด้วย X-Cache-Status headers และการตรวจสอบ NGINX cache
+
+## ข้อมูลอ้างอิงอย่างรวดเร็ว
+
+หลังจาก deploy แล้ว CDN edge node จะเปิดให้เข้าถึงได้ดังนี้:
+
+| Endpoint | Method | วัตถุประสงค์ |
+|---|---|---|
+| `http://<PUBLIC_IP>/health` | GET | Health check — ส่งคืน JSON พร้อมสถานะของคอมโพเนนต์และ vendor profiles |
+| `http://<PUBLIC_IP>/` | GET | CDN proxy — แคชและส่งต่อ request ไปยัง origin server |
+| `http://<PUBLIC_IP>/<any-path>` | GET | CDN proxy — ทุก path จะถูก proxy พร้อม caching และ vendor headers |
+
+Response headers ที่เพิ่มเข้าไปในทุก proxied response:
+
+| Header | ตัวอย่าง | วัตถุประสงค์ |
+|---|---|---|
+| `X-Cache-Status` | `HIT` หรือ `MISS` | บ่งบอกว่า response ถูกส่งจาก cache หรือไม่ |
+| `X-CDN-Edge` | `cdn-simulator` | ระบุ edge node นี้ |
+| `X-CDN-POP` | `SJC` | รหัส Point of Presence จำลอง |
+| `X-Served-By` | `cache-sjc3120-SJC` | ตัวระบุ cache node จำลอง |
+| `X-Request-ID` | UUID | ตัวระบุเฉพาะสำหรับแต่ละ request |
+
+## คู่มือเอกสาร
+
+| หน้า | กลุ่มเป้าหมาย | วัตถุประสงค์ |
+|---|---|---|
+| [ภาพรวม](01-overview/) | มนุษย์ + AI | สถาปัตยกรรม, บริบท multi-vendor, สิ่งที่ระบบนี้จำลอง |
+| [ข้อกำหนดเบื้องต้น](02-prerequisites/) | AI | เครื่องมือที่จำเป็น, Azure subscription, SSH keys, การประมาณค่าใช้จ่าย |
+| [Deploy](03-deploy/) | AI | Terraform HCL แบบครบถ้วน — คัดลอกและ apply เพื่อ deploy |
+| [การกำหนดค่า NGINX](04-nginx-config/) | มนุษย์ + AI | CDN vendor headers ทั้งหมดมากกว่า 67 รายการพร้อมค่าที่แน่นอนและวัตถุประสงค์ |
+| [ตรวจสอบ](05-verify/) | AI | คำสั่ง smoke test พร้อมพฤติกรรม request/response ที่คาดหวัง |
+| [เชื่อมต่อกับ F5 XC](06-integrate/) | มนุษย์ + AI | เชื่อมต่อ edge กับ F5 XC ในฐานะ origin, การตรวจสอบแบบ end-to-end |
+| [การรื้อถอน](07-teardown/) | AI | ทำลายทรัพยากรทั้งหมด, คำสั่ง cleanup |

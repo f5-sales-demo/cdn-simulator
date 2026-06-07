@@ -1,0 +1,212 @@
+---
+title: Integration mit dem Origin-Server
+description: >-
+  Connect the CDN edge to the origin-server lab component (direct integration),
+  discover applications via the published endpoint manifest, verify end-to-end
+  traffic flow with header inspection and log correlation. Covers both direct
+  origin and future F5 XC insertion architectures.
+sidebar:
+  order: 6
+  label: Integration mit dem Origin-Server
+i18n:
+  sourceHash: 7e12e7a4634c
+  translator: machine
+---
+
+Diese Seite behandelt zwei Integrationsstufen:
+
+1. **Direkte Integration** — CDN-Edge leitet direkt an den Origin-Server weiter (Baseline-Tests)
+2. **F5 XC-Einfügung** — F5 XC HTTP Load Balancer wird zwischen CDN und Origin eingefügt (Sicherheitsdemo)
+
+Beginnen Sie mit der direkten Integration, um die Baseline zu etablieren, und fügen Sie dann F5 XC ein, wenn Sie bereit sind.
+
+## Origin-Server-Referenz
+
+Die [origin-server](https://f5xc-salesdemos.github.io/origin-server/) Lab-Komponente stellt verwundbare Webanwendungen für Sicherheitstests bereit.
+
+| Eigenschaft | Wert |
+|---|---|
+| Dokumentation | [f5xc-salesdemos.github.io/origin-server](https://f5xc-salesdemos.github.io/origin-server/) |
+| Repository | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
+| Standard-Port | 80 |
+| Health Check | `GET /health` |
+
+### Verfügbare Anwendungen
+
+Rufen Sie den aktuellen Anwendungskatalog aus dem veröffentlichten Manifest des Origin-Servers ab:
+
+```bash
+MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
+  | python3 -c "import sys,json; assets=json.load(sys.stdin).get('assets',[]); print(next((a['browser_download_url'] for a in assets if a['name']=='manifest.json'),''))")
+curl -sf "$MANIFEST_URL" | python3 -m json.tool
+```
+
+Falls noch kein Release existiert, verwenden Sie direkt die Repository-Quelle:
+
+```bash
+curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
+```
+
+Das Manifest listet alle Anwendungspfade, Health Checks, Container-Images und Demo-Feature-Zuordnungen auf.
+
+### Anwendungspfade
+
+| Pfad | Anwendung | Demo-Features |
+|---|---|---|
+| `/` | Startseite | — |
+| `/health` | Health Check | — |
+| `/juice-shop/` | OWASP Juice Shop | WAF, Bot Defense, API Security |
+| `/dvwa/` | DVWA | WAF, Bot Defense |
+| `/vampi/` | VAmPI | API Security |
+| `/httpbin/` | httpbin | Diagnose |
+| `/whoami/` | whoami | Header-Verifizierung |
+| `/csd-demo/` | CSD Demo | Client-Side Defense |
+
+## Stufe 1: Direkte Integration (Baseline)
+
+```
+┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
+│           │     │  20.65.90.112        │     │  20.12.78.159       │
+└──────────┘     │  67+ CDN-Header      │     │  Juice Shop, DVWA,  │
+                 │  Festplatten-Cache    │     │  VAmPI, httpbin,    │
+                 └──────────────────────┘     │  whoami, CSD Demo   │
+                                              └─────────────────────┘
+```
+
+### Origin konfigurieren
+
+Setzen Sie die Origin-Server-IP in der NGINX-Konfiguration des CDN-Edge:
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass http://<ORIGIN_IP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Oder setzen Sie sie zur Terraform-Deploy-Zeit über `terraform.tfvars`:
+
+```hcl
+origin_server = "http://<ORIGIN_IP>"
+```
+
+### Alle Anwendungen verifizieren
+
+Testen Sie jede Origin-Anwendung über das CDN:
+
+```bash
+CDN=<CDN_EDGE_IP>
+
+# Health Check (CDN lokal)
+curl -sf "http://$CDN/health" | python3 -m json.tool
+
+# Startseite
+curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
+
+# Juice Shop
+curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
+
+# DVWA (folgt Weiterleitung zum Login)
+curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
+
+# VAmPI API
+curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
+
+# httpbin-Header (zeigt CDN-Header als JSON)
+curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
+
+# whoami (zeigt ALLE Header, die der Origin empfängt)
+curl -sf "http://$CDN/whoami/"
+
+# CSD Demo
+curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
+```
+
+Alle Pfade sollten HTTP 200 zurückgeben (DVWA gibt 302 zurück, dann 200 bei Weiterleitung).
+
+### CDN-Header am Origin verifizieren
+
+Der `/whoami/`-Endpunkt zeigt jeden Header, den der Origin empfängt. Bei Zugriff über das CDN werden alle 67+ Vendor-Header angezeigt:
+
+```bash
+curl -sf "http://$CDN/whoami/"
+```
+
+Überprüfen Sie, ob diese wichtigen Header vorhanden sind:
+
+| Anbieter | Header | Erwarteter Wert |
+|---|---|---|
+| Standard | `X-Forwarded-For` | `<ihre_ip>, <cdn_edge_ip>` |
+| Akamai | `True-Client-Ip` | `<ihre_ip>` |
+| Cloudflare | `Cf-Connecting-Ip` | `<ihre_ip>` |
+| CloudFront | `Cloudfront-Viewer-Country` | `US` |
+| Fastly | `Fastly-Client-Ip` | `<ihre_ip>` |
+| Azure FD | `X-Azure-Clientip` | `<ihre_ip>` |
+
+### Logs abgleichen
+
+Vergleichen Sie die Zugriffsprotokolle auf beiden Servern, um den Traffic-Fluss zu verifizieren:
+
+```bash
+# CDN-Edge-Log — zeigt Ihre Client-IP als Quelle
+ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
+
+# Origin-Log — zeigt die CDN-Edge-IP als Quelle
+ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
+```
+
+Das Origin-Log sollte die CDN-Edge-IP als verbindenden Client anzeigen, während die tatsächliche Client-IP in `X-Forwarded-For` und anbieterspezifischen Headern übertragen wird.
+
+### Cache-Verhalten
+
+```bash
+# Erste Anfrage — MISS (vom Origin abgerufen)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+
+# Zweite Anfrage — HIT (aus dem CDN-Cache bereitgestellt)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+```
+
+## Stufe 2: F5 XC-Einfügung (Sicherheitsdemo)
+
+Nach den Baseline-Tests fügen Sie einen F5 XC HTTP Load Balancer zwischen CDN und Origin ein:
+
+```
+┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
+│           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
+└──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
+```
+
+1. **Erstellen Sie den F5 XC HTTP Load Balancer** mit dem Origin-Server in seinem Origin-Pool
+2. **Aktualisieren Sie den CDN-Edge**, um auf die F5 XC VIP statt direkt auf den Origin zu verweisen:
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass https://<F5XC_LB_VIP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+3. **Verifizieren Sie die WAF-Durchsetzung** über die gesamte Kette:
+
+```bash
+# SQL-Injection über CDN → F5 XC WAF sollte blockieren
+curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
+
+# Normale Anfrage sollte durchgelassen werden
+curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
+```
+
+4. **Konfigurieren Sie den Trusted-Client-IP-Header** in F5 XC, um die echte Client-IP aus den CDN-Headern zu lesen (z. B. `True-Client-IP` für Akamai-Simulation, `CF-Connecting-IP` für Cloudflare-Simulation)
+
+## Multi-Komponenten-Architektur
+
+| Komponente | Repository | Zweck |
+|---|---|---|
+| **CDN Edge** (dieses) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | Caching, Vendor-Header |
+| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | Verwundbare Webanwendungen |
+| **F5 XC Config** | Verschiedene (waf, api-protection, bot-*, etc.) | Sicherheitsrichtlinien |
+
+Jede Komponente veröffentlicht Dokumentation, die KI-Assistenten lesen, um die Infrastruktur bereitzustellen. Der Origin-Server veröffentlicht ein [Endpunkt-Manifest](https://github.com/f5xc-salesdemos/origin-server/releases/latest) als GitHub-Release-Artefakt, das alle Anwendungspfade und Health Checks auflistet.

@@ -1,0 +1,70 @@
+---
+title: CDN Simulator
+description: >-
+  NGINX-based CDN edge node simulator that injects realistic headers from
+  Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys
+  as an Ubuntu 24.04 Azure VM via Terraform with NGINX caching reverse proxy.
+  Used as a modular lab component in front of F5 Distributed Cloud HTTP load
+  balancers.
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: >-
+    Deploy a functional CDN edge node in Azure for integration testing with F5
+    Distributed Cloud.
+  image:
+    html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
+  actions:
+    - text: Get Started
+      link: 01-overview/
+      icon: right-arrow
+      variant: primary
+    - text: Deploy Now
+      link: 03-deploy/
+      icon: rocket
+      variant: minimal
+i18n:
+  sourceHash: 7c6769192b97
+  translator: machine
+---
+
+## Ce que cela fournit
+
+- **[Nœud Edge unique](01-overview/)** — Une VM Ubuntu 24.04 exécutant NGINX en tant que reverse proxy avec cache, le CDN edge minimal viable
+- **[Déploiement Terraform](03-deploy/)** — Infrastructure Azure complète en tant que code : VNet, PIP, NSG et VM avec provisionnement cloud-init
+- **[67+ en-têtes de fournisseurs CDN](04-nginx-config/)** — Simule les en-têtes de requête Akamai, Cloudflare, CloudFront, Fastly et Azure Front Door, incluant True-Client-IP, CF-Connecting-IP, géolocalisation, détection d'appareil, empreintes JA3/JA4 et scores de bot
+- **[Intégration Origin](06-integrate/)** — Configurez le nœud edge pour transférer les défauts de cache vers un équilibreur de charge HTTP F5 XC en tant qu'origin
+- **[Vérification du cache](05-verify/)** — Validez le comportement HIT/MISS avec les en-têtes X-Cache-Status et l'inspection du cache NGINX
+
+## Référence rapide
+
+Après le déploiement, le nœud CDN edge expose :
+
+| Point de terminaison | Méthode | Objectif |
+|---|---|---|
+| `http://<PUBLIC_IP>/health` | GET | Vérification de santé — retourne un JSON avec l'état des composants et les profils de fournisseurs |
+| `http://<PUBLIC_IP>/` | GET | Proxy CDN — met en cache et transfère les requêtes vers le serveur origin |
+| `http://<PUBLIC_IP>/<any-path>` | GET | Proxy CDN — tous les chemins sont proxifiés avec mise en cache et en-têtes de fournisseurs |
+
+En-têtes de réponse ajoutés à chaque réponse proxifiée :
+
+| En-tête | Exemple | Objectif |
+|---|---|---|
+| `X-Cache-Status` | `HIT` ou `MISS` | Indique si la réponse a été servie depuis le cache |
+| `X-CDN-Edge` | `cdn-simulator` | Identifie ce nœud edge |
+| `X-CDN-POP` | `SJC` | Code de Point de Présence simulé |
+| `X-Served-By` | `cache-sjc3120-SJC` | Identifiant de nœud de cache simulé |
+| `X-Request-ID` | UUID | Identifiant unique par requête |
+
+## Guide de la documentation
+
+| Page | Public | Objectif |
+|---|---|---|
+| [Vue d'ensemble](01-overview/) | Humain + IA | Architecture, contexte multi-fournisseurs, ce que cela simule |
+| [Prérequis](02-prerequisites/) | IA | Outils requis, abonnement Azure, clés SSH, estimation des coûts |
+| [Déployer](03-deploy/) | IA | HCL Terraform complet — copier et appliquer pour déployer |
+| [Configuration NGINX](04-nginx-config/) | Humain + IA | L'ensemble des 67+ en-têtes de fournisseurs CDN avec les valeurs exactes et leurs objectifs |
+| [Vérifier](05-verify/) | IA | Commandes de test de fumée avec le comportement requête/réponse attendu |
+| [Intégrer avec F5 XC](06-integrate/) | Humain + IA | Connecter le nœud edge à F5 XC en tant qu'origin, vérification de bout en bout |
+| [Démontage](07-teardown/) | IA | Détruire toutes les ressources, commandes de nettoyage |

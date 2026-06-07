@@ -1,0 +1,79 @@
+---
+title: 前提条件
+description: >-
+  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
+  permissions, and Azure AD requirements for deploying the performance-optimized
+  CDN edge node VM
+sidebar:
+  order: 2
+i18n:
+  sourceHash: fafd7c61e178
+  translator: machine
+---
+
+## 必須
+
+### Azure サブスクリプション
+
+以下を作成する権限を持つアクティブな Azure サブスクリプション：
+
+- リソースグループ
+- 仮想ネットワークとサブネット
+- ネットワークセキュリティグループ
+- パブリック IP アドレス
+- 仮想マシン
+
+### Azure CLI
+
+Azure CLI をインストールして認証します：
+
+```bash
+# Install (if not present)
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Authenticate
+az login
+
+# Verify subscription
+az account show --query '{name:name, id:id}' -o table
+```
+
+### Terraform
+
+Terraform >= 1.5 が必要です：
+
+```bash
+# Verify installation
+terraform version
+
+# If not installed, use HashiCorp's APT repository
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+```
+
+### SSH キーペア
+
+VM アクセス用の SSH キーペア：
+
+```bash
+# Generate if you don't have one
+ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
+```
+
+### Azure AD の権限
+
+Azure AD アカウントには `User.Read` 権限が必要です。デプロイヤー識別子（リソースの命名に使用）は、Azure AD プロファイルから自動的に取得されます。サービスプリンシパルまたはマネージド ID 認証の場合は、Terraform 変数 `deployer` を明示的に設定してください。
+
+## オプション
+
+### カスタムドメイン
+
+自己署名証明書の代わりに実際の TLS 証明書を使用する場合：
+
+- DNS 管理が可能なドメイン名
+- Azure パブリック IP を指す A レコードを作成する権限
+
+### オリジンサーバー URL
+
+このエッジノードがトラフィックを転送する F5 XC HTTP ロードバランサーの URL。これはデプロイ後に設定可能です — デフォルトの NGINX 設定では、NGINX 設定内で更新するプレースホルダーが使用されます。

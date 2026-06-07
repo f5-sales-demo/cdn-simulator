@@ -1,0 +1,211 @@
+---
+title: 오리진 서버와 통합
+description: >-
+  Connect the CDN edge to the origin-server lab component (direct integration),
+  discover applications via the published endpoint manifest, verify end-to-end
+  traffic flow with header inspection and log correlation. Covers both direct
+  origin and future F5 XC insertion architectures.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 7e12e7a4634c
+  translator: machine
+---
+
+이 페이지에서는 두 가지 통합 단계를 다룹니다:
+
+1. **직접 통합** — CDN 에지가 오리진 서버로 직접 전달 (기본 테스트)
+2. **F5 XC 삽입** — CDN과 오리진 사이에 F5 XC HTTP 로드 밸런서 삽입 (보안 데모)
+
+먼저 직접 통합으로 기준선을 수립한 후, 준비되면 F5 XC를 삽입합니다.
+
+## 오리진 서버 참조
+
+[origin-server](https://f5xc-salesdemos.github.io/origin-server/) 랩 컴포넌트는 보안 테스트를 위한 취약한 웹 애플리케이션을 제공합니다.
+
+| 속성 | 값 |
+|---|---|
+| 문서 | [f5xc-salesdemos.github.io/origin-server](https://f5xc-salesdemos.github.io/origin-server/) |
+| 리포지토리 | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
+| 기본 포트 | 80 |
+| 헬스 체크 | `GET /health` |
+
+### 사용 가능한 애플리케이션
+
+오리진 서버가 게시한 매니페스트에서 현재 애플리케이션 카탈로그를 가져옵니다:
+
+```bash
+MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
+  | python3 -c "import sys,json; assets=json.load(sys.stdin).get('assets',[]); print(next((a['browser_download_url'] for a in assets if a['name']=='manifest.json'),''))")
+curl -sf "$MANIFEST_URL" | python3 -m json.tool
+```
+
+아직 릴리스가 없는 경우 리포지토리 소스에서 직접 가져옵니다:
+
+```bash
+curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
+```
+
+매니페스트에는 모든 애플리케이션 경로, 헬스 체크, 컨테이너 이미지 및 데모 기능 매핑이 나열되어 있습니다.
+
+### 애플리케이션 경로
+
+| 경로 | 애플리케이션 | 데모 기능 |
+|---|---|---|
+| `/` | 랜딩 페이지 | — |
+| `/health` | 헬스 체크 | — |
+| `/juice-shop/` | OWASP Juice Shop | WAF, Bot Defense, API Security |
+| `/dvwa/` | DVWA | WAF, Bot Defense |
+| `/vampi/` | VAmPI | API Security |
+| `/httpbin/` | httpbin | 진단 |
+| `/whoami/` | whoami | 헤더 검증 |
+| `/csd-demo/` | CSD Demo | Client-Side Defense |
+
+## 단계 1: 직접 통합 (기준선)
+
+```
+┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
+│           │     │  20.65.90.112        │     │  20.12.78.159       │
+└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
+                 │  Disk cache           │     │  VAmPI, httpbin,    │
+                 └──────────────────────┘     │  whoami, CSD Demo   │
+                                              └─────────────────────┘
+```
+
+### 오리진 구성
+
+CDN 에지 NGINX 설정에서 오리진 서버 IP를 설정합니다:
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass http://<ORIGIN_IP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+또는 Terraform 배포 시 `terraform.tfvars`를 통해 설정할 수 있습니다:
+
+```hcl
+origin_server = "http://<ORIGIN_IP>"
+```
+
+### 모든 애플리케이션 검증
+
+CDN을 통해 각 오리진 애플리케이션을 테스트합니다:
+
+```bash
+CDN=<CDN_EDGE_IP>
+
+# Health check (CDN local)
+curl -sf "http://$CDN/health" | python3 -m json.tool
+
+# Landing page
+curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
+
+# Juice Shop
+curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
+
+# DVWA (follows redirect to login)
+curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
+
+# VAmPI API
+curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
+
+# httpbin headers (shows CDN headers in JSON)
+curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
+
+# whoami (shows ALL headers the origin receives)
+curl -sf "http://$CDN/whoami/"
+
+# CSD Demo
+curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
+```
+
+모든 경로는 HTTP 200을 반환해야 합니다 (DVWA는 302를 반환한 후 리다이렉트를 따르면 200을 반환).
+
+### 오리진에서 CDN 헤더 검증
+
+`/whoami/` 엔드포인트는 오리진이 수신하는 모든 헤더를 표시합니다. CDN을 통해 접근하면 67개 이상의 벤더 헤더가 모두 표시됩니다:
+
+```bash
+curl -sf "http://$CDN/whoami/"
+```
+
+다음 주요 헤더가 존재하는지 확인합니다:
+
+| 벤더 | 헤더 | 예상 값 |
+|---|---|---|
+| 표준 | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
+| Akamai | `True-Client-Ip` | `<your_ip>` |
+| Cloudflare | `Cf-Connecting-Ip` | `<your_ip>` |
+| CloudFront | `Cloudfront-Viewer-Country` | `US` |
+| Fastly | `Fastly-Client-Ip` | `<your_ip>` |
+| Azure FD | `X-Azure-Clientip` | `<your_ip>` |
+
+### 로그 교차 참조
+
+양쪽 서버의 접근 로그를 비교하여 트래픽 흐름을 검증합니다:
+
+```bash
+# CDN edge log — shows your client IP as source
+ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
+
+# Origin log — shows CDN edge IP as source
+ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
+```
+
+오리진 로그에는 CDN 에지 IP가 연결 클라이언트로 표시되어야 하며, 실제 클라이언트 IP는 `X-Forwarded-For` 및 벤더별 헤더에 포함되어 전달됩니다.
+
+### 캐시 동작
+
+```bash
+# First request — MISS (fetched from origin)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+
+# Second request — HIT (served from CDN cache)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+```
+
+## 단계 2: F5 XC 삽입 (보안 데모)
+
+기준선 테스트 후, CDN과 오리진 사이에 F5 XC HTTP 로드 밸런서를 삽입합니다:
+
+```
+┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
+│           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
+└──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
+```
+
+1. **F5 XC HTTP 로드 밸런서 생성** — 오리진 풀에 오리진 서버를 포함
+2. **CDN 에지 업데이트** — 오리진 대신 F5 XC VIP를 가리키도록 변경:
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass https://<F5XC_LB_VIP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+3. **전체 체인을 통한 WAF 적용 검증**:
+
+```bash
+# SQL injection through CDN → F5 XC WAF should block
+curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
+
+# Normal request should pass
+curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
+```
+
+4. **F5 XC에서 신뢰할 수 있는 클라이언트 IP 헤더 구성** — CDN 헤더에서 실제 클라이언트 IP를 읽도록 설정 (예: Akamai 시뮬레이션의 경우 `True-Client-IP`, Cloudflare 시뮬레이션의 경우 `CF-Connecting-IP`)
+
+## 다중 컴포넌트 아키텍처
+
+| 컴포넌트 | 리포지토리 | 용도 |
+|---|---|---|
+| **CDN Edge** (현재) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | 캐싱, 벤더 헤더 |
+| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | 취약한 웹 앱 |
+| **F5 XC Config** | 다양함 (waf, api-protection, bot-*, 등) | 보안 정책 |
+
+각 컴포넌트는 AI 어시스턴트가 인프라를 배포하기 위해 읽는 문서를 게시합니다. origin-server는 모든 애플리케이션 경로와 헬스 체크를 나열하는 [엔드포인트 매니페스트](https://github.com/f5xc-salesdemos/origin-server/releases/latest)를 GitHub Release 아티팩트로 게시합니다.

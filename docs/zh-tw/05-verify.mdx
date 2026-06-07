@@ -1,0 +1,247 @@
+---
+title: 驗證
+description: >-
+  Smoke test commands with expected HTTP response codes, X-Cache-Status header
+  values (HIT/MISS), health check JSON response, cache directory inspection,
+  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
+  and NSG issues
+sidebar:
+  order: 5
+i18n:
+  sourceHash: 939ce6f55688
+  translator: machine
+---
+
+部署完成後，請執行以下檢查以確認 CDN 邊緣節點運作正常。在執行 `terraform apply` 後，請等待 2-3 分鐘讓 cloud-init 完成 NGINX 的安裝。
+
+## 健康檢查
+
+驗證 NGINX 正在運行並有回應：
+
+```bash
+curl -s "http://<PUBLIC_IP>/health" | jq .
+```
+
+預期輸出：
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": [
+    "akamai",
+    "cloudflare",
+    "cloudfront",
+    "fastly",
+    "azure-front-door"
+  ]
+}
+```
+
+如果使用 Terraform 輸出：
+
+```bash
+curl -s "$(terraform output -raw health_check_url)" | jq .
+```
+
+## 快取未命中（首次請求）
+
+對任何路徑的首次請求將會是快取未命中——邊緣節點會從來源伺服器擷取內容：
+
+```bash
+curl -I "http://<PUBLIC_IP>/"
+```
+
+在回應中尋找以下標頭：
+
+```
+X-Cache-Status: MISS
+X-CDN-Edge: cdn-simulator
+```
+
+`MISS` 表示內容不在快取中，已從來源伺服器擷取。
+
+## 快取命中（後續請求）
+
+立即重複相同的請求：
+
+```bash
+curl -I "http://<PUBLIC_IP>/"
+```
+
+預期標頭：
+
+```
+X-Cache-Status: HIT
+X-CDN-Edge: cdn-simulator
+```
+
+`HIT` 確認回應是從 NGINX 磁碟快取中提供的，無需聯繫來源伺服器。
+
+## 快取目錄檢查
+
+透過 SSH 登入 VM 以驗證快取內容存在於磁碟上：
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# 檢查快取目錄是否有內容
+sudo find /var/cache/nginx/cdn -type f | head -20
+
+# 檢查快取大小
+sudo du -sh /var/cache/nginx/cdn
+```
+
+## NGINX 狀態
+
+驗證 NGINX 正在運行且設定有效：
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# 檢查服務狀態
+sudo systemctl status nginx
+
+# 驗證設定
+sudo nginx -t
+
+# 檢視活躍連線（如果已啟用 stub_status）
+curl -s http://localhost/health
+```
+
+## 來源伺服器連線
+
+驗證邊緣節點可以連接到來源伺服器：
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# 測試與來源伺服器的連線（請替換為您的來源 URL）
+curl -I "https://your-origin.example.com/"
+```
+
+如果測試失敗，請檢查：
+
+1. Terraform 設定中的 `origin_server` 變數是否正確
+2. 來源伺服器是否允許來自邊緣節點公共 IP 的入站連線
+3. VM 上的 DNS 解析是否正常（`nslookup your-origin.example.com`）
+
+## Cloud-Init 進度
+
+透過 cloud-init 日誌監控佈建進度：
+
+```bash
+ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
+```
+
+預期階段：`[init]`、`[nic]`（動態 NIC 偵測）、`[complete]`。
+
+如果 cloud-init 報告錯誤：
+
+```bash
+ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
+```
+
+## 端對端測試
+
+執行完整的請求週期並驗證回應鏈：
+
+```bash
+# 首次請求 — MISS（從來源伺服器擷取）
+echo "=== Request 1 (expect MISS) ==="
+curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
+
+# 第二次請求 — HIT（從快取提供）
+echo "=== Request 2 (expect HIT) ==="
+curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
+```
+
+預期輸出：
+
+```
+=== Request 1 (expect MISS) ===
+HTTP 200 | Cache: MISS
+=== Request 2 (expect HIT) ===
+HTTP 200 | Cache: HIT
+```
+
+## 供應商標頭驗證
+
+透過請求 `/headers` 路徑來驗證所有 CDN 供應商標頭是否已被注入（當使用 httpbin.org 作為來源伺服器時）：
+
+```bash
+curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
+```
+
+預期回應包含來自所有五個供應商的標頭：
+
+```json
+{
+    "headers": {
+        "True-Client-Ip": "<YOUR_CLIENT_IP>",
+        "Cf-Connecting-Ip": "<YOUR_CLIENT_IP>",
+        "Cf-Ipcountry": "US",
+        "Cf-Ray": "<request_id>-SJC",
+        "Cf-Bot-Score": "85",
+        "Cf-Ja3-Hash": "e7d705a3286e19ea42f587b344ee6865",
+        "Cloudfront-Viewer-Country": "US",
+        "Cloudfront-Viewer-City": "San Jose",
+        "Cloudfront-Is-Desktop-Viewer": "true",
+        "Cloudfront-Is-Mobile-Viewer": "false",
+        "Fastly-Client-Ip": "<YOUR_CLIENT_IP>",
+        "X-Akamai-Edgescape": "georegion=263,country_code=US,...",
+        "X-Azure-Clientip": "<YOUR_CLIENT_IP>",
+        "X-Azure-Fdid": "a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1",
+        "X-Geo-Country-Code": "US"
+    }
+}
+```
+
+### 裝置偵測測試
+
+使用行動裝置 User-Agent 進行測試，以驗證裝置偵測標頭是否會變更：
+
+```bash
+curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
+  -H "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" \
+  | python3 -m json.tool | grep -E "Is-Mobile|Is-Desktop|is_mobile"
+```
+
+預期結果：
+
+```
+"Cloudfront-Is-Desktop-Viewer": "false",
+"Cloudfront-Is-Mobile-Viewer": "true",
+```
+
+## 疑難排解
+
+### NGINX 未運行
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo systemctl status nginx
+sudo journalctl -u nginx --no-pager -n 50
+```
+
+### Cloud-init 尚未完成
+
+執行 `terraform apply` 後，cloud-init 需要 2-3 分鐘。檢查進度：
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo cloud-init status
+sudo tail -f /var/log/cloud-init-output.log
+```
+
+### 快取始終顯示 MISS
+
+- 驗證來源伺服器是否回傳可快取的回應碼（200、301、302）
+- 檢查來源伺服器是否未發送 `Cache-Control: no-cache` 或 `no-store` 標頭
+- 檢查 NGINX 錯誤日誌：`sudo tail -f /var/log/nginx/error.log`
+
+### 連接埠 80/443 連線被拒絕
+
+- 驗證 NSG 規則已套用：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- 驗證 NGINX 正在監聽：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

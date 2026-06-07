@@ -1,0 +1,79 @@
+---
+title: Prérequis
+description: >-
+  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
+  permissions, and Azure AD requirements for deploying the performance-optimized
+  CDN edge node VM
+sidebar:
+  order: 2
+i18n:
+  sourceHash: fafd7c61e178
+  translator: machine
+---
+
+## Requis
+
+### Abonnement Azure
+
+Un abonnement Azure actif avec les permissions pour créer :
+
+- Des groupes de ressources
+- Des réseaux virtuels et des sous-réseaux
+- Des groupes de sécurité réseau
+- Des adresses IP publiques
+- Des machines virtuelles
+
+### Azure CLI
+
+Installez et authentifiez l'Azure CLI :
+
+```bash
+# Install (if not present)
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Authenticate
+az login
+
+# Verify subscription
+az account show --query '{name:name, id:id}' -o table
+```
+
+### Terraform
+
+Terraform >= 1.5 est requis :
+
+```bash
+# Verify installation
+terraform version
+
+# If not installed, use HashiCorp's APT repository
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+```
+
+### Paire de clés SSH
+
+Une paire de clés SSH pour l'accès à la VM :
+
+```bash
+# Generate if you don't have one
+ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
+```
+
+### Permissions Azure AD
+
+Votre compte Azure AD doit disposer des permissions `User.Read`. L'identifiant du déployeur (utilisé dans le nommage des ressources) est automatiquement dérivé de votre profil Azure AD. Pour l'authentification par principal de service ou identité managée, définissez explicitement la variable Terraform `deployer`.
+
+## Optionnel
+
+### Domaine personnalisé
+
+Si vous souhaitez de vrais certificats TLS au lieu de certificats auto-signés :
+
+- Un nom de domaine avec le contrôle du DNS
+- La possibilité de créer des enregistrements A pointant vers l'adresse IP publique Azure
+
+### URL du serveur d'origine
+
+L'URL du répartiteur de charge HTTP F5 XC vers lequel ce nœud edge transmettra le trafic. Cela peut être configuré après le déploiement — la configuration NGINX par défaut utilise un espace réservé que vous mettez à jour dans la configuration NGINX.

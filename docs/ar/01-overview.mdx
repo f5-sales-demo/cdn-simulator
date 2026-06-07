@@ -1,0 +1,139 @@
+---
+title: نظرة عامة
+description: >-
+  Architecture, endpoints, vendor header simulation, and modular design of the
+  NGINX-based CDN edge node simulator deployed on Ubuntu 24.04 in Azure
+sidebar:
+  order: 1
+i18n:
+  sourceHash: f7a6771523b7
+  translator: machine
+---
+
+## الغرض
+
+يحاكي هذا المكون عقدة حافة CDN لبيئات المختبرات والعروض التوضيحية. وهو يمثل الدور الذي يلعبه مزودون مثل Akamai وCloudflare وAmazon CloudFront أو Fastly في بنية شبكة العميل — طبقة التخزين المؤقت الأقرب إلى المستخدمين النهائيين التي تقع أمام خادم الأصل.
+
+في بنيات الإنتاج متعددة المزودين، يقوم العملاء عادةً بإقران شبكة CDN تابعة لجهة خارجية مع F5 Distributed Cloud:
+
+```
+End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
+```
+
+يستبدل هذا المحاكي شبكة CDN التجارية بعقدة حافة قائمة على NGINX بحيث يمكن عرض التكامل واختباره دون الحاجة إلى عقود مع المزودين أو بنية تحتية إنتاجية.
+
+## البنية المعمارية
+
+```
+┌─────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌────────────┐
+│  Client  │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB  │────▶│ Origin App │
+│          │     │  Ubuntu 24.04 Azure  │     │  (Origin Server) │     │            │
+└─────────┘     │  - TLS termination   │     └─────────────────┘     └────────────┘
+                │  - Disk-based cache  │
+                │  - X-Cache-Status    │
+                └──────────────────────┘
+```
+
+عقدة حافة NGINX:
+
+- **تنهي TLS** عند الحافة (شهادة موقعة ذاتياً أو Let's Encrypt)
+- **تخزن الاستجابات مؤقتاً** على القرص باستخدام `proxy_cache_path`
+- **تعيد توجيه طلبات عدم التخزين المؤقت** إلى خادم أصل قابل للتكوين (عنوان VIP لموازن حمل HTTP في F5 XC)
+- **تُبلّغ عن حالة التخزين المؤقت** عبر ترويسة الاستجابة `X-Cache-Status` (`HIT`، `MISS`، `BYPASS`، `EXPIRED`)
+
+## ما يحاكيه هذا المكون
+
+| وظيفة CDN | تنفيذ NGINX |
+|---|---|
+| التخزين المؤقت على الحافة | `proxy_cache` مع تخزين على القرص |
+| توليد مفتاح التخزين المؤقت | `proxy_cache_key` بناءً على المخطط والمضيف والمسار |
+| سحب من الأصل | `proxy_pass` إلى موازن حمل HTTP في F5 XC |
+| إنهاء TLS | توجيه `ssl_certificate` في NGINX |
+| احترام Cache-Control | `proxy_cache_valid` مع تمرير ترويسات الأصل |
+| الإبلاغ عن حالة التخزين المؤقت | `add_header X-Cache-Status $upstream_cache_status` |
+| نقطة نهاية الفحص الصحي | مسار `/health` يُرجع 200 OK |
+
+## نقاط النهاية وسلوك الطلب/الاستجابة
+
+### الفحص الصحي
+
+```
+GET /health
+```
+
+الاستجابة (200 OK، `Content-Type: application/json`):
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": ["akamai", "cloudflare", "cloudfront", "fastly", "azure-front-door"]
+}
+```
+
+### وكيل CDN (جميع المسارات الأخرى)
+
+```
+GET /<any-path>
+```
+
+ترويسات الطلب المحقونة نحو الأصل (أكثر من 67 ترويسة من 5 مزودين):
+
+| الفئة | الترويسات المضافة |
+|---|---|
+| عنوان IP للعميل | `True-Client-IP`، `CF-Connecting-IP`، `Fastly-Client-IP`، `X-Azure-ClientIP`، `CloudFront-Viewer-Address`، `X-Forwarded-For`، `X-Real-IP` |
+| تحديد الموقع الجغرافي | `X-Akamai-Edgescape` (مركّبة)، `CF-IPCountry`، `cf-ipcity`، `cf-iplatitude/longitude`، `CloudFront-Viewer-Country/City/Latitude/Longitude`، `X-Geo-Country-Code/City/Region` |
+| اكتشاف الجهاز | `CloudFront-Is-Mobile-Viewer`، `CloudFront-Is-Desktop-Viewer`، `CloudFront-Is-Tablet-Viewer`، `X-Akamai-Device-Characteristics` |
+| TLS/البصمة | `CloudFront-Viewer-TLS`، `cf-ja3-hash`، `cf-ja4`، `CloudFront-Viewer-JA3-Fingerprint` |
+| اكتشاف الروبوتات | `cf-bot-score` (85 = على الأرجح بشري)، `cf-verified-bot` |
+| تتبع الطلب | `Cf-Ray`، `X-Akamai-Request-ID`، `X-Amz-Cf-Id`، `X-Azure-Ref` |
+| هوية الحافة | `X-CDN-Edge`، `X-CDN-POP`، `X-Served-By`، `Fastly-FF`، `X-Azure-FDID` |
+| قياسية | `Via`، `Forwarded`، `CDN-Loop`، `X-Forwarded-Proto/Host/Port` |
+
+ترويسات الاستجابة المضافة إلى كل استجابة موكّلة:
+
+| الترويسة | القيم | الغرض |
+|---|---|---|
+| `X-Cache-Status` | `HIT`، `MISS`، `BYPASS`، `EXPIRED`، `STALE` | سلوك التخزين المؤقت لهذا الطلب |
+| `X-CDN-Edge` | `cdn-simulator` | يُعرّف عقدة الحافة هذه |
+| `X-CDN-POP` | `SJC` | رمز IATA محاكى لنقطة التواجد |
+| `X-Served-By` | `cache-sjc3120-SJC` | عقدة تخزين مؤقت محاكاة بتنسيق Fastly |
+| `X-Request-ID` | UUID (لكل طلب) | معرّف طلب فريد |
+
+### سلوك التخزين المؤقت
+
+- الطلب الأول لأي مسار: `X-Cache-Status: MISS` (تم جلبه من الأصل، وأصبح الآن مخزّناً مؤقتاً)
+- الطلبات المتطابقة اللاحقة: `X-Cache-Status: HIT` (يُقدَّم من ذاكرة التخزين المؤقت على القرص)
+- مفتاح التخزين المؤقت: `$scheme$host$request_uri` (المخطط + اسم المضيف + المسار الكامل + سلسلة الاستعلام)
+- مدة بقاء التخزين المؤقت: 10 دقائق للاستجابات 200/301/302، دقيقة واحدة للاستجابة 404
+- التقديم القديم: يُرجع المحتوى المخزّن مؤقتاً عند حدوث أخطاء في الأصل (500/502/503/504)
+
+### الوصول إلى الجهاز الافتراضي
+
+| طريقة الوصول | الأمر/المسار |
+|---|---|
+| SSH | `ssh azureuser@<PUBLIC_IP>` |
+| تكوين NGINX | `/etc/nginx/conf.d/cdn-edge.conf` |
+| سجلات NGINX | `/var/log/nginx/access.log` و `/var/log/nginx/error.log` |
+| مجلد التخزين المؤقت | `/var/cache/nginx/cdn/` |
+| سجل Cloud-init | `/var/log/cloud-init-output.log` |
+
+## تصميم المكونات المعيارية
+
+هذا جزء واحد من بيئة مختبر أكبر. كل مكون مستقل بذاته ويُنشر بشكل مستقل:
+
+- **هذا المكون** يوفر حافة CDN (NGINX على جهاز Azure الافتراضي)
+- **المكونات الأخرى** توفر تطبيق الأصل، وتكوين F5 XC، وDNS، وسياسات WAF، وما إلى ذلك.
+
+يقوم المشغّل البشري بإضافة المكونات واحداً تلو الآخر. وثائق كل مكون مكتوبة بحيث يمكن لمساعد ذكاء اصطناعي قراءتها ونشر البنية التحتية بشكل مستقل.
+
+## لماذا NGINX
+
+تم اختيار NGINX كمحرك محاكاة CDN للأسباب التالية:
+
+1. **منتج F5** — استحوذت F5 على شركة NGINX Inc. في عام 2019؛ وهو جزء من محفظة منتجات F5
+2. **مُثبت في الصناعة** — شغّلت Cloudflare شبكة CDN بالكامل على NGINX لأكثر من عقد قبل الانتقال إلى Pingora؛ وتستخدم Netflix NGINX لشبكة CDN الخاصة بها Open Connect
+3. **عملية واحدة** — يتعامل مع إنهاء TLS والتخزين المؤقت في ملف ثنائي واحد، على عكس Varnish الذي يتطلب وكيل TLS منفصل
+4. **نشر بسيط** — `apt install nginx` على Ubuntu 24.04، توجيهان يُفعّلان التخزين المؤقت
+5. **موثّق بشكل جيد** — وثائق رسمية شاملة لتخزين المحتوى المؤقت وتكوين الوكيل العكسي

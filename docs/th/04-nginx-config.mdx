@@ -1,0 +1,396 @@
+---
+title: NGINX Configuration
+description: >-
+  Production-optimized NGINX configuration reference — performance tuning
+  (kernel, buffers, keepalive, gzip, open_file_cache), 25 GB disk cache with
+  thundering herd prevention, upstream keepalive pool, 67+ CDN vendor headers
+  from Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door, and device
+  detection. Verified under 48-hour load test at 170K req/s peak.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: 0a5211740122
+  translator: machine
+---
+
+การ provisioning ด้วย cloud-init จะ deploy การกำหนดค่า NGINX CDN edge ที่ปรับแต่งประสิทธิภาพอย่างเต็มรูปแบบ หน้านี้อธิบายทุกชั้นการกำหนดค่า ตั้งแต่การปรับแต่ง kernel ไปจนถึงพฤติกรรมแคชและการแทรก vendor header ทุกการตั้งค่าได้รับการตรวจสอบภายใต้การทดสอบโหลดต่อเนื่อง 48 ชั่วโมง โดยมียอดสูงสุดที่ 172,540 req/s
+
+## ไฟล์การกำหนดค่า
+
+| ไฟล์ | วัตถุประสงค์ |
+|---|---|
+| `/etc/sysctl.d/99-cdn-tuning.conf` | การปรับแต่ง network ของ Linux kernel |
+| `/etc/systemd/system/nginx.service.d/override.conf` | ขีดจำกัด file descriptor สำหรับ NGINX |
+| `/etc/security/limits.d/99-nginx.conf` | ขีดจำกัดระดับ OS สำหรับผู้ใช้ www-data |
+| `/etc/nginx/nginx.conf` | การกำหนดค่าหลักของ NGINX (workers, buffers, gzip, logging) |
+| `/etc/nginx/conf.d/cdn-edge.conf` | การกำหนดค่า CDN proxy (cache, upstream, headers) |
+
+## การปรับแต่ง Kernel
+
+ใช้งานผ่าน `/etc/sysctl.d/99-cdn-tuning.conf` ตอนบูต
+
+| พารามิเตอร์ | ค่า | ค่าเริ่มต้น | วัตถุประสงค์ |
+|---|---|---|---|
+| `net.core.somaxconn` | 65535 | 4096 | ขนาดคิว listen backlog |
+| `net.core.netdev_max_backlog` | 65535 | 1000 | คิว backlog ของ packet ขาเข้าต่อ CPU |
+| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | คิว SYN request (ป้องกันการ drop ขณะ burst) |
+| `net.ipv4.tcp_tw_reuse` | 1 | 2 | ใช้ socket TIME_WAIT ซ้ำสำหรับการเชื่อมต่อขาออก |
+| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | ช่วง ephemeral port (64K เทียบกับ 28K) |
+| `net.core.rmem_max` | 16 MB | 212 KB | บัฟเฟอร์ socket รับสูงสุด |
+| `net.core.wmem_max` | 16 MB | 212 KB | บัฟเฟอร์ socket ส่งสูงสุด |
+| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | บัฟเฟอร์รับต่อ socket (ต่ำสุด/ค่าเริ่มต้น/สูงสุด) |
+| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | บัฟเฟอร์ส่งต่อ socket (ต่ำสุด/ค่าเริ่มต้น/สูงสุด) |
+| `net.ipv4.tcp_fin_timeout` | 15 | 60 | timeout ของ FIN_WAIT_2 (คืน socket เร็วขึ้น) |
+| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | เริ่ม keepalive probe หลัง idle 5 นาที |
+| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | รักษา congestion window ให้พร้อมบนการเชื่อมต่อ idle |
+| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | จำนวน socket TIME_WAIT สูงสุด |
+| `fs.file-max` | 2097152 | แตกต่าง | ขีดจำกัด file descriptor ทั้งระบบ |
+| `vm.swappiness` | 10 | 60 | ใช้ RAM มากกว่า swap สำหรับข้อมูลแคช |
+
+## การกำหนดค่าหลักของ NGINX
+
+### Workers และ Connections
+
+```nginx
+worker_processes auto;           # 4 workers on D4s_v5 (1 per vCPU)
+worker_rlimit_nofile 65535;      # Per-worker file descriptor limit
+
+events {
+    use epoll;                   # Linux-optimized event model
+    worker_connections 8192;     # 4 workers x 8192 = 32,768 max concurrent
+    multi_accept on;             # Accept all pending connections per event loop
+    accept_mutex off;            # Not needed with epoll + reuseport
+}
+```
+
+Systemd override ที่ `/etc/systemd/system/nginx.service.d/override.conf` ตั้งค่า `LimitNOFILE=65535` ให้ตรงกัน
+
+### Proxy Buffers
+
+```nginx
+proxy_buffering on;
+proxy_buffer_size 16k;           # Header buffer (handles large CDN headers)
+proxy_buffers 64 16k;            # 1 MB per connection (64 x 16k)
+proxy_busy_buffers_size 256k;    # Can send 256k to client while still reading
+```
+
+ขนาด busy buffer 256k เป็นสิ่งสำคัญ — ต้องมากกว่า response ที่แคชไว้ขนาดใหญ่ที่สุด (Juice Shop คือ 75 KB) การตั้งค่าเดิม 64k ทำให้เกิด serialization ภายใต้โหลด
+
+### การบีบอัด Gzip
+
+```nginx
+gzip on;
+gzip_comp_level 4;               # Balance: ~85% of max compression at ~40% CPU
+gzip_min_length 256;             # Skip tiny responses (gzip header overhead)
+gzip_vary on;                    # Vary: Accept-Encoding for correct caching
+gzip_proxied any;                # Compress all proxied responses
+gzip_types text/plain text/css text/javascript text/xml
+           application/json application/javascript application/xml
+           application/xml+rss application/atom+xml
+           application/ld+json application/manifest+json
+           image/svg+xml;
+```
+
+### Open File Cache
+
+```nginx
+open_file_cache max=200000 inactive=20s;
+open_file_cache_valid 30s;
+open_file_cache_min_uses 2;
+open_file_cache_errors on;
+```
+
+แคช file descriptor และ metadata สำหรับ cached object ลดการเรียก syscall `stat()` และ `open()` บนไฟล์ที่เข้าถึงบ่อย
+
+### Client Keepalive
+
+```nginx
+keepalive_timeout 65;
+keepalive_requests 100000;       # Was 1000 — caused connection recycling at 90K req/s
+```
+
+ที่ 90K req/s กับ `keepalive_requests 1000` การเชื่อมต่อจะถูก recycle ทุก 11 วินาที ทำให้เกิด TIME_WAIT socket การเพิ่มเป็น 100,000 ขจัดปัญหานี้ทั้งหมด
+
+### Access Logging
+
+```nginx
+log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $upstream_cache_status $request_time';
+access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
+```
+
+รูปแบบ log `cdn` รวม `$upstream_cache_status` (HIT/MISS) และ `$request_time` สำหรับการวิเคราะห์ latency การ logging แบบ buffered (256k/flush ทุก 5s) ลด overhead ของ I/O ภายใต้โหลดสูง
+
+## Upstream Keepalive
+
+```nginx
+upstream origin_backend {
+    server 20.12.78.159:80;
+    keepalive 256;               # Persistent connections per worker to origin
+    keepalive_timeout 60s;
+    keepalive_requests 1000;
+}
+```
+
+ด้วย 4 workers x 256 keepalive = 1,024 การเชื่อมต่อที่พร้อมใช้กับ origin เมื่อรวมกับ `proxy_http_version 1.1` และ `proxy_set_header Connection ""` จะขจัด overhead ของ TCP handshake ในทุก cache miss
+
+## การกำหนดค่าแคช
+
+### Cache Path
+
+```nginx
+proxy_cache_path /var/cache/nginx/cdn
+                 levels=1:2
+                 keys_zone=cdn_cache:32m
+                 max_size=25g
+                 inactive=24h
+                 use_temp_path=off;
+```
+
+| พารามิเตอร์ | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `keys_zone=cdn_cache:32m` | หน่วยความจำร่วม 32 MB | เก็บ cache key และ metadata ประมาณ 256,000 รายการ |
+| `max_size=25g` | ขีดจำกัดดิสก์ 25 GB | ใช้พื้นที่ส่วนใหญ่ของดิสก์ OS 30 GB; LRU eviction เมื่อถึงขีดจำกัด |
+| `inactive=24h` | timeout ไม่ใช้งาน 24 ชั่วโมง | เนื้อหาที่ไม่ถูกเข้าถึงนาน 24 ชั่วโมงจะถูก evict (ไม่เหมือนกับ TTL) |
+| `use_temp_path=off` | เขียนตรงไปยัง cache directory | หลีกเลี่ยงการย้ายไฟล์ข้าม filesystem |
+
+### พฤติกรรมแคช
+
+```nginx
+proxy_cache cdn_cache;
+proxy_cache_valid 200 301 302 4h;
+proxy_cache_valid 404 1m;
+proxy_cache_key "$scheme$host$request_uri";
+proxy_cache_lock on;
+proxy_cache_lock_age 3s;
+proxy_cache_lock_timeout 3s;
+proxy_cache_background_update on;
+proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
+proxy_ignore_headers Set-Cookie Cache-Control Expires Vary;
+
+proxy_hide_header X-Cache-Status;
+proxy_hide_header Vary;
+```
+
+| Directive | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `proxy_cache_valid 200 301 302 4h` | TTL 4 ชั่วโมง | เนื้อหาที่แคชมีอายุ 4 ชั่วโมง (เพิ่มเพื่อลดการลดลงของ throughput จากคลื่น refresh) |
+| `proxy_cache_lock on` | ป้องกัน thundering herd | มีเพียง 1 request ที่ไปยัง origin ต่อ URL ที่ยังไม่ได้แคช; request อื่นรอจนกว่าแคชจะเต็ม |
+| `proxy_cache_lock_age 3s` | timeout ของ lock | หาก request แรกไม่เสร็จใน 3 วินาที จะอนุญาตให้อีก request ผ่านไป |
+| `proxy_cache_background_update on` | Refresh แบบ zero-latency | ส่งเนื้อหา stale ทันทีในขณะที่ refresh ใน background |
+| `proxy_cache_use_stale` | ความยืดหยุ่น | ส่งเนื้อหา stale ระหว่าง origin error (500/502/503/504) หรือขณะ updating |
+| `proxy_ignore_headers` | บังคับแคช | ละเว้น Set-Cookie, Cache-Control, Expires, Vary จาก origin — CDN เป็นผู้กำหนด TTL และพฤติกรรม Vary (Juice Shop ส่ง `max-age=0` และ `Vary` header ซ้ำสามครั้ง ซึ่งป้องกันการแคชที่มีประสิทธิภาพ) |
+| `proxy_hide_header X-Cache-Status` | ลบ header จาก origin | NGINX ของ origin เพิ่ม X-Cache-Status ของตัวเอง — ลบออกเพื่อให้เห็นเฉพาะ cache status ของ CDN |
+| `proxy_hide_header Vary` | ป้องกัน cache fragmentation | Origin ส่ง `Vary: Accept-Encoding` header หลายตัว การลบออกป้องกัน cache key fragmentation จาก permutation ต่างๆ ของ `Accept-Encoding` `gzip_vary on` ของ NGINX จะเพิ่ม `Vary` header เดียวที่ถูกต้องโดยอัตโนมัติ |
+
+### Proxy Timeouts
+
+```nginx
+proxy_read_timeout 30s;
+proxy_connect_timeout 10s;
+proxy_send_timeout 15s;
+```
+
+ให้เวลา origin ตอบสนองมากขึ้นภายใต้โหลด ขณะเดียวกันก็ fail fast สำหรับปัญหาการเชื่อมต่อ
+
+### Server Block
+
+```nginx
+server {
+    listen 80 reuseport;        # Kernel distributes connections across all 4 workers
+    server_name _;
+}
+```
+
+`reuseport` เปิดใช้ `SO_REUSEPORT` — kernel กระจายการเชื่อมต่อขาเข้าตรงไปยัง worker process ขจัด accept mutex contention
+
+## CDN Vendor Headers
+
+simulator จะแทรก header จาก CDN vendor หลักทั้ง 5 รายพร้อมกัน ซึ่งช่วยให้ F5 XC สามารถกำหนดค่า "Trusted Client IP Header" ของ vendor ใดก็ได้ และเห็น header payload ที่สมจริงโดยไม่ขึ้นกับว่ากำลังจำลอง CDN ตัวไหน
+
+### Header มาตรฐานอุตสาหกรรม (CDN ทั้งหมด)
+
+| Header | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `X-Forwarded-For` | สาย IP ของ Client | IP ที่ forward มาตรฐาน |
+| `X-Forwarded-Proto` | `http` หรือ `https` | โปรโตคอลดั้งเดิมของ client |
+| `X-Forwarded-Host` | Hostname ดั้งเดิม | Host header ดั้งเดิม |
+| `X-Forwarded-Port` | พอร์ตเซิร์ฟเวอร์ | พอร์ตดั้งเดิม |
+| `X-Real-IP` | IP ของ Client | IP เดียวของ client (ธรรมเนียม nginx) |
+| `Via` | `1.1 cdn-simulator` | การระบุตัวตน proxy |
+| `Forwarded` | รูปแบบ RFC 7239 | Header การ forward ที่เป็นมาตรฐาน |
+| `CDN-Loop` | `cdn-simulator` | การตรวจจับ loop |
+
+### Akamai Headers
+
+| Header | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `True-Client-IP` | IP ของ Client | ที่อยู่ IP ดั้งเดิมของผู้ใช้ปลายทาง |
+| `X-Akamai-Edgescape` | สตริง geo แบบรวม | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
+| `X-Akamai-Device-Characteristics` | คุณสมบัติอุปกรณ์ | brand_name, model_name, is_mobile, is_tablet, is_wireless_device, device_os, device_os_version, resolution_width, resolution_height |
+| `X-Akamai-Request-ID` | UUID ของ Request | ตัวระบุ request เฉพาะ |
+
+### Cloudflare Headers
+
+| Header | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `CF-Connecting-IP` | IP ของ Client | IP จริงของ client (มีเสมอ) |
+| `CF-IPCountry` | `US` | รหัสประเทศสองตัวอักษร |
+| `cf-ipcity` | `San Jose` | เมืองของ client |
+| `cf-ipcontinent` | `NA` | รหัสทวีป |
+| `cf-iplatitude` / `cf-iplongitude` | พิกัด | ตำแหน่งทางภูมิศาสตร์ |
+| `cf-region` / `cf-region-code` | `California` / `CA` | ข้อมูลภูมิภาค |
+| `cf-metro-code` | `807` | รหัส metro ของสหรัฐฯ |
+| `cf-postal-code` | `95113` | รหัสไปรษณีย์ |
+| `cf-timezone` | `America/Los_Angeles` | timezone แบบ IANA |
+| `Cf-Ray` | `{request_id}-SJC` | Ray ID เฉพาะพร้อมรหัส IATA ของ POP |
+| `CF-Visitor` | `{"scheme":"https"}` | ข้อมูลโปรโตคอลของผู้เยี่ยมชม |
+| `cf-bot-score` | `85` | คะแนนบอท (1=บอท, 99=มนุษย์) |
+| `cf-verified-bot` | `false` | แฟล็กบอทที่รู้จักว่าดี |
+| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS fingerprint |
+| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | JA4 TLS fingerprint |
+
+### Amazon CloudFront Headers
+
+| Header | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `CloudFront-Viewer-Address` | `IP:port` | IP ของ client และ source port |
+| `CloudFront-Viewer-Country` | `US` | รหัสประเทศ |
+| `CloudFront-Viewer-Country-Name` | `United States` | ชื่อประเทศเต็ม |
+| `CloudFront-Viewer-Country-Region` | `CA` | รหัสภูมิภาค |
+| `CloudFront-Viewer-Country-Region-Name` | `California` | ชื่อภูมิภาคเต็ม |
+| `CloudFront-Viewer-City` | `San Jose` | เมืองของ client |
+| `CloudFront-Viewer-Postal-Code` | `95113` | รหัสไปรษณีย์ |
+| `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | ตำแหน่งทางภูมิศาสตร์ |
+| `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | timezone แบบ IANA |
+| `CloudFront-Viewer-Metro-Code` | `807` | รหัส metro ของสหรัฐฯ |
+| `CloudFront-Viewer-ASN` | `7018` | Autonomous System Number |
+| `CloudFront-Viewer-Http-Version` | `2.0` | เวอร์ชัน HTTP ของ client |
+| `CloudFront-Forwarded-Proto` | `https` | โปรโตคอลดั้งเดิม |
+| `CloudFront-Viewer-TLS` | `TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed` | รายละเอียด TLS |
+| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS fingerprint |
+| `CloudFront-Is-Desktop-Viewer` | `true`/`false` | การตรวจจับอุปกรณ์ |
+| `CloudFront-Is-Mobile-Viewer` | `true`/`false` | การตรวจจับอุปกรณ์ |
+| `CloudFront-Is-Tablet-Viewer` | `true`/`false` | การตรวจจับอุปกรณ์ |
+| `CloudFront-Is-SmartTV-Viewer` | `false` | การตรวจจับอุปกรณ์ |
+| `X-Amz-Cf-Id` | ID แบบ encoded | ตัวระบุ request ของ CloudFront |
+
+### Fastly Headers
+
+| Header | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `Fastly-Client-IP` | IP ของ Client | IP จริงของ client |
+| `Fastly-SSL` | `1` | การเชื่อมต่อผ่าน TLS |
+| `Fastly-Client` | `1` | Request ฝั่ง client (ไม่ใช่ shield) |
+| `Fastly-FF` | `cache-sjc3120-SJC` | การระบุ cache node |
+| `X-Geo-Country-Code` | `US` | ประเทศ (ธรรมเนียม VCL variable) |
+| `X-Geo-Country-Code3` | `USA` | รหัสประเทศสามตัวอักษร |
+| `X-Geo-Country-Name` | `United States` | ชื่อประเทศเต็ม |
+| `X-Geo-City` | `San Jose` | เมืองของ client |
+| `X-Geo-Region` | `CA` | รหัสภูมิภาค |
+| `X-Geo-Continent-Code` | `NA` | ทวีป |
+| `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | ตำแหน่งทางภูมิศาสตร์ |
+| `X-Geo-Postal-Code` | `95113` | รหัสไปรษณีย์ |
+| `X-Geo-Metro-Code` | `807` | รหัส metro ของสหรัฐฯ |
+| `X-Geo-ASN` | `7018` | Autonomous System Number |
+| `X-Geo-Conn-Speed` | `broadband` | ระดับความเร็วการเชื่อมต่อ |
+| `X-Geo-Conn-Type` | `wired` | ประเภทการเชื่อมต่อ |
+
+### Azure Front Door Headers
+
+| Header | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `X-Azure-ClientIP` | IP ของ Client | ที่อยู่ IP ของ client |
+| `X-Azure-SocketIP` | IP ของ Client | IP ต้นทางของ TCP socket |
+| `X-Azure-Ref` | สตริง ref แบบ encoded | ข้อมูลอ้างอิง request เฉพาะสำหรับการแก้ปัญหา |
+| `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | ตัวระบุ resource ของ Front Door |
+| `X-Azure-RequestChain` | `hops=1` | จำนวน hop สำหรับตรวจจับ loop |
+
+### Response Headers (เพิ่มใน Response ที่ส่งกลับ Client)
+
+| Header | ค่า | วัตถุประสงค์ |
+|---|---|---|
+| `X-Cache-Status` | `HIT`, `MISS`, `EXPIRED`, `STALE`, `UPDATING` | พฤติกรรมแคชสำหรับ request นี้ |
+| `X-CDN-Edge` | `cdn-simulator` | ระบุ edge node นี้ |
+| `X-CDN-POP` | `SJC` | รหัส IATA ของ Point of Presence ที่จำลอง |
+| `X-Served-By` | `cache-sjc3120-SJC` | cache node ที่จำลองในรูปแบบ Fastly |
+| `X-Request-ID` | UUID (ต่อ request) | ตัวระบุ request เฉพาะ |
+
+## การตรวจจับอุปกรณ์
+
+simulator ตรวจจับประเภทอุปกรณ์จาก `User-Agent` header โดยใช้ NGINX `map` directives:
+
+- **Mobile**: จับคู่ iPhone, Android (ไม่ใช่ tablet), iPod, BlackBerry, Opera Mini, IEMobile
+- **Tablet**: จับคู่ iPad, Android tablet, Kindle, PlayBook
+- **Desktop**: ค่าเริ่มต้นเมื่อไม่ตรงกับ mobile หรือ tablet
+
+ประเภทอุปกรณ์จะสะท้อนใน:
+- `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
+- `X-Akamai-Device-Characteristics` (ฟิลด์ `is_mobile`, `is_tablet`, `is_wireless_device`)
+
+## การดำเนินงาน
+
+### การเปลี่ยน Origin Server
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Update upstream server
+sudo sed -i 's|server .*;|server NEW_HOST:80;|' /etc/nginx/conf.d/cdn-edge.conf
+
+# Clear cache and reload
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+หรืออัปเดต `origin_host` ใน `terraform.tfvars` แล้วรัน `terraform apply` เพื่อ reprovision
+
+### การล้างแคช
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo systemctl reload nginx
+```
+
+### การตรวจสอบสถิติแคช
+
+```bash
+# Object count and disk usage
+sudo find /var/cache/nginx/cdn -type f | wc -l
+sudo du -sh /var/cache/nginx/cdn
+
+# Recent access log with cache status
+tail -20 /var/log/nginx/access.log
+```
+
+### การตรวจสอบภายใต้โหลด
+
+```bash
+# Real-time connections and socket states
+ss -s
+
+# NGINX worker CPU usage
+top -bn1 | grep nginx
+
+# Upstream keepalive connections
+ss -tn state established dst <ORIGIN_IP> | wc -l
+
+# TIME_WAIT socket count
+ss -tn state time-wait | wc -l
+```
+
+## ผลการทดสอบประสิทธิภาพ
+
+ตรวจสอบภายใต้การทดสอบโหลดต่อเนื่อง 48 ชั่วโมง:
+
+| เมตริก | ค่า |
+|---|---|
+| Throughput สูงสุด (cached) | 172,540 req/s |
+| Throughput คงที่ (cached) | 85,000-103,000 req/s |
+| การเชื่อมต่อสูงสุด | 15,000 พร้อมกัน |
+| อัตราการ hit แคช | 100% (เมื่อ warmed แล้ว) |
+| หน่วยความจำภายใต้โหลด | 1.2 GB คงที่ (8% ของ 16 GB) |
+| CPU ขณะสูงสุด | 100% (4 คอร์ - CPU เป็นเพดาน) |
+| ข้อผิดพลาดระหว่างทดสอบ 48 ชม. | 0 |
+| Memory leak | ไม่พบ |
+| Connection leak | ไม่พบ |

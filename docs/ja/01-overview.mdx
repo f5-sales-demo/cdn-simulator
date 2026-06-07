@@ -1,0 +1,139 @@
+---
+title: 概要
+description: >-
+  Ubuntu
+  24.04上でAzureにデプロイされたNGINXベースのCDNエッジノードシミュレーターのアーキテクチャ、エンドポイント、ベンダーヘッダーシミュレーション、およびモジュラー設計
+sidebar:
+  order: 1
+i18n:
+  sourceHash: f7a6771523b7
+  translator: machine
+---
+
+## 目的
+
+このコンポーネントは、ラボおよびデモ環境向けにCDNエッジノードをシミュレートします。顧客のネットワークアーキテクチャにおいて、Akamai、Cloudflare、Amazon CloudFront、Fastlyなどのベンダーが果たす役割、つまりオリジンサーバーの前段に位置するエンドユーザーに最も近いキャッシュレイヤーを再現します。
+
+本番環境のマルチベンダーアーキテクチャでは、顧客は一般的にサードパーティCDNとF5 Distributed Cloudを組み合わせて使用します：
+
+```
+End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
+```
+
+このシミュレーターは、商用CDNをNGINXベースのエッジノードに置き換えることで、ベンダー契約や本番インフラストラクチャなしで統合のデモとテストを可能にします。
+
+## アーキテクチャ
+
+```
+┌─────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌────────────┐
+│  Client  │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB  │────▶│ Origin App │
+│          │     │  Ubuntu 24.04 Azure  │     │  (Origin Server) │     │            │
+└─────────┘     │  - TLS termination   │     └─────────────────┘     └────────────┘
+                │  - Disk-based cache  │
+                │  - X-Cache-Status    │
+                └──────────────────────┘
+```
+
+NGINXエッジノードは以下を行います：
+
+- エッジで**TLSを終端**（自己署名証明書またはLet's Encrypt）
+- `proxy_cache_path` を使用してディスク上に**レスポンスをキャッシュ**
+- 設定可能なオリジンサーバー（F5 XC HTTP ロードバランサーVIP）に**キャッシュミスを転送**
+- `X-Cache-Status` レスポンスヘッダー（`HIT`、`MISS`、`BYPASS`、`EXPIRED`）を通じて**キャッシュステータスを報告**
+
+## シミュレート対象
+
+| CDN機能 | NGINX実装 |
+|---|---|
+| エッジキャッシュ | ディスクベースストレージを使用した `proxy_cache` |
+| キャッシュキー生成 | スキーム、ホスト、URIに基づく `proxy_cache_key` |
+| オリジンプル | F5 XC HTTPロードバランサーへの `proxy_pass` |
+| TLS終端 | NGINX `ssl_certificate` ディレクティブ |
+| Cache-Controlの尊重 | オリジンヘッダーパススルー付きの `proxy_cache_valid` |
+| キャッシュステータス報告 | `add_header X-Cache-Status $upstream_cache_status` |
+| ヘルスエンドポイント | 200 OKを返す `/health` ロケーション |
+
+## エンドポイントとリクエスト/レスポンス動作
+
+### ヘルスチェック
+
+```
+GET /health
+```
+
+レスポンス（200 OK、`Content-Type: application/json`）：
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": ["akamai", "cloudflare", "cloudfront", "fastly", "azure-front-door"]
+}
+```
+
+### CDNプロキシ（その他すべてのパス）
+
+```
+GET /<any-path>
+```
+
+オリジンに向けて注入されるリクエストヘッダー（5ベンダーから67以上のヘッダー）：
+
+| カテゴリ | 追加されるヘッダー |
+|---|---|
+| クライアントIP | `True-Client-IP`、`CF-Connecting-IP`、`Fastly-Client-IP`、`X-Azure-ClientIP`、`CloudFront-Viewer-Address`、`X-Forwarded-For`、`X-Real-IP` |
+| ジオロケーション | `X-Akamai-Edgescape`（複合）、`CF-IPCountry`、`cf-ipcity`、`cf-iplatitude/longitude`、`CloudFront-Viewer-Country/City/Latitude/Longitude`、`X-Geo-Country-Code/City/Region` |
+| デバイス検出 | `CloudFront-Is-Mobile-Viewer`、`CloudFront-Is-Desktop-Viewer`、`CloudFront-Is-Tablet-Viewer`、`X-Akamai-Device-Characteristics` |
+| TLS/フィンガープリント | `CloudFront-Viewer-TLS`、`cf-ja3-hash`、`cf-ja4`、`CloudFront-Viewer-JA3-Fingerprint` |
+| ボット検出 | `cf-bot-score`（85 = おそらく人間）、`cf-verified-bot` |
+| リクエストトレーシング | `Cf-Ray`、`X-Akamai-Request-ID`、`X-Amz-Cf-Id`、`X-Azure-Ref` |
+| エッジ識別 | `X-CDN-Edge`、`X-CDN-POP`、`X-Served-By`、`Fastly-FF`、`X-Azure-FDID` |
+| 標準 | `Via`、`Forwarded`、`CDN-Loop`、`X-Forwarded-Proto/Host/Port` |
+
+すべてのプロキシされたレスポンスに追加されるレスポンスヘッダー：
+
+| ヘッダー | 値 | 目的 |
+|---|---|---|
+| `X-Cache-Status` | `HIT`、`MISS`、`BYPASS`、`EXPIRED`、`STALE` | このリクエストに対するキャッシュ動作 |
+| `X-CDN-Edge` | `cdn-simulator` | このエッジノードの識別 |
+| `X-CDN-POP` | `SJC` | シミュレートされたPoint of Presence IATAコード |
+| `X-Served-By` | `cache-sjc3120-SJC` | Fastly形式のシミュレートされたキャッシュノード |
+| `X-Request-ID` | UUID（リクエストごと） | 一意のリクエスト識別子 |
+
+### キャッシュ動作
+
+- 任意のパスへの最初のリクエスト：`X-Cache-Status: MISS`（オリジンから取得し、キャッシュに保存）
+- 同一の後続リクエスト：`X-Cache-Status: HIT`（ディスクキャッシュから提供）
+- キャッシュキー：`$scheme$host$request_uri`（スキーム + ホスト名 + フルパス + クエリ文字列）
+- キャッシュTTL：200/301/302は10分、404は1分
+- ステール配信：オリジンエラー時（500/502/503/504）にキャッシュされたコンテンツを返却
+
+### VMアクセス
+
+| アクセス方法 | コマンド/パス |
+|---|---|
+| SSH | `ssh azureuser@<PUBLIC_IP>` |
+| NGINX設定 | `/etc/nginx/conf.d/cdn-edge.conf` |
+| NGINXログ | `/var/log/nginx/access.log` および `/var/log/nginx/error.log` |
+| キャッシュディレクトリ | `/var/cache/nginx/cdn/` |
+| Cloud-initログ | `/var/log/cloud-init-output.log` |
+
+## モジュラーコンポーネント設計
+
+これは、より大規模なラボ環境の一部です。各コンポーネントは自己完結型で、独立してデプロイされます：
+
+- **このコンポーネント**はCDNエッジを提供（Azure VM上のNGINX）
+- **その他のコンポーネント**はオリジンアプリケーション、F5 XC設定、DNS、WAFポリシーなどを提供
+
+オペレーターはコンポーネントを1つずつ追加します。各コンポーネントのドキュメントは、AIアシスタントがそれを読んでインフラストラクチャを自律的にデプロイできるように記述されています。
+
+## NGINXを選択した理由
+
+CDNシミュレーションエンジンとしてNGINXが選択された理由：
+
+1. **F5製品** — F5は2019年にNGINX Inc.を買収し、F5ポートフォリオの一部です
+2. **業界で実績あり** — CloudflareはPingoraに移行するまで10年以上にわたりCDN全体をNGINX上で運用していました。NetflixはOpen Connect CDNにNGINXを使用しています
+3. **単一プロセス** — Varnishのように別途TLSプロキシを必要とせず、1つのバイナリでTLS終端とキャッシュを処理します
+4. **簡単なデプロイ** — Ubuntu 24.04で `apt install nginx` を実行し、2つのディレクティブでキャッシュを有効化
+5. **充実したドキュメント** — コンテンツキャッシュとリバースプロキシ設定に関する公式ドキュメントが豊富

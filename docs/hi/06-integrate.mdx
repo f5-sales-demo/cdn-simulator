@@ -1,0 +1,211 @@
+---
+title: ऑरिजिन सर्वर के साथ एकीकरण
+description: >-
+  Connect the CDN edge to the origin-server lab component (direct integration),
+  discover applications via the published endpoint manifest, verify end-to-end
+  traffic flow with header inspection and log correlation. Covers both direct
+  origin and future F5 XC insertion architectures.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 7e12e7a4634c
+  translator: machine
+---
+
+यह पृष्ठ दो एकीकरण चरणों को कवर करता है:
+
+1. **प्रत्यक्ष एकीकरण** — CDN एज सीधे ऑरिजिन सर्वर को फॉरवर्ड करता है (बेसलाइन परीक्षण)
+2. **F5 XC इंसर्शन** — CDN और ऑरिजिन के बीच F5 XC HTTP लोड बैलेंसर इंसर्ट किया जाता है (सुरक्षा डेमो)
+
+बेसलाइन स्थापित करने के लिए प्रत्यक्ष एकीकरण से शुरू करें, फिर तैयार होने पर F5 XC इंसर्ट करें।
+
+## ऑरिजिन सर्वर संदर्भ
+
+[origin-server](https://f5xc-salesdemos.github.io/origin-server/) लैब कंपोनेंट सुरक्षा परीक्षण के लिए संवेदनशील वेब एप्लिकेशन प्रदान करता है।
+
+| गुण | मान |
+|---|---|
+| दस्तावेज़ीकरण | [f5xc-salesdemos.github.io/origin-server](https://f5xc-salesdemos.github.io/origin-server/) |
+| रिपॉजिटरी | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
+| डिफ़ॉल्ट पोर्ट | 80 |
+| हेल्थ चेक | `GET /health` |
+
+### उपलब्ध एप्लिकेशन
+
+ऑरिजिन-सर्वर के प्रकाशित मैनिफेस्ट से वर्तमान एप्लिकेशन कैटलॉग प्राप्त करें:
+
+```bash
+MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
+  | python3 -c "import sys,json; assets=json.load(sys.stdin).get('assets',[]); print(next((a['browser_download_url'] for a in assets if a['name']=='manifest.json'),''))")
+curl -sf "$MANIFEST_URL" | python3 -m json.tool
+```
+
+यदि अभी तक कोई रिलीज़ मौजूद नहीं है, तो सीधे रिपॉजिटरी स्रोत का उपयोग करें:
+
+```bash
+curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
+```
+
+मैनिफेस्ट सभी एप्लिकेशन पथ, हेल्थ चेक, कंटेनर इमेज, और डेमो फीचर मैपिंग को सूचीबद्ध करता है।
+
+### एप्लिकेशन पथ
+
+| पथ | एप्लिकेशन | डेमो फीचर |
+|---|---|---|
+| `/` | लैंडिंग पेज | — |
+| `/health` | हेल्थ चेक | — |
+| `/juice-shop/` | OWASP Juice Shop | WAF, Bot Defense, API Security |
+| `/dvwa/` | DVWA | WAF, Bot Defense |
+| `/vampi/` | VAmPI | API Security |
+| `/httpbin/` | httpbin | डायग्नोस्टिक्स |
+| `/whoami/` | whoami | हेडर सत्यापन |
+| `/csd-demo/` | CSD Demo | Client-Side Defense |
+
+## चरण 1: प्रत्यक्ष एकीकरण (बेसलाइन)
+
+```
+┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
+│           │     │  20.65.90.112        │     │  20.12.78.159       │
+└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
+                 │  Disk cache           │     │  VAmPI, httpbin,    │
+                 └──────────────────────┘     │  whoami, CSD Demo   │
+                                              └─────────────────────┘
+```
+
+### ऑरिजिन कॉन्फ़िगर करें
+
+CDN एज NGINX कॉन्फ़िग में ऑरिजिन सर्वर IP सेट करें:
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass http://<ORIGIN_IP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+या Terraform डिप्लॉय समय पर `terraform.tfvars` के माध्यम से सेट करें:
+
+```hcl
+origin_server = "http://<ORIGIN_IP>"
+```
+
+### सभी एप्लिकेशन सत्यापित करें
+
+CDN के माध्यम से प्रत्येक ऑरिजिन एप्लिकेशन का परीक्षण करें:
+
+```bash
+CDN=<CDN_EDGE_IP>
+
+# Health check (CDN local)
+curl -sf "http://$CDN/health" | python3 -m json.tool
+
+# Landing page
+curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
+
+# Juice Shop
+curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
+
+# DVWA (follows redirect to login)
+curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
+
+# VAmPI API
+curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
+
+# httpbin headers (shows CDN headers in JSON)
+curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
+
+# whoami (shows ALL headers the origin receives)
+curl -sf "http://$CDN/whoami/"
+
+# CSD Demo
+curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
+```
+
+सभी पथों को HTTP 200 लौटाना चाहिए (DVWA फॉलो करने पर 302 फिर 200 लौटाता है)।
+
+### ऑरिजिन पर CDN हेडर सत्यापित करें
+
+`/whoami/` एंडपॉइंट ऑरिजिन को प्राप्त होने वाले प्रत्येक हेडर को दिखाता है। CDN के माध्यम से एक्सेस करने पर, यह सभी 67+ वेंडर हेडर प्रदर्शित करता है:
+
+```bash
+curl -sf "http://$CDN/whoami/"
+```
+
+सत्यापित करें कि ये प्रमुख हेडर मौजूद हैं:
+
+| वेंडर | हेडर | अपेक्षित मान |
+|---|---|---|
+| Standard | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
+| Akamai | `True-Client-Ip` | `<your_ip>` |
+| Cloudflare | `Cf-Connecting-Ip` | `<your_ip>` |
+| CloudFront | `Cloudfront-Viewer-Country` | `US` |
+| Fastly | `Fastly-Client-Ip` | `<your_ip>` |
+| Azure FD | `X-Azure-Clientip` | `<your_ip>` |
+
+### लॉग क्रॉस-रेफरेंस करें
+
+ट्रैफ़िक प्रवाह सत्यापित करने के लिए दोनों सर्वरों पर एक्सेस लॉग की तुलना करें:
+
+```bash
+# CDN edge log — shows your client IP as source
+ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
+
+# Origin log — shows CDN edge IP as source
+ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
+```
+
+ऑरिजिन लॉग में CDN एज IP को कनेक्टिंग क्लाइंट के रूप में दिखाना चाहिए, जबकि वास्तविक क्लाइंट IP `X-Forwarded-For` और वेंडर-विशिष्ट हेडर में वहन किया जाता है।
+
+### कैश व्यवहार
+
+```bash
+# First request — MISS (fetched from origin)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+
+# Second request — HIT (served from CDN cache)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+```
+
+## चरण 2: F5 XC इंसर्शन (सुरक्षा डेमो)
+
+बेसलाइन परीक्षण के बाद, CDN और ऑरिजिन के बीच F5 XC HTTP लोड बैलेंसर इंसर्ट करें:
+
+```
+┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
+│           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
+└──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
+```
+
+1. **F5 XC HTTP लोड बैलेंसर बनाएं** जिसमें ऑरिजिन सर्वर उसके ऑरिजिन पूल में हो
+2. **CDN एज अपडेट करें** ताकि यह सीधे ऑरिजिन के बजाय F5 XC VIP की ओर पॉइंट करे:
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass https://<F5XC_LB_VIP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+3. **पूरी श्रृंखला के माध्यम से WAF प्रवर्तन सत्यापित करें**:
+
+```bash
+# SQL injection through CDN → F5 XC WAF should block
+curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
+
+# Normal request should pass
+curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
+```
+
+4. **F5 XC में Trusted Client IP Header कॉन्फ़िगर करें** ताकि CDN हेडर से वास्तविक क्लाइंट IP पढ़ा जा सके (उदाहरण के लिए, Akamai सिमुलेशन के लिए `True-Client-IP`, Cloudflare सिमुलेशन के लिए `CF-Connecting-IP`)
+
+## मल्टी-कंपोनेंट आर्किटेक्चर
+
+| कंपोनेंट | रिपॉजिटरी | उद्देश्य |
+|---|---|---|
+| **CDN Edge** (यह) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | कैशिंग, वेंडर हेडर |
+| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | संवेदनशील वेब ऐप्स |
+| **F5 XC Config** | विभिन्न (waf, api-protection, bot-*, आदि) | सुरक्षा नीतियाँ |
+
+प्रत्येक कंपोनेंट ऐसा दस्तावेज़ीकरण प्रकाशित करता है जिसे AI सहायक इंफ्रास्ट्रक्चर डिप्लॉय करने के लिए पढ़ते हैं। ऑरिजिन-सर्वर एक [endpoint manifest](https://github.com/f5xc-salesdemos/origin-server/releases/latest) GitHub Release आर्टिफैक्ट के रूप में प्रकाशित करता है जो सभी एप्लिकेशन पथ और हेल्थ चेक सूचीबद्ध करता है।

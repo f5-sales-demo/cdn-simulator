@@ -1,0 +1,148 @@
+---
+title: Deploy
+description: >-
+  Terraform IaC deployment of the performance-optimized CDN edge node — Azure
+  F-series compute-optimized VM with Ubuntu 24.04, kernel tuning, NGINX proxy
+  cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers
+  provisioned via cloud-init. All configuration files are in the terraform/
+  directory.
+sidebar:
+  order: 3
+i18n:
+  sourceHash: ad66166f6858
+  translator: machine
+---
+
+Tous les fichiers Terraform se trouvent dans le répertoire [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform). Clonez le dépôt et déployez directement :
+
+```bash
+git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
+cd cdn-simulator/terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your Azure subscription ID and origin server
+```
+
+## Configuration Terraform
+
+### Structure des fichiers Terraform
+
+Le répertoire terraform contient 9 fichiers suivant le Demo Resource Standard :
+
+- `versions.tf` — Contraintes de version de Terraform et des providers (azurerm ~> 4.0, azuread ~> 3.0)
+- `providers.tf` — Configuration des providers Azure RM et Azure AD
+- `data.tf` — Sources de données Azure AD pour la résolution automatique du déployeur
+- `locals.tf` — Résolution du déployeur, nommage des ressources selon l'Azure Cloud Adoption Framework, tags standards
+- `main.tf` — Groupe de ressources (nommé `rg-cdn-simulator-{environment}-{deployer}`)
+- `variables.tf` — Toutes les variables d'entrée (3 requises, 8 optionnelles)
+- `network.tf` — VNet (10.100.0.0/16), sous-réseau, IP publique, NSG (ports 22/80/443), NIC
+- `vm.tf` — VM Ubuntu 24.04 avec cloud-init via templatefile()
+- `outputs.tf` — 17 sorties (15 standards + 2 spécifiques au composant)
+
+`variables.tf` définit 11 variables d'entrée organisées en sections General, Compute et Component-Specific. L'identifiant `deployer` est résolu automatiquement à partir de votre compte Azure AD — vous n'avez qu'à définir `subscription_id`, `origin_server` et `origin_host` :
+
+```hcl file=./_data/variables.tf
+```
+
+### Infrastructure réseau
+
+`network.tf` crée le VNet, le sous-réseau, l'IP publique, le NSG (ports 22/80/443) et la NIC :
+
+```hcl file=./_data/network.tf
+```
+
+### Machine virtuelle avec Cloud-Init
+
+`vm.tf` crée la VM Ubuntu 24.04. Le chemin de la clé publique SSH est développé via `pathexpand()` pour gérer le `~`. Le template cloud-init reçoit les variables `origin_server` et `origin_host` :
+
+```hcl file=./_data/vm.tf
+```
+
+### Provisionnement Cloud-Init
+
+`cloud-init.yaml` provisionne la VM avec le tuning du noyau, les limites systemd, NGINX avec une configuration optimisée pour les performances, une zone de clés de cache de 128 Mo, un pool de connexions keepalive en amont, la compression gzip et plus de 67 en-têtes de fournisseurs CDN. Une bibliothèque d'aide partagée (`/usr/local/lib/cloud-init-helpers.sh`) fournit une logique de réessai et une journalisation de la progression dans `/var/log/cloud-init-progress.log`.
+
+Le cloud-init utilise des variables de template Terraform : `${origin_server}` et `${origin_host}` pour la configuration upstream. Les variables NGINX comme `${request_id}` sont échappées en `$${request_id}` dans le templatefile Terraform.
+
+```yaml file=./_data/cloud-init.yaml
+```
+
+### Sorties
+
+`outputs.tf` expose 17 sorties suivant le Demo Resource Standard — 15 sorties standards partagées par toutes les ressources de démo (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) plus 2 sorties spécifiques au composant (`edge_url`, `health_check_url`) :
+
+```hcl file=./_data/outputs.tf
+```
+
+### Exemple de fichier de variables
+
+Copiez `terraform.tfvars.example` vers `terraform.tfvars` et renseignez vos valeurs. Le `.gitignore` exclut `terraform.tfvars` pour éviter de commiter des identifiants :
+
+```hcl file=./_data/terraform.tfvars.example
+```
+
+## Déploiement
+
+```bash
+# Initialize Terraform
+terraform init
+
+# Review the plan
+terraform plan
+
+# Apply
+terraform apply
+```
+
+Terraform affiche l'IP publique, la commande SSH et l'URL du nœud edge après un déploiement réussi.
+
+## Dimensionnement de la VM
+
+Les VM compute-optimisées de la série F sont recommandées pour cette charge de travail de proxy NGINX à forte sollicitation CPU. La taille par défaut `Standard_F4s_v2` (4 vCPU, 8 Gio) est adaptée à un usage en lab et en démo. Remplacez la variable `vm_size` pour les scénarios de tests de charge ou de benchmarking en production. Le tuning du noyau par cloud-init et la configuration NGINX s'adaptent automatiquement au nombre de vCPU (`worker_processes auto`).
+
+## Post-déploiement
+
+Après l'exécution de `terraform apply`, attendez 2 à 3 minutes que cloud-init termine l'installation et la configuration de NGINX. Vérifiez le point de terminaison de santé :
+
+```bash
+curl -s "http://$(terraform output -raw public_ip)/health" | jq .
+```
+
+Réponse attendue :
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": [
+    "akamai",
+    "cloudflare",
+    "cloudfront",
+    "fastly",
+    "azure-front-door"
+  ]
+}
+```
+
+## Raccordement depuis les composants en amont
+
+Le simulateur CDN nécessite un serveur d'origine déployé. Utilisez les sorties Terraform du serveur d'origine pour renseigner les variables requises :
+
+```bash
+cd ../origin-server/terraform
+origin_ip=$(terraform output -raw public_ip)
+
+cd ../../cdn-simulator/terraform
+cat > terraform.tfvars <<EOF
+subscription_id = "your-subscription-id"
+origin_server   = "http://${origin_ip}"
+origin_host     = "${origin_ip}:80"
+EOF
+```
+
+| Variable requise | Source | Format |
+|---|---|---|
+| `origin_server` | Sortie `public_ip` du serveur d'origine | `http://<ip>` (inclure le schéma) |
+| `origin_host` | Sortie `public_ip` du serveur d'origine | `<ip>:80` (sans schéma, inclure le port) |
+
+Poursuivez vers [Configuration NGINX](../04-nginx-config/) pour les options de personnalisation ou [Vérification](../05-verify/) pour les tests de cache.

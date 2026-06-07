@@ -1,0 +1,79 @@
+---
+title: 先決條件
+description: >-
+  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
+  permissions, and Azure AD requirements for deploying the performance-optimized
+  CDN edge node VM
+sidebar:
+  order: 2
+i18n:
+  sourceHash: fafd7c61e178
+  translator: machine
+---
+
+## 必要條件
+
+### Azure 訂閱
+
+具有以下資源建立權限的有效 Azure 訂閱：
+
+- 資源群組
+- 虛擬網路和子網路
+- 網路安全性群組
+- 公用 IP 位址
+- 虛擬機器
+
+### Azure CLI
+
+安裝並驗證 Azure CLI：
+
+```bash
+# Install (if not present)
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Authenticate
+az login
+
+# Verify subscription
+az account show --query '{name:name, id:id}' -o table
+```
+
+### Terraform
+
+需要 Terraform >= 1.5：
+
+```bash
+# Verify installation
+terraform version
+
+# If not installed, use HashiCorp's APT repository
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+```
+
+### SSH 金鑰對
+
+用於 VM 存取的 SSH 金鑰對：
+
+```bash
+# Generate if you don't have one
+ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
+```
+
+### Azure AD 權限
+
+您的 Azure AD 帳戶必須具有 `User.Read` 權限。部署者識別碼（用於資源命名）會自動從您的 Azure AD 設定檔中取得。若使用服務主體或受控識別驗證，請明確設定 `deployer` Terraform 變數。
+
+## 選用條件
+
+### 自訂網域
+
+如果您希望使用正式的 TLS 憑證而非自我簽署憑證：
+
+- 具有 DNS 控制權的網域名稱
+- 能夠建立指向 Azure 公用 IP 的 A 記錄
+
+### 來源伺服器 URL
+
+此邊緣節點將轉發流量的 F5 XC HTTP 負載平衡器 URL。此設定可在部署後進行配置——預設的 NGINX 設定使用預留位置，您可在 NGINX 配置中進行更新。

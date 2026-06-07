@@ -1,0 +1,59 @@
+---
+title: Teardown
+description: >-
+  Run terraform destroy to remove all Azure resources (resource group, VM, VNet,
+  PIP, NSG), clean up local Terraform state, and revert DNS or hosts file
+  changes.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: 2abd4bf5d8c8
+  translator: machine
+---
+
+Wenn die Lab-Sitzung abgeschlossen ist, zerstören Sie alle Azure-Ressourcen, um die Abrechnung zu stoppen.
+
+## Terraform Destroy
+
+Aus dem Verzeichnis, das die Terraform-Konfiguration enthält:
+
+```bash
+# Review what will be destroyed
+terraform plan -destroy
+
+# Destroy all resources
+terraform destroy
+```
+
+Terraform wird zur Bestätigung auffordern. Geben Sie `yes` ein, um fortzufahren.
+
+## Bereinigung überprüfen
+
+Bestätigen Sie, dass alle Ressourcen entfernt wurden:
+
+```bash
+# Check resource group is gone
+az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
+  | grep -q "ResourceGroupNotFound" \
+  && echo "Resource group deleted" \
+  || echo "Resource group still exists"
+```
+
+## Lokalen State bereinigen
+
+Entfernen Sie Terraform-State- und Cache-Dateien:
+
+```bash
+rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
+```
+
+## DNS-/Hosts-Änderungen rückgängig machen
+
+Falls Sie während der [Integration](06-integrate/) DNS- oder Hosts-Dateien geändert haben, machen Sie diese Änderungen rückgängig:
+
+```bash
+# Remove hosts file entry (Linux/macOS)
+sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
+```
+
+Falls Sie einen DNS-A-Record erstellt haben, löschen Sie diesen über Ihren DNS-Anbieter.

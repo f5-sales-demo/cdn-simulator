@@ -1,0 +1,148 @@
+---
+title: デプロイ
+description: >-
+  Terraform IaC deployment of the performance-optimized CDN edge node — Azure
+  F-series compute-optimized VM with Ubuntu 24.04, kernel tuning, NGINX proxy
+  cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers
+  provisioned via cloud-init. All configuration files are in the terraform/
+  directory.
+sidebar:
+  order: 3
+i18n:
+  sourceHash: ad66166f6858
+  translator: machine
+---
+
+すべてのTerraformファイルは [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) ディレクトリにあります。リポジトリをクローンして直接デプロイしてください：
+
+```bash
+git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
+cd cdn-simulator/terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your Azure subscription ID and origin server
+```
+
+## Terraform設定
+
+### Terraformファイル構成
+
+terraformディレクトリには、デモリソース標準に準拠した9つのファイルが含まれています：
+
+- `versions.tf` — Terraformおよびプロバイダーのバージョン制約（azurerm ~> 4.0、azuread ~> 3.0）
+- `providers.tf` — Azure RMおよびAzure ADプロバイダー設定
+- `data.tf` — デプロイヤー自動解決のためのAzure ADデータソース
+- `locals.tf` — デプロイヤー解決、Azure Cloud Adoption Frameworkリソース命名、標準タグ
+- `main.tf` — リソースグループ（`rg-cdn-simulator-{environment}-{deployer}` として命名）
+- `variables.tf` — すべての入力変数（必須3、オプション8）
+- `network.tf` — VNet（10.100.0.0/16）、サブネット、パブリックIP、NSG（ポート22/80/443）、NIC
+- `vm.tf` — templatefile()によるcloud-initを使用したUbuntu 24.04 VM
+- `outputs.tf` — 17の出力（標準15 + コンポーネント固有2）
+
+`variables.tf` は、General、Compute、Component-Specificセクションに分類された11の入力変数を定義しています。`deployer` 識別子はAzure ADアカウントから自動解決されるため、設定が必要なのは `subscription_id`、`origin_server`、および `origin_host` のみです：
+
+```hcl file=./_data/variables.tf
+```
+
+### ネットワークインフラストラクチャ
+
+`network.tf` はVNet、サブネット、パブリックIP、NSG（ポート22/80/443）、およびNICを作成します：
+
+```hcl file=./_data/network.tf
+```
+
+### Cloud-Initを使用した仮想マシン
+
+`vm.tf` はUbuntu 24.04 VMを作成します。SSHパブリックキーのパスは `~` を処理するために `pathexpand()` で展開されます。cloud-initテンプレートは `origin_server` と `origin_host` 変数を受け取ります：
+
+```hcl file=./_data/vm.tf
+```
+
+### Cloud-Initプロビジョニング
+
+`cloud-init.yaml` は、カーネルチューニング、systemd制限、パフォーマンス最適化設定のNGINX、128 MBキャッシュキーゾーン、アップストリームkeepaliveプール、gzip圧縮、および67以上のCDNベンダーヘッダーでVMをプロビジョニングします。共有ヘルパーライブラリ（`/usr/local/lib/cloud-init-helpers.sh`）はリトライロジックと `/var/log/cloud-init-progress.log` への進捗ログ記録を提供します。
+
+cloud-initはTerraformテンプレート変数を使用します：アップストリーム設定には `${origin_server}` と `${origin_host}` を使用します。`${request_id}` のようなNGINX変数は、Terraformのtemplatefileでは `$${request_id}` としてエスケープされます。
+
+```yaml file=./_data/cloud-init.yaml
+```
+
+### 出力
+
+`outputs.tf` はデモリソース標準に準拠した17の出力を公開します — すべてのデモリソースで共有される15の標準出力（`deployer`、`public_ip`、`private_ip`、`ssh_command`、`resource_group_name`、`vm_name`、`nsg_name`、`vnet_name`、`subnet_id`、`component`、`environment`、`resource_group_id`、`vm_id`、`nsg_id`、`location`）に加え、2つのコンポーネント固有出力（`edge_url`、`health_check_url`）：
+
+```hcl file=./_data/outputs.tf
+```
+
+### 変数ファイルの例
+
+`terraform.tfvars.example` を `terraform.tfvars` にコピーし、値を入力してください。`.gitignore` は資格情報のコミットを防ぐために `terraform.tfvars` を除外しています：
+
+```hcl file=./_data/terraform.tfvars.example
+```
+
+## デプロイ
+
+```bash
+# Initialize Terraform
+terraform init
+
+# Review the plan
+terraform plan
+
+# Apply
+terraform apply
+```
+
+デプロイが成功すると、TerraformはパブリックIP、SSHコマンド、およびエッジURLを出力します。
+
+## VMサイジング
+
+Fシリーズのコンピューティング最適化VMは、このCPUバウンドなNGINXプロキシワークロードに推奨されます。デフォルトの `Standard_F4s_v2`（4 vCPU、8 GiB）は、ラボおよびデモ用途に適しています。負荷テストや本番ベンチマークのシナリオでは、`vm_size` 変数をオーバーライドしてください。cloud-initのカーネルチューニングとNGINX設定は、vCPU数に応じて自動的にスケールします（`worker_processes auto`）。
+
+## デプロイ後
+
+`terraform apply` 完了後、cloud-initがNGINXのインストールと設定を完了するまで2〜3分お待ちください。ヘルスエンドポイントを確認します：
+
+```bash
+curl -s "http://$(terraform output -raw public_ip)/health" | jq .
+```
+
+期待されるレスポンス：
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": [
+    "akamai",
+    "cloudflare",
+    "cloudfront",
+    "fastly",
+    "azure-front-door"
+  ]
+}
+```
+
+## アップストリームコンポーネントからの接続
+
+CDNシミュレーターにはデプロイ済みのオリジンサーバーが必要です。オリジンサーバーのterraform出力を使用して、必要な変数を設定してください：
+
+```bash
+cd ../origin-server/terraform
+origin_ip=$(terraform output -raw public_ip)
+
+cd ../../cdn-simulator/terraform
+cat > terraform.tfvars <<EOF
+subscription_id = "your-subscription-id"
+origin_server   = "http://${origin_ip}"
+origin_host     = "${origin_ip}:80"
+EOF
+```
+
+| 必須変数 | ソース | フォーマット |
+|---|---|---|
+| `origin_server` | オリジンサーバーの `public_ip` 出力 | `http://<ip>`（スキームを含む） |
+| `origin_host` | オリジンサーバーの `public_ip` 出力 | `<ip>:80`（スキームなし、ポートを含む） |
+
+カスタマイズオプションについては [NGINX設定](../04-nginx-config/) へ、キャッシュテストについては [検証](../05-verify/) へ進んでください。

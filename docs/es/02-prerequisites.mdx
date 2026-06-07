@@ -1,0 +1,79 @@
+---
+title: Requisitos previos
+description: >-
+  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
+  permissions, and Azure AD requirements for deploying the performance-optimized
+  CDN edge node VM
+sidebar:
+  order: 2
+i18n:
+  sourceHash: fafd7c61e178
+  translator: machine
+---
+
+## Requeridos
+
+### Suscripción de Azure
+
+Una suscripción de Azure activa con permisos para crear:
+
+- Grupos de recursos
+- Redes virtuales y subredes
+- Grupos de seguridad de red
+- Direcciones IP públicas
+- Máquinas virtuales
+
+### Azure CLI
+
+Instale y autentique Azure CLI:
+
+```bash
+# Install (if not present)
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Authenticate
+az login
+
+# Verify subscription
+az account show --query '{name:name, id:id}' -o table
+```
+
+### Terraform
+
+Se requiere Terraform >= 1.5:
+
+```bash
+# Verify installation
+terraform version
+
+# If not installed, use HashiCorp's APT repository
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+```
+
+### Par de claves SSH
+
+Un par de claves SSH para acceder a la VM:
+
+```bash
+# Generate if you don't have one
+ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
+```
+
+### Permisos de Azure AD
+
+Su cuenta de Azure AD debe tener permisos `User.Read`. El identificador del desplegador (utilizado en la nomenclatura de recursos) se deriva automáticamente de su perfil de Azure AD. Para autenticación mediante service principal o identidad administrada, establezca la variable de Terraform `deployer` explícitamente.
+
+## Opcionales
+
+### Dominio personalizado
+
+Si desea certificados TLS reales en lugar de autofirmados:
+
+- Un nombre de dominio con control de DNS
+- Capacidad para crear registros A apuntando a la IP pública de Azure
+
+### URL del servidor de origen
+
+La URL del balanceador de carga HTTP de F5 XC al que este nodo edge reenviará el tráfico. Esto puede configurarse después del despliegue — la configuración predeterminada de NGINX utiliza un marcador de posición que usted actualiza en la configuración de NGINX.

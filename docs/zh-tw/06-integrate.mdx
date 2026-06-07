@@ -1,0 +1,211 @@
+---
+title: 與 Origin 伺服器整合
+description: >-
+  Connect the CDN edge to the origin-server lab component (direct integration),
+  discover applications via the published endpoint manifest, verify end-to-end
+  traffic flow with header inspection and log correlation. Covers both direct
+  origin and future F5 XC insertion architectures.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 7e12e7a4634c
+  translator: machine
+---
+
+本頁涵蓋兩個整合階段：
+
+1. **直接整合** — CDN 邊緣直接轉發至 origin 伺服器（基準測試）
+2. **F5 XC 插入** — 在 CDN 與 origin 之間插入 F5 XC HTTP 負載均衡器（安全展示）
+
+先從直接整合開始建立基準，準備就緒後再插入 F5 XC。
+
+## Origin 伺服器參考
+
+[origin-server](https://f5xc-salesdemos.github.io/origin-server/) 實驗室元件提供用於安全測試的易受攻擊 Web 應用程式。
+
+| 屬性 | 值 |
+|---|---|
+| 文件 | [f5xc-salesdemos.github.io/origin-server](https://f5xc-salesdemos.github.io/origin-server/) |
+| 儲存庫 | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
+| 預設連接埠 | 80 |
+| 健康檢查 | `GET /health` |
+
+### 可用應用程式
+
+從 origin-server 發佈的清單（manifest）中取得目前的應用程式目錄：
+
+```bash
+MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
+  | python3 -c "import sys,json; assets=json.load(sys.stdin).get('assets',[]); print(next((a['browser_download_url'] for a in assets if a['name']=='manifest.json'),''))")
+curl -sf "$MANIFEST_URL" | python3 -m json.tool
+```
+
+如果尚未有任何 release，可直接使用儲存庫來源：
+
+```bash
+curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
+```
+
+清單列出所有應用程式路徑、健康檢查、容器映像檔及展示功能對應。
+
+### 應用程式路徑
+
+| 路徑 | 應用程式 | 展示功能 |
+|---|---|---|
+| `/` | 登陸頁面 | — |
+| `/health` | 健康檢查 | — |
+| `/juice-shop/` | OWASP Juice Shop | WAF、Bot Defense、API Security |
+| `/dvwa/` | DVWA | WAF、Bot Defense |
+| `/vampi/` | VAmPI | API Security |
+| `/httpbin/` | httpbin | 診斷工具 |
+| `/whoami/` | whoami | 標頭驗證 |
+| `/csd-demo/` | CSD Demo | Client-Side Defense |
+
+## 階段 1：直接整合（基準）
+
+```
+┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
+│           │     │  20.65.90.112        │     │  20.12.78.159       │
+└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
+                 │  Disk cache           │     │  VAmPI, httpbin,    │
+                 └──────────────────────┘     │  whoami, CSD Demo   │
+                                              └─────────────────────┘
+```
+
+### 設定 Origin
+
+在 CDN 邊緣 NGINX 設定中設定 origin 伺服器 IP：
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass http://<ORIGIN_IP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+或在 Terraform 部署時透過 `terraform.tfvars` 設定：
+
+```hcl
+origin_server = "http://<ORIGIN_IP>"
+```
+
+### 驗證所有應用程式
+
+透過 CDN 測試每個 origin 應用程式：
+
+```bash
+CDN=<CDN_EDGE_IP>
+
+# Health check (CDN local)
+curl -sf "http://$CDN/health" | python3 -m json.tool
+
+# Landing page
+curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
+
+# Juice Shop
+curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
+
+# DVWA (follows redirect to login)
+curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
+
+# VAmPI API
+curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
+
+# httpbin headers (shows CDN headers in JSON)
+curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
+
+# whoami (shows ALL headers the origin receives)
+curl -sf "http://$CDN/whoami/"
+
+# CSD Demo
+curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
+```
+
+所有路徑應返回 HTTP 200（DVWA 先返回 302，跟隨重導向後返回 200）。
+
+### 在 Origin 端驗證 CDN 標頭
+
+`/whoami/` 端點會顯示 origin 收到的每個標頭。透過 CDN 存取時，它會顯示所有 67+ 個供應商標頭：
+
+```bash
+curl -sf "http://$CDN/whoami/"
+```
+
+驗證以下關鍵標頭是否存在：
+
+| 供應商 | 標頭 | 預期值 |
+|---|---|---|
+| 標準 | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
+| Akamai | `True-Client-Ip` | `<your_ip>` |
+| Cloudflare | `Cf-Connecting-Ip` | `<your_ip>` |
+| CloudFront | `Cloudfront-Viewer-Country` | `US` |
+| Fastly | `Fastly-Client-Ip` | `<your_ip>` |
+| Azure FD | `X-Azure-Clientip` | `<your_ip>` |
+
+### 交叉比對日誌
+
+比較兩台伺服器上的存取日誌以驗證流量路徑：
+
+```bash
+# CDN edge log — shows your client IP as source
+ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
+
+# Origin log — shows CDN edge IP as source
+ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
+```
+
+Origin 日誌應顯示 CDN 邊緣 IP 為連線客戶端，而真實客戶端 IP 則包含在 `X-Forwarded-For` 和供應商專用標頭中。
+
+### 快取行為
+
+```bash
+# First request — MISS (fetched from origin)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+
+# Second request — HIT (served from CDN cache)
+curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
+```
+
+## 階段 2：F5 XC 插入（安全展示）
+
+基準測試完成後，在 CDN 與 origin 之間插入 F5 XC HTTP 負載均衡器：
+
+```
+┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
+│           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
+└──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
+```
+
+1. **建立 F5 XC HTTP 負載均衡器**，並將 origin 伺服器加入其 origin pool
+2. **更新 CDN 邊緣**，將其指向 F5 XC VIP 而非直接指向 origin：
+
+```bash
+ssh azureuser@<CDN_EDGE_IP>
+sudo sed -i 's|proxy_pass .*;|proxy_pass https://<F5XC_LB_VIP>;|' /etc/nginx/conf.d/cdn-edge.conf
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+3. **透過完整鏈路驗證 WAF 強制執行**：
+
+```bash
+# SQL injection through CDN → F5 XC WAF should block
+curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
+
+# Normal request should pass
+curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
+```
+
+4. **在 F5 XC 中設定信任的客戶端 IP 標頭**，使其從 CDN 標頭中讀取真實客戶端 IP（例如，模擬 Akamai 時使用 `True-Client-IP`，模擬 Cloudflare 時使用 `CF-Connecting-IP`）
+
+## 多元件架構
+
+| 元件 | 儲存庫 | 用途 |
+|---|---|---|
+| **CDN Edge**（本元件） | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | 快取、供應商標頭 |
+| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | 易受攻擊的 Web 應用程式 |
+| **F5 XC Config** | 多個（waf、api-protection、bot-* 等） | 安全策略 |
+
+每個元件都發佈文件供 AI 助理讀取以部署基礎設施。origin-server 發佈一個[端點清單](https://github.com/f5xc-salesdemos/origin-server/releases/latest)作為 GitHub Release 產物，列出所有應用程式路徑和健康檢查。

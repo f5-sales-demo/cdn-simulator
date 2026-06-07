@@ -1,0 +1,247 @@
+---
+title: 验证
+description: >-
+  Smoke test commands with expected HTTP response codes, X-Cache-Status header
+  values (HIT/MISS), health check JSON response, cache directory inspection,
+  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
+  and NSG issues
+sidebar:
+  order: 5
+i18n:
+  sourceHash: 939ce6f55688
+  translator: machine
+---
+
+部署完成后，运行以下检查以确认 CDN 边缘节点正常运行。在执行 `terraform apply` 后，请等待 2-3 分钟让 cloud-init 完成 NGINX 的安装。
+
+## 健康检查
+
+验证 NGINX 正在运行并能正常响应：
+
+```bash
+curl -s "http://<PUBLIC_IP>/health" | jq .
+```
+
+预期输出：
+
+```json
+{
+  "status": "healthy",
+  "component": "cdn-edge",
+  "engine": "nginx",
+  "vendor_profiles": [
+    "akamai",
+    "cloudflare",
+    "cloudfront",
+    "fastly",
+    "azure-front-door"
+  ]
+}
+```
+
+如果使用 Terraform 输出：
+
+```bash
+curl -s "$(terraform output -raw health_check_url)" | jq .
+```
+
+## 缓存未命中（首次请求）
+
+对任意路径的首次请求将会是缓存未命中——边缘节点从源站获取内容：
+
+```bash
+curl -I "http://<PUBLIC_IP>/"
+```
+
+在响应中查找以下头信息：
+
+```
+X-Cache-Status: MISS
+X-CDN-Edge: cdn-simulator
+```
+
+`MISS` 表示内容不在缓存中，已从源站服务器获取。
+
+## 缓存命中（后续请求）
+
+立即重复相同的请求：
+
+```bash
+curl -I "http://<PUBLIC_IP>/"
+```
+
+预期头信息：
+
+```
+X-Cache-Status: HIT
+X-CDN-Edge: cdn-simulator
+```
+
+`HIT` 确认响应是从 NGINX 磁盘缓存中提供的，无需联系源站。
+
+## 缓存目录检查
+
+通过 SSH 登录虚拟机，验证缓存内容是否存在于磁盘上：
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# 检查缓存目录是否有内容
+sudo find /var/cache/nginx/cdn -type f | head -20
+
+# 检查缓存大小
+sudo du -sh /var/cache/nginx/cdn
+```
+
+## NGINX 状态
+
+验证 NGINX 正在运行且配置有效：
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# 检查服务状态
+sudo systemctl status nginx
+
+# 验证配置
+sudo nginx -t
+
+# 查看活动连接数（如果启用了 stub_status）
+curl -s http://localhost/health
+```
+
+## 源站连通性
+
+验证边缘节点能否连接到源站服务器：
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# 测试与源站的连通性（替换为您的源站 URL）
+curl -I "https://your-origin.example.com/"
+```
+
+如果连接失败，请检查：
+
+1. Terraform 配置中的 `origin_server` 变量是否正确
+2. 源站服务器是否允许来自边缘节点公网 IP 的入站连接
+3. 虚拟机上的 DNS 解析是否正常（`nslookup your-origin.example.com`）
+
+## Cloud-Init 进度
+
+通过 cloud-init 日志监控配置进度：
+
+```bash
+ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
+```
+
+预期阶段：`[init]`、`[nic]`（动态网卡检测）、`[complete]`。
+
+如果 cloud-init 报告错误：
+
+```bash
+ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
+```
+
+## 端到端测试
+
+运行完整的请求周期并验证响应链路：
+
+```bash
+# 第一次请求 — MISS（从源站获取）
+echo "=== Request 1 (expect MISS) ==="
+curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
+
+# 第二次请求 — HIT（从缓存提供）
+echo "=== Request 2 (expect HIT) ==="
+curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
+```
+
+预期输出：
+
+```
+=== Request 1 (expect MISS) ===
+HTTP 200 | Cache: MISS
+=== Request 2 (expect HIT) ===
+HTTP 200 | Cache: HIT
+```
+
+## 厂商头信息验证
+
+通过请求 `/headers` 路径验证所有 CDN 厂商头信息是否已注入（使用 httpbin.org 作为源站时）：
+
+```bash
+curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
+```
+
+预期响应包含所有五个厂商的头信息：
+
+```json
+{
+    "headers": {
+        "True-Client-Ip": "<YOUR_CLIENT_IP>",
+        "Cf-Connecting-Ip": "<YOUR_CLIENT_IP>",
+        "Cf-Ipcountry": "US",
+        "Cf-Ray": "<request_id>-SJC",
+        "Cf-Bot-Score": "85",
+        "Cf-Ja3-Hash": "e7d705a3286e19ea42f587b344ee6865",
+        "Cloudfront-Viewer-Country": "US",
+        "Cloudfront-Viewer-City": "San Jose",
+        "Cloudfront-Is-Desktop-Viewer": "true",
+        "Cloudfront-Is-Mobile-Viewer": "false",
+        "Fastly-Client-Ip": "<YOUR_CLIENT_IP>",
+        "X-Akamai-Edgescape": "georegion=263,country_code=US,...",
+        "X-Azure-Clientip": "<YOUR_CLIENT_IP>",
+        "X-Azure-Fdid": "a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1",
+        "X-Geo-Country-Code": "US"
+    }
+}
+```
+
+### 设备检测测试
+
+使用移动设备的 User-Agent 进行测试，验证设备检测头信息是否会相应变化：
+
+```bash
+curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
+  -H "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" \
+  | python3 -m json.tool | grep -E "Is-Mobile|Is-Desktop|is_mobile"
+```
+
+预期输出：
+
+```
+"Cloudfront-Is-Desktop-Viewer": "false",
+"Cloudfront-Is-Mobile-Viewer": "true",
+```
+
+## 故障排除
+
+### NGINX 未运行
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo systemctl status nginx
+sudo journalctl -u nginx --no-pager -n 50
+```
+
+### Cloud-init 尚未完成
+
+执行 `terraform apply` 后，cloud-init 需要 2-3 分钟。检查进度：
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo cloud-init status
+sudo tail -f /var/log/cloud-init-output.log
+```
+
+### 缓存始终显示 MISS
+
+- 验证源站返回可缓存的响应状态码（200、301、302）
+- 检查源站是否发送了 `Cache-Control: no-cache` 或 `no-store` 头信息
+- 检查 NGINX 错误日志：`sudo tail -f /var/log/nginx/error.log`
+
+### 端口 80/443 连接被拒绝
+
+- 验证 NSG 规则已应用：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- 验证 NGINX 正在监听：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`
