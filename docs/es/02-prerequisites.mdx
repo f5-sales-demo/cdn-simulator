@@ -1,9 +1,9 @@
 ---
-title: Requisitos previos
+title: Prerrequisitos
 description: >-
-  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
-  permissions, and Azure AD requirements for deploying the performance-optimized
-  CDN edge node VM
+  Herramientas necesarias (Azure CLI, Terraform >= 1.5, par de claves SSH),
+  permisos de suscripción de Azure y requisitos de Azure AD para desplegar la VM
+  de nodo edge CDN optimizada para rendimiento
 sidebar:
   order: 2
 i18n:
@@ -11,7 +11,7 @@ i18n:
   translator: machine
 ---
 
-## Requeridos
+## Obligatorios
 
 ### Suscripción de Azure
 
@@ -25,7 +25,7 @@ Una suscripción de Azure activa con permisos para crear:
 
 ### Azure CLI
 
-Instale y autentique Azure CLI:
+Instale y autentíquese en Azure CLI:
 
 ```bash
 # Install (if not present)
@@ -54,7 +54,7 @@ sudo apt update && sudo apt install terraform
 
 ### Par de claves SSH
 
-Un par de claves SSH para acceder a la VM:
+Un par de claves SSH para el acceso a la VM:
 
 ```bash
 # Generate if you don't have one
@@ -63,7 +63,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 ### Permisos de Azure AD
 
-Su cuenta de Azure AD debe tener permisos `User.Read`. El identificador del desplegador (utilizado en la nomenclatura de recursos) se deriva automáticamente de su perfil de Azure AD. Para autenticación mediante service principal o identidad administrada, establezca la variable de Terraform `deployer` explícitamente.
+Su cuenta de Azure AD debe tener permisos `User.Read`. El identificador del desplegador (utilizado en la nomenclatura de recursos) se deriva automáticamente de su perfil de Azure AD. Para la autenticación mediante service principal o identidad administrada, establezca la variable de Terraform `deployer` de forma explícita.
 
 ## Opcionales
 
@@ -72,8 +72,8 @@ Su cuenta de Azure AD debe tener permisos `User.Read`. El identificador del desp
 Si desea certificados TLS reales en lugar de autofirmados:
 
 - Un nombre de dominio con control de DNS
-- Capacidad para crear registros A apuntando a la IP pública de Azure
+- Capacidad para crear registros A que apunten a la IP pública de Azure
 
 ### URL del servidor de origen
 
-La URL del balanceador de carga HTTP de F5 XC al que este nodo edge reenviará el tráfico. Esto puede configurarse después del despliegue — la configuración predeterminada de NGINX utiliza un marcador de posición que usted actualiza en la configuración de NGINX.
+La URL del balanceador de carga HTTP de F5 XC al que este nodo edge reenviará el tráfico. Esto se puede configurar después del despliegue — la configuración predeterminada de NGINX utiliza un marcador de posición que usted actualiza en la configuración de NGINX.

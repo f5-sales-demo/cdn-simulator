@@ -15,7 +15,7 @@ i18n:
 
 ### Azure Subscription
 
-Azure subscription ที่ใช้งานอยู่ พร้อมสิทธิ์ในการสร้าง:
+Azure subscription ที่ใช้งานอยู่พร้อมสิทธิ์ในการสร้าง:
 
 - Resource groups
 - Virtual networks และ subnets
@@ -63,17 +63,17 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 ### สิทธิ์ Azure AD
 
-บัญชี Azure AD ของคุณต้องมีสิทธิ์ `User.Read` ตัวระบุผู้ทำการ deploy (ใช้ในการตั้งชื่อ resource) จะถูกดึงมาจากโปรไฟล์ Azure AD ของคุณโดยอัตโนมัติ สำหรับการยืนยันตัวตนด้วย service principal หรือ managed identity ให้ตั้งค่าตัวแปร Terraform `deployer` อย่างชัดเจน
+บัญชี Azure AD ของคุณต้องมีสิทธิ์ `User.Read` ตัวระบุผู้ปรับใช้ (ใช้ในการตั้งชื่อทรัพยากร) จะถูกดึงมาจากโปรไฟล์ Azure AD ของคุณโดยอัตโนมัติ สำหรับการยืนยันตัวตนด้วย service principal หรือ managed identity ให้ตั้งค่าตัวแปร Terraform `deployer` อย่างชัดเจน
 
-## ตัวเลือกเพิ่มเติม
+## ทางเลือกเพิ่มเติม
 
 ### โดเมนที่กำหนดเอง
 
-หากคุณต้องการใบรับรอง TLS จริงแทนใบรับรองแบบ self-signed:
+หากคุณต้องการใบรับรอง TLS จริงแทนที่จะใช้แบบ self-signed:
 
 - ชื่อโดเมนที่สามารถควบคุม DNS ได้
 - ความสามารถในการสร้าง A records ที่ชี้ไปยัง Azure Public IP
 
 ### URL ของ Origin Server
 
-URL ของ F5 XC HTTP load balancer ที่ edge node นี้จะส่งต่อทราฟฟิกไป ค่านี้สามารถกำหนดได้หลังจากการ deploy — การตั้งค่า NGINX เริ่มต้นจะใช้ค่า placeholder ที่คุณสามารถอัปเดตในการกำหนดค่า NGINX
+URL ของ F5 XC HTTP load balancer ที่ edge node นี้จะส่งต่อทราฟฟิกไป สามารถกำหนดค่าได้หลังจากการปรับใช้ — การตั้งค่า NGINX เริ่มต้นจะใช้ placeholder ที่คุณต้องอัปเดตในการกำหนดค่า NGINX

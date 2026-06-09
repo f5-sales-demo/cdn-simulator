@@ -1,9 +1,9 @@
 ---
 title: Pré-requisitos
 description: >-
-  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
-  permissions, and Azure AD requirements for deploying the performance-optimized
-  CDN edge node VM
+  Ferramentas necessárias (Azure CLI, Terraform >= 1.5, par de chaves SSH),
+  permissões de assinatura Azure e requisitos do Azure AD para implantar a VM de
+  nó de borda CDN otimizada para desempenho
 sidebar:
   order: 2
 i18n:
@@ -13,9 +13,9 @@ i18n:
 
 ## Obrigatórios
 
-### Assinatura do Azure
+### Assinatura Azure
 
-Uma assinatura ativa do Azure com permissão para criar:
+Uma assinatura Azure ativa com permissão para criar:
 
 - Grupos de recursos
 - Redes virtuais e sub-redes
@@ -76,4 +76,4 @@ Se você deseja certificados TLS reais em vez de autoassinados:
 
 ### URL do Servidor de Origem
 
-A URL do balanceador de carga HTTP do F5 XC para o qual este nó de borda encaminhará o tráfego. Isso pode ser configurado após a implantação — a configuração padrão do NGINX usa um valor de espaço reservado que você atualiza na configuração do NGINX.
+A URL do balanceador de carga HTTP do F5 XC para o qual este nó de borda encaminhará o tráfego. Isso pode ser configurado após a implantação — a configuração padrão do NGINX usa um placeholder que você atualiza na configuração do NGINX.

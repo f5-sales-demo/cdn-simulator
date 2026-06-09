@@ -1,11 +1,10 @@
 ---
 title: NGINX 設定
 description: >-
-  Production-optimized NGINX configuration reference — performance tuning
-  (kernel, buffers, keepalive, gzip, open_file_cache), 25 GB disk cache with
-  thundering herd prevention, upstream keepalive pool, 67+ CDN vendor headers
-  from Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door, and device
-  detection. Verified under 48-hour load test at 170K req/s peak.
+  本番環境向けに最適化されたNGINX設定リファレンス —
+  パフォーマンスチューニング（カーネル、バッファ、キープアライブ、gzip、open_file_cache）、サンダリングハード防止機能付き25
+  GBディスクキャッシュ、アップストリームキープアライブプール、Akamai/Cloudflare/CloudFront/Fastly/Azure Front
+  Doorからの67以上のCDNベンダーヘッダー、およびデバイス検出。170K req/sピークでの48時間負荷テストで検証済み。
 sidebar:
   order: 4
 i18n:
@@ -13,43 +12,43 @@ i18n:
   translator: machine
 ---
 
-cloud-init プロビジョニングは、完全にパフォーマンス最適化された NGINX CDN エッジ設定をデプロイします。このページでは、カーネルチューニングからキャッシュ動作、ベンダーヘッダーインジェクションまで、すべての設定レイヤーを説明します。すべての設定は、ピーク時 172,540 req/s に達する48時間の連続負荷テストで検証されています。
+cloud-initプロビジョニングは、完全にパフォーマンス最適化されたNGINX CDNエッジ設定をデプロイします。このページでは、カーネルチューニングからキャッシュ動作、ベンダーヘッダーインジェクションまで、すべての設定レイヤーを説明します。すべての設定は、ピーク172,540 req/sに達する48時間の連続負荷テストで検証されています。
 
 ## 設定ファイル
 
-| ファイル | 用途 |
+| ファイル | 目的 |
 |---|---|
-| `/etc/sysctl.d/99-cdn-tuning.conf` | Linux カーネルネットワークチューニング |
-| `/etc/systemd/system/nginx.service.d/override.conf` | NGINX のファイルディスクリプタ制限 |
-| `/etc/security/limits.d/99-nginx.conf` | www-data ユーザーの OS レベル制限 |
-| `/etc/nginx/nginx.conf` | NGINX メイン設定（ワーカー、バッファ、gzip、ログ） |
-| `/etc/nginx/conf.d/cdn-edge.conf` | CDN プロキシ設定（キャッシュ、アップストリーム、ヘッダー） |
+| `/etc/sysctl.d/99-cdn-tuning.conf` | Linuxカーネルネットワークチューニング |
+| `/etc/systemd/system/nginx.service.d/override.conf` | NGINX用ファイルディスクリプタ制限 |
+| `/etc/security/limits.d/99-nginx.conf` | www-dataユーザーのOS レベル制限 |
+| `/etc/nginx/nginx.conf` | NGINXメイン設定（ワーカー、バッファ、gzip、ロギング） |
+| `/etc/nginx/conf.d/cdn-edge.conf` | CDNプロキシ設定（キャッシュ、アップストリーム、ヘッダー） |
 
 ## カーネルチューニング
 
 `/etc/sysctl.d/99-cdn-tuning.conf` を介してブート時に適用されます。
 
-| パラメータ | 値 | デフォルト | 用途 |
+| パラメータ | 値 | デフォルト | 目的 |
 |---|---|---|---|
 | `net.core.somaxconn` | 65535 | 4096 | リッスンバックログキューサイズ |
-| `net.core.netdev_max_backlog` | 65535 | 1000 | CPU あたりの受信パケットバックログ |
-| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | SYN リクエストキュー（バースト時のドロップを防止） |
-| `net.ipv4.tcp_tw_reuse` | 1 | 2 | 送信接続で TIME_WAIT ソケットを再利用 |
-| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | エフェメラルポート範囲（28K に対して 64K） |
-| `net.core.rmem_max` | 16 MB | 212 KB | 最大受信ソケットバッファ |
-| `net.core.wmem_max` | 16 MB | 212 KB | 最大送信ソケットバッファ |
-| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | ソケットごとの受信バッファ（最小/デフォルト/最大） |
-| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | ソケットごとの送信バッファ（最小/デフォルト/最大） |
-| `net.ipv4.tcp_fin_timeout` | 15 | 60 | FIN_WAIT_2 タイムアウト（ソケットの高速クリーンアップ） |
-| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | アイドル 5 分後にキープアライブプローブを開始 |
-| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | アイドル接続で輻輳ウィンドウを維持 |
-| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | 最大 TIME_WAIT ソケット数 |
+| `net.core.netdev_max_backlog` | 65535 | 1000 | CPU単位の受信パケットバックログ |
+| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | SYNリクエストキュー（バースト時のドロップを防止） |
+| `net.ipv4.tcp_tw_reuse` | 1 | 2 | 送信接続でTIME_WAITソケットを再利用 |
+| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | エフェメラルポート範囲（28Kに対して64K） |
+| `net.core.rmem_max` | 16 MB | 212 KB | 受信ソケットバッファの最大値 |
+| `net.core.wmem_max` | 16 MB | 212 KB | 送信ソケットバッファの最大値 |
+| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | ソケット単位の受信バッファ（最小/デフォルト/最大） |
+| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | ソケット単位の送信バッファ（最小/デフォルト/最大） |
+| `net.ipv4.tcp_fin_timeout` | 15 | 60 | FIN_WAIT_2タイムアウト（より高速なソケットクリーンアップ） |
+| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | アイドル5分後にキープアライブプローブを開始 |
+| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | アイドル接続でも輻輳ウィンドウを維持 |
+| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | TIME_WAITソケットの最大数 |
 | `fs.file-max` | 2097152 | 可変 | システム全体のファイルディスクリプタ制限 |
-| `vm.swappiness` | 10 | 60 | キャッシュデータにスワップよりも RAM を優先 |
+| `vm.swappiness` | 10 | 60 | キャッシュデータにはスワップよりRAMを優先 |
 
-## NGINX メイン設定
+## NGINXメイン設定
 
-### ワーカーとコネクション
+### ワーカーと接続
 
 ```nginx
 worker_processes auto;           # 4 workers on D4s_v5 (1 per vCPU)
@@ -63,7 +62,7 @@ events {
 }
 ```
 
-`/etc/systemd/system/nginx.service.d/override.conf` の systemd オーバーライドにより、一致するように `LimitNOFILE=65535` が設定されます。
+`/etc/systemd/system/nginx.service.d/override.conf` のsystemdオーバーライドで、一致するように `LimitNOFILE=65535` を設定します。
 
 ### プロキシバッファ
 
@@ -74,9 +73,9 @@ proxy_buffers 64 16k;            # 1 MB per connection (64 x 16k)
 proxy_busy_buffers_size 256k;    # Can send 256k to client while still reading
 ```
 
-256k のビジーバッファサイズは重要です — 最大のキャッシュレスポンスを超える必要があります（Juice Shop は 75 KB）。元の 64k 設定は、高負荷時にシリアライゼーションを引き起こしていました。
+256kのビジーバッファサイズは重要です — キャッシュされた最大レスポンスサイズを超える必要があります（Juice Shopは75 KB）。元の64k設定は負荷時にシリアライゼーションを引き起こしていました。
 
-### Gzip 圧縮
+### Gzip圧縮
 
 ```nginx
 gzip on;
@@ -100,7 +99,7 @@ open_file_cache_min_uses 2;
 open_file_cache_errors on;
 ```
 
-キャッシュオブジェクトのファイルディスクリプタとメタデータをキャッシュし、ホットファイルに対する `stat()` および `open()` システムコールを排除します。
+キャッシュされたオブジェクトのファイルディスクリプタとメタデータをキャッシュし、ホットファイルに対する `stat()` および `open()` システムコールを排除します。
 
 ### クライアントキープアライブ
 
@@ -109,16 +108,16 @@ keepalive_timeout 65;
 keepalive_requests 100000;       # Was 1000 — caused connection recycling at 90K req/s
 ```
 
-90K req/s で `keepalive_requests 1000` の場合、接続は 11 秒ごとにリサイクルされ、TIME_WAIT ソケットが生成されていました。100,000 に増やすことで、この問題は完全に解消されました。
+90K req/sで `keepalive_requests 1000` の場合、接続は11秒ごとにリサイクルされ、TIME_WAITソケットが発生していました。100,000に増加することで、この問題を完全に解消しました。
 
-### アクセスログ
+### アクセスロギング
 
 ```nginx
 log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $upstream_cache_status $request_time';
 access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
 ```
 
-`cdn` ログフォーマットには、レイテンシ分析用の `$upstream_cache_status`（HIT/MISS）と `$request_time` が含まれます。バッファリングされたログ（256k/5s フラッシュ）により、高負荷時の I/O オーバーヘッドが軽減されます。
+`cdn` ログフォーマットには、レイテンシ分析用の `$upstream_cache_status`（HIT/MISS）と `$request_time` が含まれます。バッファードロギング（256k/5sフラッシュ）により、高負荷時のI/Oオーバーヘッドが軽減されます。
 
 ## アップストリームキープアライブ
 
@@ -131,7 +130,7 @@ upstream origin_backend {
 }
 ```
 
-4 ワーカー x 256 キープアライブ = オリジンへの 1,024 のウォーム接続。`proxy_http_version 1.1` と `proxy_set_header Connection ""` と組み合わせることで、キャッシュミス時の TCP ハンドシェイクオーバーヘッドを排除します。
+4ワーカー x 256キープアライブ = オリジンへの1,024のウォーム接続。`proxy_http_version 1.1` と `proxy_set_header Connection ""` を組み合わせることで、すべてのキャッシュミスにおけるTCPハンドシェイクオーバーヘッドを排除します。
 
 ## キャッシュ設定
 
@@ -146,11 +145,11 @@ proxy_cache_path /var/cache/nginx/cdn
                  use_temp_path=off;
 ```
 
-| パラメータ | 値 | 用途 |
+| パラメータ | 値 | 目的 |
 |---|---|---|
-| `keys_zone=cdn_cache:32m` | 32 MB 共有メモリ | 約 256,000 のキャッシュキーとメタデータを格納 |
-| `max_size=25g` | 25 GB ディスク制限 | 30 GB OS ディスクの大部分を使用。制限時に LRU エビクション |
-| `inactive=24h` | 24 時間の非アクティブタイムアウト | 24 時間アクセスされなかったコンテンツがエビクトされる（TTL とは異なる） |
+| `keys_zone=cdn_cache:32m` | 32 MB共有メモリ | 約256,000のキャッシュキーとメタデータを格納 |
+| `max_size=25g` | 25 GBディスク制限 | 30 GB OSディスクの大部分を使用。制限時にLRUエビクション |
+| `inactive=24h` | 24時間非アクティブタイムアウト | 24時間アクセスされないコンテンツはエビクションされる（TTLとは異なる） |
 | `use_temp_path=off` | キャッシュディレクトリに直接書き込み | クロスファイルシステムのファイル移動を回避 |
 
 ### キャッシュ動作
@@ -171,16 +170,16 @@ proxy_hide_header X-Cache-Status;
 proxy_hide_header Vary;
 ```
 
-| ディレクティブ | 値 | 用途 |
+| ディレクティブ | 値 | 目的 |
 |---|---|---|
-| `proxy_cache_valid 200 301 302 4h` | 4 時間 TTL | キャッシュコンテンツは 4 時間有効（リフレッシュウェーブのスループット低下を減らすために延長） |
-| `proxy_cache_lock on` | サンダリングハード防止 | 未キャッシュ URL ごとに 1 つのリクエストのみがオリジンに送信され、他はキャッシュ充填を待機 |
-| `proxy_cache_lock_age 3s` | ロックタイムアウト | 最初のリクエストが 3 秒以内に完了しない場合、別のリクエストを通過させる |
-| `proxy_cache_background_update on` | ゼロレイテンシリフレッシュ | バックグラウンドでリフレッシュしながら、即座に古いコンテンツを提供 |
-| `proxy_cache_use_stale` | レジリエンス | オリジンエラー（500/502/503/504）または更新中に古いコンテンツを提供 |
-| `proxy_ignore_headers` | キャッシュを強制 | オリジンの Set-Cookie、Cache-Control、Expires、Vary を無視 — CDN が TTL と Vary の動作を決定（Juice Shop は `max-age=0` と 3 つの `Vary` ヘッダーを送信し、効果的なキャッシュを妨げていた） |
-| `proxy_hide_header X-Cache-Status` | オリジンヘッダーを除去 | オリジン NGINX が独自の X-Cache-Status を追加するため、CDN のキャッシュステータスのみが表示されるように除去 |
-| `proxy_hide_header Vary` | キャッシュの断片化を防止 | オリジンが複数の `Vary: Accept-Encoding` ヘッダーを送信する。これを除去することで、`Accept-Encoding` のパーミュテーション間でのキャッシュキーの断片化を防止。NGINX の `gzip_vary on` が正しい単一の `Vary` ヘッダーを自動的に追加 |
+| `proxy_cache_valid 200 301 302 4h` | 4時間TTL | キャッシュコンテンツは4時間有効（リフレッシュウェーブによるスループット低下を軽減するために延長） |
+| `proxy_cache_lock on` | サンダリングハード防止 | 未キャッシュURLに対して1リクエストのみがオリジンに送信され、他はキャッシュ充填を待機 |
+| `proxy_cache_lock_age 3s` | ロックタイムアウト | 最初のリクエストが3秒以内に完了しない場合、別のリクエストを通す |
+| `proxy_cache_background_update on` | ゼロレイテンシリフレッシュ | バックグラウンドでリフレッシュしながら、即座にステイルコンテンツを提供 |
+| `proxy_cache_use_stale` | レジリエンス | オリジンエラー（500/502/503/504）時やアップデート中にステイルコンテンツを提供 |
+| `proxy_ignore_headers` | 強制キャッシュ | オリジンのSet-Cookie、Cache-Control、Expires、Varyを無視 — CDNがTTLとVary動作を決定（Juice Shopは `max-age=0` とトリプル `Vary` ヘッダーを送信し、効果的なキャッシュを阻害していた） |
+| `proxy_hide_header X-Cache-Status` | オリジンヘッダーを除去 | オリジンのNGINXが独自のX-Cache-Statusを追加するため、CDNのキャッシュステータスのみが表示されるように除去 |
+| `proxy_hide_header Vary` | キャッシュフラグメンテーションを防止 | オリジンが複数の `Vary: Accept-Encoding` ヘッダーを送信。これを除去することで、`Accept-Encoding` の順列によるキャッシュキーのフラグメンテーションを防止。NGINXの `gzip_vary on` が正しい単一の `Vary` ヘッダーを自動的に追加 |
 
 ### プロキシタイムアウト
 
@@ -190,7 +189,7 @@ proxy_connect_timeout 10s;
 proxy_send_timeout 15s;
 ```
 
-負荷時にオリジンにより多くの応答時間を与えつつ、接続の問題には素早く失敗します。
+負荷時にオリジンにより多くのレスポンス時間を与えつつ、接続問題では素早くフェイルします。
 
 ### サーバーブロック
 
@@ -201,92 +200,92 @@ server {
 }
 ```
 
-`reuseport` は `SO_REUSEPORT` を有効にします — カーネルが受信接続をワーカープロセスに直接分散し、accept mutex の競合を排除します。
+`reuseport` は `SO_REUSEPORT` を有効にします — カーネルが受信接続をワーカープロセスに直接分散し、acceptミューテックスの競合を排除します。
 
-## CDN ベンダーヘッダー
+## CDNベンダーヘッダー
 
-シミュレーターは、5 つの主要 CDN ベンダーすべてのヘッダーを同時にインジェクトします。これにより、F5 XC はどのベンダーの「Trusted Client IP Header」でも設定でき、シミュレートしている CDN に関係なくリアルなヘッダーペイロードを確認できます。
+シミュレーターは、5つの主要CDNベンダーすべてのヘッダーを同時にインジェクトします。これにより、どのCDNをシミュレートしているかに関係なく、F5 XCを任意のベンダーの「Trusted Client IP Header」で設定し、リアルなヘッダーペイロードを確認できます。
 
-### 業界標準ヘッダー（全 CDN 共通）
+### 業界標準ヘッダー（全CDN共通）
 
-| ヘッダー | 値 | 用途 |
+| ヘッダー | 値 | 目的 |
 |---|---|---|
-| `X-Forwarded-For` | クライアント IP チェーン | 標準転送 IP |
+| `X-Forwarded-For` | クライアントIPチェーン | 標準転送IP |
 | `X-Forwarded-Proto` | `http` または `https` | 元のクライアントプロトコル |
-| `X-Forwarded-Host` | 元のホスト名 | 元の Host ヘッダー |
+| `X-Forwarded-Host` | 元のホスト名 | 元のHostヘッダー |
 | `X-Forwarded-Port` | サーバーポート | 元のポート |
-| `X-Real-IP` | クライアント IP | 単一のクライアント IP（nginx の慣例） |
+| `X-Real-IP` | クライアントIP | 単一のクライアントIP（nginx慣例） |
 | `Via` | `1.1 cdn-simulator` | プロキシ識別 |
-| `Forwarded` | RFC 7239 形式 | 標準化された転送ヘッダー |
+| `Forwarded` | RFC 7239形式 | 標準化された転送ヘッダー |
 | `CDN-Loop` | `cdn-simulator` | ループ検出 |
 
-### Akamai ヘッダー
+### Akamaiヘッダー
 
-| ヘッダー | 値 | 用途 |
+| ヘッダー | 値 | 目的 |
 |---|---|---|
-| `True-Client-IP` | クライアント IP | 元のエンドユーザー IP アドレス |
+| `True-Client-IP` | クライアントIP | 元のエンドユーザーIPアドレス |
 | `X-Akamai-Edgescape` | 複合地理情報文字列 | georegion、country_code、region_code、city、dma、pmsa、msa、areacode、county、fips、lat、long、timezone、zip、continent、throughput、bw、network、asnum、network_type |
 | `X-Akamai-Device-Characteristics` | デバイスプロパティ | brand_name、model_name、is_mobile、is_tablet、is_wireless_device、device_os、device_os_version、resolution_width、resolution_height |
-| `X-Akamai-Request-ID` | リクエスト UUID | 一意のリクエスト識別子 |
+| `X-Akamai-Request-ID` | リクエストUUID | 一意のリクエスト識別子 |
 
-### Cloudflare ヘッダー
+### Cloudflareヘッダー
 
-| ヘッダー | 値 | 用途 |
+| ヘッダー | 値 | 目的 |
 |---|---|---|
-| `CF-Connecting-IP` | クライアント IP | 真のクライアント IP（常に存在） |
-| `CF-IPCountry` | `US` | 2 文字の国コード |
+| `CF-Connecting-IP` | クライアントIP | 真のクライアントIP（常に存在） |
+| `CF-IPCountry` | `US` | 2文字の国コード |
 | `cf-ipcity` | `San Jose` | クライアントの都市 |
 | `cf-ipcontinent` | `NA` | 大陸コード |
 | `cf-iplatitude` / `cf-iplongitude` | 座標 | ジオロケーション |
-| `cf-region` / `cf-region-code` | `California` / `CA` | リージョン情報 |
+| `cf-region` / `cf-region-code` | `California` / `CA` | 地域情報 |
 | `cf-metro-code` | `807` | 米国メトロコード |
 | `cf-postal-code` | `95113` | 郵便番号 |
-| `cf-timezone` | `America/Los_Angeles` | IANA タイムゾーン |
-| `Cf-Ray` | `{request_id}-SJC` | POP IATA コード付きの一意の Ray ID |
-| `CF-Visitor` | `{"scheme":"https"}` | ビジタープロトコル情報 |
+| `cf-timezone` | `America/Los_Angeles` | IANAタイムゾーン |
+| `Cf-Ray` | `{request_id}-SJC` | POP IATAコード付きの一意のレイID |
+| `CF-Visitor` | `{"scheme":"https"}` | 訪問者プロトコル情報 |
 | `cf-bot-score` | `85` | ボットスコア（1=ボット、99=人間） |
 | `cf-verified-bot` | `false` | 既知の正当なボットフラグ |
-| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS フィンガープリント |
-| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | JA4 TLS フィンガープリント |
+| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLSフィンガープリント |
+| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | JA4 TLSフィンガープリント |
 
-### Amazon CloudFront ヘッダー
+### Amazon CloudFrontヘッダー
 
-| ヘッダー | 値 | 用途 |
+| ヘッダー | 値 | 目的 |
 |---|---|---|
-| `CloudFront-Viewer-Address` | `IP:port` | クライアント IP とソースポート |
+| `CloudFront-Viewer-Address` | `IP:port` | クライアントIPとソースポート |
 | `CloudFront-Viewer-Country` | `US` | 国コード |
-| `CloudFront-Viewer-Country-Name` | `United States` | 国名（フルネーム） |
-| `CloudFront-Viewer-Country-Region` | `CA` | リージョンコード |
-| `CloudFront-Viewer-Country-Region-Name` | `California` | リージョン名（フルネーム） |
+| `CloudFront-Viewer-Country-Name` | `United States` | 国名（フル） |
+| `CloudFront-Viewer-Country-Region` | `CA` | 地域コード |
+| `CloudFront-Viewer-Country-Region-Name` | `California` | 地域名（フル） |
 | `CloudFront-Viewer-City` | `San Jose` | クライアントの都市 |
 | `CloudFront-Viewer-Postal-Code` | `95113` | 郵便番号 |
 | `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | ジオロケーション |
-| `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | IANA タイムゾーン |
+| `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | IANAタイムゾーン |
 | `CloudFront-Viewer-Metro-Code` | `807` | 米国メトロコード |
 | `CloudFront-Viewer-ASN` | `7018` | 自律システム番号 |
-| `CloudFront-Viewer-Http-Version` | `2.0` | クライアント HTTP バージョン |
+| `CloudFront-Viewer-Http-Version` | `2.0` | クライアントHTTPバージョン |
 | `CloudFront-Forwarded-Proto` | `https` | 元のプロトコル |
-| `CloudFront-Viewer-TLS` | `TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed` | TLS 詳細 |
-| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS フィンガープリント |
+| `CloudFront-Viewer-TLS` | `TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed` | TLS詳細 |
+| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLSフィンガープリント |
 | `CloudFront-Is-Desktop-Viewer` | `true`/`false` | デバイス検出 |
 | `CloudFront-Is-Mobile-Viewer` | `true`/`false` | デバイス検出 |
 | `CloudFront-Is-Tablet-Viewer` | `true`/`false` | デバイス検出 |
 | `CloudFront-Is-SmartTV-Viewer` | `false` | デバイス検出 |
-| `X-Amz-Cf-Id` | エンコード済み ID | CloudFront リクエスト識別子 |
+| `X-Amz-Cf-Id` | エンコードされたID | CloudFrontリクエスト識別子 |
 
-### Fastly ヘッダー
+### Fastlyヘッダー
 
-| ヘッダー | 値 | 用途 |
+| ヘッダー | 値 | 目的 |
 |---|---|---|
-| `Fastly-Client-IP` | クライアント IP | 真のクライアント IP |
-| `Fastly-SSL` | `1` | 接続が TLS 経由 |
+| `Fastly-Client-IP` | クライアントIP | 真のクライアントIP |
+| `Fastly-SSL` | `1` | TLS経由の接続 |
 | `Fastly-Client` | `1` | クライアント向けリクエスト（シールドではない） |
 | `Fastly-FF` | `cache-sjc3120-SJC` | キャッシュノード識別 |
-| `X-Geo-Country-Code` | `US` | 国（VCL 変数の慣例） |
-| `X-Geo-Country-Code3` | `USA` | 3 文字の国コード |
-| `X-Geo-Country-Name` | `United States` | 国名（フルネーム） |
+| `X-Geo-Country-Code` | `US` | 国（VCL変数慣例） |
+| `X-Geo-Country-Code3` | `USA` | 3文字の国コード |
+| `X-Geo-Country-Name` | `United States` | 国名（フル） |
 | `X-Geo-City` | `San Jose` | クライアントの都市 |
-| `X-Geo-Region` | `CA` | リージョンコード |
+| `X-Geo-Region` | `CA` | 地域コード |
 | `X-Geo-Continent-Code` | `NA` | 大陸 |
 | `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | ジオロケーション |
 | `X-Geo-Postal-Code` | `95113` | 郵便番号 |
@@ -295,33 +294,33 @@ server {
 | `X-Geo-Conn-Speed` | `broadband` | 接続速度クラス |
 | `X-Geo-Conn-Type` | `wired` | 接続タイプ |
 
-### Azure Front Door ヘッダー
+### Azure Front Doorヘッダー
 
-| ヘッダー | 値 | 用途 |
+| ヘッダー | 値 | 目的 |
 |---|---|---|
-| `X-Azure-ClientIP` | クライアント IP | クライアント IP アドレス |
-| `X-Azure-SocketIP` | クライアント IP | TCP ソケットソース IP |
-| `X-Azure-Ref` | エンコード済み参照文字列 | トラブルシューティング用の一意のリクエスト参照 |
-| `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | Front Door リソース識別子 |
+| `X-Azure-ClientIP` | クライアントIP | クライアントIPアドレス |
+| `X-Azure-SocketIP` | クライアントIP | TCPソケットソースIP |
+| `X-Azure-Ref` | エンコードされた参照文字列 | トラブルシューティング用の一意のリクエスト参照 |
+| `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | Front Doorリソース識別子 |
 | `X-Azure-RequestChain` | `hops=1` | ループ検出ホップカウント |
 
 ### レスポンスヘッダー（クライアントレスポンスに追加）
 
-| ヘッダー | 値 | 用途 |
+| ヘッダー | 値 | 目的 |
 |---|---|---|
 | `X-Cache-Status` | `HIT`、`MISS`、`EXPIRED`、`STALE`、`UPDATING` | このリクエストのキャッシュ動作 |
-| `X-CDN-Edge` | `cdn-simulator` | このエッジノードを識別 |
-| `X-CDN-POP` | `SJC` | シミュレートされた Point of Presence IATA コード |
-| `X-Served-By` | `cache-sjc3120-SJC` | Fastly 形式のシミュレートされたキャッシュノード |
+| `X-CDN-Edge` | `cdn-simulator` | このエッジノードの識別 |
+| `X-CDN-POP` | `SJC` | シミュレートされたPoint of Presence IATAコード |
+| `X-Served-By` | `cache-sjc3120-SJC` | Fastly形式のシミュレートされたキャッシュノード |
 | `X-Request-ID` | UUID（リクエストごと） | 一意のリクエスト識別子 |
 
 ## デバイス検出
 
-シミュレーターは、NGINX の `map` ディレクティブを使用して `User-Agent` ヘッダーからデバイスタイプを検出します：
+シミュレーターは、NGINXの `map` ディレクティブを使用して `User-Agent` ヘッダーからデバイスタイプを検出します：
 
-- **モバイル**: iPhone、Android（タブレット以外）、iPod、BlackBerry、Opera Mini、IEMobile に一致
-- **タブレット**: iPad、Android タブレット、Kindle、PlayBook に一致
-- **デスクトップ**: モバイルでもタブレットでもない場合のデフォルト
+- **モバイル**: iPhone、Android（タブレット以外）、iPod、BlackBerry、Opera Mini、IEMobileにマッチ
+- **タブレット**: iPad、Androidタブレット、Kindle、PlayBookにマッチ
+- **デスクトップ**: モバイルにもタブレットにもマッチしない場合のデフォルト
 
 デバイスタイプは以下に反映されます：
 - `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
@@ -342,7 +341,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-または、`terraform.tfvars` の `origin_host` を更新し、`terraform apply` を実行して再プロビジョニングします。
+または `terraform.tfvars` の `origin_host` を更新して `terraform apply` を実行し、再プロビジョニングします。
 
 ### キャッシュのクリア
 
@@ -363,7 +362,7 @@ sudo du -sh /var/cache/nginx/cdn
 tail -20 /var/log/nginx/access.log
 ```
 
-### 負荷時のモニタリング
+### 負荷時の監視
 
 ```bash
 # Real-time connections and socket states
@@ -381,16 +380,16 @@ ss -tn state time-wait | wc -l
 
 ## パフォーマンスベンチマーク結果
 
-48 時間の連続負荷テストで検証済み：
+48時間の連続負荷テストで検証済み：
 
 | メトリクス | 値 |
 |---|---|
 | ピークスループット（キャッシュ済み） | 172,540 req/s |
 | 持続スループット（キャッシュ済み） | 85,000-103,000 req/s |
-| ピーク接続数 | 15,000 同時接続 |
+| ピーク接続数 | 15,000同時接続 |
 | キャッシュヒット率 | 100%（ウォームアップ後） |
-| 負荷時メモリ | 1.2 GB 安定（16 GB の 8%） |
-| ピーク時 CPU | 100%（4 コア - CPU が上限） |
-| 48 時間テスト中のエラー | 0 |
+| 負荷時メモリ | 1.2 GB安定（16 GBの8%） |
+| ピーク時CPU | 100%（4コア — CPUが上限） |
+| 48時間テスト中のエラー | 0 |
 | メモリリーク | 検出なし |
 | 接続リーク | 検出なし |

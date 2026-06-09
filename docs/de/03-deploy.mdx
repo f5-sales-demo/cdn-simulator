@@ -1,11 +1,11 @@
 ---
 title: Bereitstellung
 description: >-
-  Terraform IaC deployment of the performance-optimized CDN edge node — Azure
-  F-series compute-optimized VM with Ubuntu 24.04, kernel tuning, NGINX proxy
-  cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers
-  provisioned via cloud-init. All configuration files are in the terraform/
-  directory.
+  Terraform IaC-Bereitstellung des leistungsoptimierten CDN-Edge-Knotens — Azure
+  F-Serie compute-optimierte VM mit Ubuntu 24.04, Kernel-Tuning, NGINX
+  Proxy-Cache, Upstream-Keepalive, gzip-Komprimierung und über 67
+  CDN-Anbieter-Header, bereitgestellt über cloud-init. Alle
+  Konfigurationsdateien befinden sich im Verzeichnis terraform/.
 sidebar:
   order: 3
 i18n:
@@ -19,7 +19,7 @@ Alle Terraform-Dateien befinden sich im Verzeichnis [`terraform/`](https://githu
 git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
 cd cdn-simulator/terraform
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your Azure subscription ID and origin server
+# Bearbeiten Sie terraform.tfvars mit Ihrer Azure-Abonnement-ID und dem Origin-Server
 ```
 
 ## Terraform-Konfiguration
@@ -31,14 +31,14 @@ Das Terraform-Verzeichnis enthält 9 Dateien gemäß dem Demo Resource Standard:
 - `versions.tf` — Terraform- und Provider-Versionsbeschränkungen (azurerm ~> 4.0, azuread ~> 3.0)
 - `providers.tf` — Azure RM- und Azure AD-Provider-Konfiguration
 - `data.tf` — Azure AD-Datenquellen für automatische Deployer-Auflösung
-- `locals.tf` — Deployer-Auflösung, Azure Cloud Adoption Framework-Ressourcenbenennung, Standard-Tags
-- `main.tf` — Ressourcengruppe (benannt `rg-cdn-simulator-{environment}-{deployer}`)
+- `locals.tf` — Deployer-Auflösung, Azure Cloud Adoption Framework Ressourcenbenennung, Standard-Tags
+- `main.tf` — Ressourcengruppe (benannt als `rg-cdn-simulator-{environment}-{deployer}`)
 - `variables.tf` — Alle Eingabevariablen (3 erforderlich, 8 optional)
 - `network.tf` — VNet (10.100.0.0/16), Subnetz, öffentliche IP, NSG (Ports 22/80/443), NIC
-- `vm.tf` — Ubuntu 24.04 VM mit cloud-init via templatefile()
+- `vm.tf` — Ubuntu 24.04 VM mit cloud-init über templatefile()
 - `outputs.tf` — 17 Ausgaben (15 Standard + 2 komponentenspezifische)
 
-`variables.tf` definiert 11 Eingabevariablen, organisiert in die Abschnitte Allgemein, Compute und Komponentenspezifisch. Der `deployer`-Bezeichner wird automatisch aus Ihrem Azure AD-Konto aufgelöst — Sie müssen nur `subscription_id`, `origin_server` und `origin_host` setzen:
+`variables.tf` definiert 11 Eingabevariablen, organisiert in die Abschnitte Allgemein, Compute und Komponentenspezifisch. Der `deployer`-Bezeichner wird automatisch aus Ihrem Azure AD-Konto aufgelöst — Sie müssen lediglich `subscription_id`, `origin_server` und `origin_host` festlegen:
 
 ```hcl file=./_data/variables.tf
 ```
@@ -52,23 +52,23 @@ Das Terraform-Verzeichnis enthält 9 Dateien gemäß dem Demo Resource Standard:
 
 ### Virtuelle Maschine mit Cloud-Init
 
-`vm.tf` erstellt die Ubuntu 24.04 VM. Der SSH-Public-Key-Pfad wird über `pathexpand()` erweitert, um `~` zu verarbeiten. Das Cloud-Init-Template erhält die Variablen `origin_server` und `origin_host`:
+`vm.tf` erstellt die Ubuntu 24.04 VM. Der Pfad zum öffentlichen SSH-Schlüssel wird über `pathexpand()` erweitert, um `~` zu verarbeiten. Das Cloud-Init-Template erhält die Variablen `origin_server` und `origin_host`:
 
 ```hcl file=./_data/vm.tf
 ```
 
-### Cloud-Init-Provisionierung
+### Cloud-Init-Bereitstellung
 
-`cloud-init.yaml` provisioniert die VM mit Kernel-Tuning, systemd-Limits, NGINX mit leistungsoptimierter Konfiguration, 128 MB Cache-Keys-Zone, Upstream-Keepalive-Pool, gzip-Komprimierung und 67+ CDN-Vendor-Headern. Eine gemeinsame Hilfsbibliothek (`/usr/local/lib/cloud-init-helpers.sh`) bietet Wiederholungslogik und Fortschrittsprotokollierung in `/var/log/cloud-init-progress.log`.
+`cloud-init.yaml` stellt die VM bereit mit Kernel-Tuning, systemd-Limits, NGINX mit leistungsoptimierter Konfiguration, 128 MB Cache-Keys-Zone, Upstream-Keepalive-Pool, gzip-Komprimierung und über 67 CDN-Anbieter-Headern. Eine gemeinsame Hilfsbibliothek (`/usr/local/lib/cloud-init-helpers.sh`) bietet Wiederholungslogik und Fortschrittsprotokollierung nach `/var/log/cloud-init-progress.log`.
 
-Das Cloud-Init verwendet Terraform-Template-Variablen: `${origin_server}` und `${origin_host}` für die Upstream-Konfiguration. NGINX-Variablen wie `${request_id}` werden im Terraform-templatefile als `$${request_id}` escaped.
+Das Cloud-Init verwendet Terraform-Template-Variablen: `${origin_server}` und `${origin_host}` für die Upstream-Konfiguration. NGINX-Variablen wie `${request_id}` werden als `$${request_id}` im Terraform-templatefile escaped.
 
 ```yaml file=./_data/cloud-init.yaml
 ```
 
 ### Ausgaben
 
-`outputs.tf` stellt 17 Ausgaben gemäß dem Demo Resource Standard bereit — 15 Standardausgaben, die von allen Demo-Ressourcen gemeinsam genutzt werden (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) plus 2 komponentenspezifische Ausgaben (`edge_url`, `health_check_url`):
+`outputs.tf` stellt 17 Ausgaben gemäß dem Demo Resource Standard bereit — 15 Standardausgaben, die von allen Demo-Ressourcen geteilt werden (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) plus 2 komponentenspezifische Ausgaben (`edge_url`, `health_check_url`):
 
 ```hcl file=./_data/outputs.tf
 ```
@@ -83,13 +83,13 @@ Kopieren Sie `terraform.tfvars.example` nach `terraform.tfvars` und tragen Sie I
 ## Bereitstellung
 
 ```bash
-# Initialize Terraform
+# Terraform initialisieren
 terraform init
 
-# Review the plan
+# Den Plan überprüfen
 terraform plan
 
-# Apply
+# Anwenden
 terraform apply
 ```
 
@@ -97,7 +97,7 @@ Terraform gibt nach erfolgreicher Bereitstellung die öffentliche IP, den SSH-Be
 
 ## VM-Dimensionierung
 
-Die compute-optimierten VMs der F-Serie werden für diesen CPU-intensiven NGINX-Proxy-Workload empfohlen. Die Standard-VM `Standard_F4s_v2` (4 vCPU, 8 GiB) ist für Labor- und Demo-Zwecke geeignet. Überschreiben Sie die Variable `vm_size` für Lasttests oder Produktions-Benchmarking-Szenarien. Das Cloud-Init-Kernel-Tuning und die NGINX-Konfiguration skalieren automatisch mit der vCPU-Anzahl (`worker_processes auto`).
+Die compute-optimierten VMs der F-Serie werden für diese CPU-intensive NGINX-Proxy-Arbeitslast empfohlen. Die Standard-Konfiguration `Standard_F4s_v2` (4 vCPU, 8 GiB) ist für Labor- und Demo-Zwecke geeignet. Überschreiben Sie die Variable `vm_size` für Lasttests oder Produktions-Benchmarking-Szenarien. Das Kernel-Tuning und die NGINX-Konfiguration des Cloud-Init skalieren automatisch mit der Anzahl der vCPUs (`worker_processes auto`).
 
 ## Nach der Bereitstellung
 
@@ -145,4 +145,4 @@ EOF
 | `origin_server` | Origin-Server `public_ip`-Ausgabe | `http://<ip>` (mit Schema) |
 | `origin_host` | Origin-Server `public_ip`-Ausgabe | `<ip>:80` (ohne Schema, mit Port) |
 
-Fahren Sie mit [NGINX-Konfiguration](../04-nginx-config/) für Anpassungsoptionen oder [Überprüfung](../05-verify/) für Cache-Tests fort.
+Fahren Sie fort mit [NGINX-Konfiguration](../04-nginx-config/) für Anpassungsoptionen oder [Verifizierung](../05-verify/) für Cache-Tests.

@@ -1,9 +1,8 @@
 ---
 title: 前提条件
 description: >-
-  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
-  permissions, and Azure AD requirements for deploying the performance-optimized
-  CDN edge node VM
+  パフォーマンス最適化されたCDNエッジノードVMをデプロイするために必要なツール（Azure CLI、Terraform >=
+  1.5、SSHキーペア）、Azureサブスクリプションの権限、およびAzure ADの要件
 sidebar:
   order: 2
 i18n:
@@ -13,19 +12,19 @@ i18n:
 
 ## 必須
 
-### Azure サブスクリプション
+### Azureサブスクリプション
 
-以下を作成する権限を持つアクティブな Azure サブスクリプション：
+以下を作成する権限を持つ有効なAzureサブスクリプション：
 
 - リソースグループ
 - 仮想ネットワークとサブネット
 - ネットワークセキュリティグループ
-- パブリック IP アドレス
+- パブリックIPアドレス
 - 仮想マシン
 
 ### Azure CLI
 
-Azure CLI をインストールして認証します：
+Azure CLIをインストールして認証します：
 
 ```bash
 # Install (if not present)
@@ -52,28 +51,28 @@ echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://
 sudo apt update && sudo apt install terraform
 ```
 
-### SSH キーペア
+### SSHキーペア
 
-VM アクセス用の SSH キーペア：
+VMアクセス用のSSHキーペア：
 
 ```bash
 # Generate if you don't have one
 ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 ```
 
-### Azure AD の権限
+### Azure AD権限
 
-Azure AD アカウントには `User.Read` 権限が必要です。デプロイヤー識別子（リソースの命名に使用）は、Azure AD プロファイルから自動的に取得されます。サービスプリンシパルまたはマネージド ID 認証の場合は、Terraform 変数 `deployer` を明示的に設定してください。
+Azure ADアカウントには `User.Read` 権限が必要です。デプロイヤー識別子（リソース命名に使用）は、Azure ADプロファイルから自動的に取得されます。サービスプリンシパルまたはマネージドID認証の場合は、`deployer` Terraform変数を明示的に設定してください。
 
 ## オプション
 
 ### カスタムドメイン
 
-自己署名証明書の代わりに実際の TLS 証明書を使用する場合：
+自己署名証明書の代わりに実際のTLS証明書を使用したい場合：
 
-- DNS 管理が可能なドメイン名
-- Azure パブリック IP を指す A レコードを作成する権限
+- DNS管理権限のあるドメイン名
+- AzureパブリックIPを指すAレコードを作成する機能
 
-### オリジンサーバー URL
+### オリジンサーバーURL
 
-このエッジノードがトラフィックを転送する F5 XC HTTP ロードバランサーの URL。これはデプロイ後に設定可能です — デフォルトの NGINX 設定では、NGINX 設定内で更新するプレースホルダーが使用されます。
+このエッジノードがトラフィックを転送するF5 XC HTTPロードバランサーのURL。これはデプロイ後に設定可能です — デフォルトのNGINX設定ではプレースホルダーが使用されており、NGINX設定で更新します。

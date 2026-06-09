@@ -10,17 +10,15 @@ template: splash
 sidebar:
   hidden: true
 hero:
-  tagline: >-
-    Deploy a functional CDN edge node in Azure for integration testing with F5
-    Distributed Cloud.
+  tagline: F5 Distributed Cloud와의 통합 테스트를 위해 Azure에 기능적 CDN 엣지 노드를 배포합니다.
   image:
     html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
   actions:
-    - text: Get Started
+    - text: 시작하기
       link: 01-overview/
       icon: right-arrow
       variant: primary
-    - text: Deploy Now
+    - text: 지금 배포하기
       link: 03-deploy/
       icon: rocket
       variant: minimal
@@ -29,12 +27,12 @@ i18n:
   translator: machine
 ---
 
-## 제공하는 기능
+## 제공 기능
 
-- **[단일 엣지 노드](01-overview/)** — NGINX를 캐싱 리버스 프록시로 실행하는 Ubuntu 24.04 VM 한 대, 최소 기능 CDN 엣지
-- **[Terraform 배포](03-deploy/)** — 완전한 Azure 코드형 인프라: VNet, PIP, NSG, 그리고 cloud-init 프로비저닝을 포함한 VM
-- **[67개 이상의 CDN 벤더 헤더](04-nginx-config/)** — Akamai, Cloudflare, CloudFront, Fastly, Azure Front Door의 요청 헤더를 시뮬레이션하며 True-Client-IP, CF-Connecting-IP, 지리적 위치, 디바이스 감지, JA3/JA4 핑거프린트, 봇 점수 등을 포함
-- **[오리진 통합](06-integrate/)** — 캐시 미스를 오리진으로서 F5 XC HTTP 로드 밸런서에 전달하도록 엣지 구성
+- **[단일 엣지 노드](01-overview/)** — NGINX를 캐싱 리버스 프록시로 실행하는 Ubuntu 24.04 VM 1대, 최소 기능 CDN 엣지
+- **[Terraform 배포](03-deploy/)** — 완전한 Azure 코드형 인프라: VNet, PIP, NSG, 그리고 cloud-init 프로비저닝이 포함된 VM
+- **[67개 이상의 CDN 벤더 헤더](04-nginx-config/)** — Akamai, Cloudflare, CloudFront, Fastly, Azure Front Door의 요청 헤더를 시뮬레이션하며 True-Client-IP, CF-Connecting-IP, 지리적 위치, 디바이스 감지, JA3/JA4 핑거프린트, 봇 점수 포함
+- **[오리진 통합](06-integrate/)** — 캐시 미스를 오리진으로서 F5 XC HTTP 로드 밸런서로 전달하도록 엣지 구성
 - **[캐시 검증](05-verify/)** — X-Cache-Status 헤더와 NGINX 캐시 검사를 통해 HIT/MISS 동작 검증
 
 ## 빠른 참조
@@ -43,8 +41,8 @@ i18n:
 
 | 엔드포인트 | 메서드 | 용도 |
 |---|---|---|
-| `http://<PUBLIC_IP>/health` | GET | 헬스 체크 — 컴포넌트 상태 및 벤더 프로필이 포함된 JSON 반환 |
-| `http://<PUBLIC_IP>/` | GET | CDN 프록시 — 요청을 캐싱하고 오리진 서버로 전달 |
+| `http://<PUBLIC_IP>/health` | GET | 헬스 체크 — 컴포넌트 상태와 벤더 프로필이 포함된 JSON 반환 |
+| `http://<PUBLIC_IP>/` | GET | CDN 프록시 — 요청을 캐시하고 오리진 서버로 전달 |
 | `http://<PUBLIC_IP>/<any-path>` | GET | CDN 프록시 — 모든 경로가 캐싱 및 벤더 헤더와 함께 프록시됨 |
 
 모든 프록시 응답에 추가되는 응답 헤더:
@@ -53,7 +51,7 @@ i18n:
 |---|---|---|
 | `X-Cache-Status` | `HIT` 또는 `MISS` | 응답이 캐시에서 제공되었는지 여부 |
 | `X-CDN-Edge` | `cdn-simulator` | 이 엣지 노드를 식별 |
-| `X-CDN-POP` | `SJC` | 시뮬레이션된 PoP(Point of Presence) 코드 |
+| `X-CDN-POP` | `SJC` | 시뮬레이션된 접속 지점(Point of Presence) 코드 |
 | `X-Served-By` | `cache-sjc3120-SJC` | 시뮬레이션된 캐시 노드 식별자 |
 | `X-Request-ID` | UUID | 요청별 고유 식별자 |
 
@@ -62,9 +60,9 @@ i18n:
 | 페이지 | 대상 | 용도 |
 |---|---|---|
 | [개요](01-overview/) | 사람 + AI | 아키텍처, 멀티 벤더 컨텍스트, 시뮬레이션 대상 |
-| [사전 요구 사항](02-prerequisites/) | AI | 필수 도구, Azure 구독, SSH 키, 비용 추정 |
+| [사전 요구사항](02-prerequisites/) | AI | 필수 도구, Azure 구독, SSH 키, 비용 추정 |
 | [배포](03-deploy/) | AI | 완전한 Terraform HCL — 복사 후 적용하여 배포 |
 | [NGINX 구성](04-nginx-config/) | 사람 + AI | 67개 이상의 CDN 벤더 헤더와 정확한 값 및 용도 |
-| [검증](05-verify/) | AI | 예상되는 요청/응답 동작을 포함한 스모크 테스트 명령 |
-| [F5 XC와 통합](06-integrate/) | 사람 + AI | 엣지를 오리진으로 F5 XC에 연결, 엔드투엔드 검증 |
-| [리소스 정리](07-teardown/) | AI | 모든 리소스 삭제, 정리 명령 |
+| [검증](05-verify/) | AI | 예상 요청/응답 동작이 포함된 스모크 테스트 명령 |
+| [F5 XC와 통합](06-integrate/) | 사람 + AI | 엣지를 오리진으로서 F5 XC에 연결, 엔드투엔드 검증 |
+| [정리](07-teardown/) | AI | 모든 리소스 삭제, 정리 명령 |

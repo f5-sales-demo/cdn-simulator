@@ -1,5 +1,5 @@
 ---
-title: Teardown
+title: إزالة الموارد
 description: >-
   Run terraform destroy to remove all Azure resources (resource group, VM, VNet,
   PIP, NSG), clean up local Terraform state, and revert DNS or hosts file
@@ -11,7 +11,7 @@ i18n:
   translator: machine
 ---
 
-عند انتهاء جلسة المختبر، قم بتدمير جميع موارد Azure لإيقاف الفوترة.
+عند اكتمال جلسة المختبر، قم بتدمير جميع موارد Azure لإيقاف الفوترة.
 
 ## تدمير Terraform
 
@@ -47,9 +47,9 @@ az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
 rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 ```
 
-## التراجع عن تغييرات DNS/Hosts
+## التراجع عن تغييرات DNS/ملف Hosts
 
-إذا قمت بتعديل ملفات DNS أو hosts أثناء [التكامل](06-integrate/)، فتراجع عن تلك التغييرات:
+إذا قمت بتعديل DNS أو ملفات hosts أثناء [التكامل](06-integrate/)، فتراجع عن تلك التغييرات:
 
 ```bash
 # Remove hosts file entry (Linux/macOS)

@@ -1,10 +1,11 @@
 ---
-title: Verificação
+title: Verificar
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  Comandos de teste de validação com códigos de resposta HTTP esperados, valores
+  do cabeçalho X-Cache-Status (HIT/MISS), resposta JSON de health check,
+  inspeção do diretório de cache, verificações de conectividade com a origem e
+  solução de problemas para cloud-init, inicialização do NGINX e problemas de
+  NSG
 sidebar:
   order: 5
 i18n:
@@ -12,9 +13,9 @@ i18n:
   translator: machine
 ---
 
-Após a implantação, execute estas verificações para confirmar que o nó de borda do CDN está funcionando corretamente. Aguarde 2-3 minutos após o `terraform apply` para que o cloud-init termine a instalação do NGINX.
+Após a implantação, execute estas verificações para confirmar que o nó de borda CDN está funcionando corretamente. Aguarde 2-3 minutos após o `terraform apply` para que o cloud-init termine a instalação do NGINX.
 
-## Verificação de Saúde
+## Health Check
 
 Verifique se o NGINX está em execução e respondendo:
 
@@ -39,7 +40,7 @@ Saída esperada:
 }
 ```
 
-Se estiver usando as saídas do Terraform:
+Se estiver usando outputs do Terraform:
 
 ```bash
 curl -s "$(terraform output -raw health_check_url)" | jq .
@@ -47,20 +48,20 @@ curl -s "$(terraform output -raw health_check_url)" | jq .
 
 ## Cache Miss (Primeira Requisição)
 
-A primeira requisição para qualquer caminho será um cache miss — o nó de borda busca do servidor de origem:
+A primeira requisição para qualquer caminho será um cache miss — o nó de borda busca o conteúdo na origem:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-Procure por estes cabeçalhos na resposta:
+Procure estes cabeçalhos na resposta:
 
 ```
 X-Cache-Status: MISS
 X-CDN-Edge: cdn-simulator
 ```
 
-`MISS` significa que o conteúdo não estava no cache e foi buscado do servidor de origem.
+`MISS` significa que o conteúdo não estava no cache e foi buscado no servidor de origem.
 
 ## Cache Hit (Requisição Subsequente)
 
@@ -77,16 +78,16 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` confirma que a resposta foi servida a partir do cache em disco do NGINX sem contatar o servidor de origem.
+`HIT` confirma que a resposta foi servida a partir do cache em disco do NGINX sem contatar a origem.
 
 ## Inspeção do Diretório de Cache
 
-Conecte-se via SSH na VM para verificar se o conteúdo em cache existe no disco:
+Acesse a VM via SSH para verificar se o conteúdo em cache existe no disco:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Verificar se o diretório de cache possui conteúdo
+# Verificar se o diretório de cache tem conteúdo
 sudo find /var/cache/nginx/cdn -type f | head -20
 
 # Verificar o tamanho do cache
@@ -100,10 +101,10 @@ Verifique se o NGINX está em execução e se a configuração é válida:
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Verificar o status do serviço
+# Verificar status do serviço
 sudo systemctl status nginx
 
-# Validar a configuração
+# Validar configuração
 sudo nginx -t
 
 # Visualizar conexões ativas (se stub_status estiver habilitado)
@@ -121,7 +122,7 @@ ssh azureuser@<PUBLIC_IP>
 curl -I "https://your-origin.example.com/"
 ```
 
-Se isso falhar, verifique:
+Se isto falhar, verifique:
 
 1. A variável `origin_server` está correta na configuração do Terraform
 2. O servidor de origem permite conexões de entrada a partir do IP público do nó de borda
@@ -148,11 +149,11 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 Execute um ciclo completo de requisição e verifique a cadeia de resposta:
 
 ```bash
-# Primeira requisição — MISS (busca da origem)
+# Primeira requisição — MISS (busca na origem)
 echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
-# Segunda requisição — HIT (servido do cache)
+# Segunda requisição — HIT (servida do cache)
 echo "=== Request 2 (expect HIT) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 ```
@@ -166,9 +167,9 @@ HTTP 200 | Cache: MISS
 HTTP 200 | Cache: HIT
 ```
 
-## Verificação de Cabeçalhos de Fornecedores
+## Verificação de Cabeçalhos de Fornecedor
 
-Verifique se todos os cabeçalhos de fornecedores CDN estão sendo injetados, requisitando o caminho `/headers` (ao usar httpbin.org como origem):
+Verifique se todos os cabeçalhos de fornecedores CDN estão sendo injetados requisitando o caminho `/headers` (quando estiver usando httpbin.org como origem):
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
@@ -200,7 +201,7 @@ A resposta esperada inclui cabeçalhos de todos os cinco fornecedores:
 
 ### Teste de Detecção de Dispositivo
 
-Teste com um User-Agent de dispositivo móvel para verificar se os cabeçalhos de detecção de dispositivo mudam:
+Teste com um User-Agent móvel para verificar se os cabeçalhos de detecção de dispositivo mudam:
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
@@ -215,7 +216,7 @@ Esperado:
 "Cloudfront-Is-Mobile-Viewer": "true",
 ```
 
-## Resolução de Problemas
+## Solução de Problemas
 
 ### NGINX não está em execução
 

@@ -11,16 +11,16 @@ sidebar:
   hidden: true
 hero:
   tagline: >-
-    Deploy a functional CDN edge node in Azure for integration testing with F5
-    Distributed Cloud.
+    Implante um nó de borda CDN funcional no Azure para testes de integração com
+    o F5 Distributed Cloud.
   image:
     html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
   actions:
-    - text: Get Started
+    - text: Começar
       link: 01-overview/
       icon: right-arrow
       variant: primary
-    - text: Deploy Now
+    - text: Implantar Agora
       link: 03-deploy/
       icon: rocket
       variant: minimal
@@ -29,29 +29,29 @@ i18n:
   translator: machine
 ---
 
-## O Que Isto Oferece
+## O Que Isto Fornece
 
-- **[Nó de Borda Único](01-overview/)** — Uma VM Ubuntu 24.04 executando NGINX como proxy reverso com cache, o CDN edge mínimo viável
-- **[Implantação com Terraform](03-deploy/)** — Infraestrutura completa como código no Azure: VNet, PIP, NSG e VM com provisionamento via cloud-init
-- **[Mais de 67 Headers de Fornecedores CDN](04-nginx-config/)** — Simula headers de requisição da Akamai, Cloudflare, CloudFront, Fastly e Azure Front Door, incluindo True-Client-IP, CF-Connecting-IP, geolocalização, detecção de dispositivo, fingerprints JA3/JA4 e scores de bot
-- **[Integração com Origem](06-integrate/)** — Configure o nó de borda para encaminhar cache misses para um HTTP load balancer do F5 XC como origem
-- **[Verificação de Cache](05-verify/)** — Valide o comportamento de HIT/MISS com headers X-Cache-Status e inspeção do cache do NGINX
+- **[Nó de Borda Único](01-overview/)** — Uma VM Ubuntu 24.04 executando NGINX como proxy reverso com cache, o mínimo viável de borda CDN
+- **[Implantação com Terraform](03-deploy/)** — Infraestrutura como código completa para Azure: VNet, PIP, NSG e VM com provisionamento via cloud-init
+- **[67+ Cabeçalhos de Fornecedores CDN](04-nginx-config/)** — Simula cabeçalhos de requisição da Akamai, Cloudflare, CloudFront, Fastly e Azure Front Door, incluindo True-Client-IP, CF-Connecting-IP, geolocalização, detecção de dispositivo, fingerprints JA3/JA4 e pontuações de bot
+- **[Integração com Origem](06-integrate/)** — Configure a borda para encaminhar cache misses para um HTTP load balancer do F5 XC como origem
+- **[Verificação de Cache](05-verify/)** — Valide o comportamento de HIT/MISS com cabeçalhos X-Cache-Status e inspeção do cache do NGINX
 
 ## Referência Rápida
 
-Após a implantação, o nó de borda do CDN expõe:
+Após a implantação, o nó de borda CDN expõe:
 
 | Endpoint | Método | Finalidade |
 |---|---|---|
 | `http://<PUBLIC_IP>/health` | GET | Verificação de saúde — retorna JSON com status dos componentes e perfis de fornecedores |
 | `http://<PUBLIC_IP>/` | GET | Proxy CDN — armazena em cache e encaminha requisições para o servidor de origem |
-| `http://<PUBLIC_IP>/<any-path>` | GET | Proxy CDN — todos os caminhos são proxificados com cache e headers de fornecedores |
+| `http://<PUBLIC_IP>/<any-path>` | GET | Proxy CDN — todos os caminhos são proxiados com cache e cabeçalhos de fornecedores |
 
-Headers de resposta adicionados a cada resposta proxificada:
+Cabeçalhos de resposta adicionados a cada resposta proxiada:
 
-| Header | Exemplo | Finalidade |
+| Cabeçalho | Exemplo | Finalidade |
 |---|---|---|
-| `X-Cache-Status` | `HIT` ou `MISS` | Indica se a resposta foi servida a partir do cache |
+| `X-Cache-Status` | `HIT` ou `MISS` | Se a resposta foi servida a partir do cache |
 | `X-CDN-Edge` | `cdn-simulator` | Identifica este nó de borda |
 | `X-CDN-POP` | `SJC` | Código simulado de Ponto de Presença |
 | `X-Served-By` | `cache-sjc3120-SJC` | Identificador simulado do nó de cache |
@@ -61,10 +61,10 @@ Headers de resposta adicionados a cada resposta proxificada:
 
 | Página | Público | Finalidade |
 |---|---|---|
-| [Visão Geral](01-overview/) | Humano + IA | Arquitetura, contexto multifornecedor, o que isto simula |
+| [Visão Geral](01-overview/) | Humano + IA | Arquitetura, contexto multi-fornecedor, o que isto simula |
 | [Pré-requisitos](02-prerequisites/) | IA | Ferramentas necessárias, assinatura Azure, chaves SSH, estimativa de custo |
-| [Implantação](03-deploy/) | IA | HCL Terraform completo — copie e aplique para implantar |
-| [Configuração do NGINX](04-nginx-config/) | Humano + IA | Todos os mais de 67 headers de fornecedores CDN com valores exatos e finalidades |
-| [Verificação](05-verify/) | IA | Comandos de smoke test com comportamento esperado de requisição/resposta |
-| [Integração com F5 XC](06-integrate/) | Humano + IA | Conectar o nó de borda ao F5 XC como origem, verificação ponta a ponta |
-| [Remoção](07-teardown/) | IA | Destruir todos os recursos, comandos de limpeza |
+| [Implantar](03-deploy/) | IA | HCL Terraform completo — copie e aplique para implantar |
+| [Configuração do NGINX](04-nginx-config/) | Humano + IA | Todos os 67+ cabeçalhos de fornecedores CDN com valores exatos e finalidades |
+| [Verificar](05-verify/) | IA | Comandos de teste de fumaça com comportamento esperado de requisição/resposta |
+| [Integrar com F5 XC](06-integrate/) | Humano + IA | Conectar a borda ao F5 XC como origem, verificação ponta a ponta |
+| [Desmontar](07-teardown/) | IA | Destruir todos os recursos, comandos de limpeza |

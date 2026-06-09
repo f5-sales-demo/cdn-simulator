@@ -1,9 +1,9 @@
 ---
-title: Teardown
+title: Desmontaje
 description: >-
-  Run terraform destroy to remove all Azure resources (resource group, VM, VNet,
-  PIP, NSG), clean up local Terraform state, and revert DNS or hosts file
-  changes.
+  Ejecute terraform destroy para eliminar todos los recursos de Azure (grupo de
+  recursos, VM, VNet, PIP, NSG), limpie el estado local de Terraform y revierta
+  los cambios de DNS o del archivo hosts.
 sidebar:
   order: 7
 i18n:
@@ -11,7 +11,7 @@ i18n:
   translator: machine
 ---
 
-Cuando la sesión de laboratorio esté completa, destruya todos los recursos de Azure para detener la facturación.
+Cuando la sesión del laboratorio esté completa, destruya todos los recursos de Azure para detener la facturación.
 
 ## Terraform Destroy
 
@@ -56,4 +56,4 @@ Si modificó los archivos DNS o hosts durante la [integración](06-integrate/), 
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-Si creó un registro DNS A, elimínelo a través de su proveedor de DNS.
+Si creó un registro DNS de tipo A, elimínelo a través de su proveedor de DNS.

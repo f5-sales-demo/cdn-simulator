@@ -1,10 +1,8 @@
 ---
 title: 검증
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  예상 HTTP 응답 코드, X-Cache-Status 헤더 값(HIT/MISS), 헬스 체크 JSON 응답, 캐시 디렉터리 검사, 오리진
+  연결 확인, cloud-init, NGINX 시작 및 NSG 문제에 대한 문제 해결을 통한 스모크 테스트 명령
 sidebar:
   order: 5
 i18n:
@@ -12,7 +10,7 @@ i18n:
   translator: machine
 ---
 
-배포 후 CDN 에지 노드가 올바르게 작동하는지 확인하기 위해 다음 검사를 수행하세요. `terraform apply` 이후 cloud-init이 NGINX 설치를 완료할 때까지 2-3분 정도 기다려 주세요.
+배포 후 다음 검사를 실행하여 CDN 엣지 노드가 올바르게 작동하는지 확인하십시오. `terraform apply` 후 cloud-init이 NGINX 설치를 완료할 때까지 2-3분 정도 기다려 주십시오.
 
 ## 헬스 체크
 
@@ -47,20 +45,20 @@ curl -s "$(terraform output -raw health_check_url)" | jq .
 
 ## 캐시 미스 (첫 번째 요청)
 
-모든 경로에 대한 첫 번째 요청은 캐시 미스가 됩니다 — 에지가 오리진에서 가져옵니다:
+모든 경로에 대한 첫 번째 요청은 캐시 미스가 됩니다 — 엣지가 오리진에서 콘텐츠를 가져옵니다:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-응답에서 다음 헤더를 확인하세요:
+응답에서 다음 헤더를 확인하십시오:
 
 ```
 X-Cache-Status: MISS
 X-CDN-Edge: cdn-simulator
 ```
 
-`MISS`는 콘텐츠가 캐시에 없었으며 오리진 서버에서 가져왔음을 의미합니다.
+`MISS`는 콘텐츠가 캐시에 없어서 오리진 서버에서 가져왔음을 의미합니다.
 
 ## 캐시 히트 (후속 요청)
 
@@ -77,16 +75,16 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT`는 오리진에 연결하지 않고 NGINX 디스크 캐시에서 응답이 제공되었음을 확인합니다.
+`HIT`는 오리진에 접속하지 않고 NGINX 디스크 캐시에서 응답이 제공되었음을 확인합니다.
 
-## 캐시 디렉토리 검사
+## 캐시 디렉터리 검사
 
-VM에 SSH로 접속하여 디스크에 캐시된 콘텐츠가 존재하는지 확인합니다:
+VM에 SSH로 접속하여 캐시된 콘텐츠가 디스크에 존재하는지 확인합니다:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# 캐시 디렉토리에 콘텐츠가 있는지 확인
+# 캐시 디렉터리에 콘텐츠가 있는지 확인
 sudo find /var/cache/nginx/cdn -type f | head -20
 
 # 캐시 크기 확인
@@ -103,33 +101,33 @@ ssh azureuser@<PUBLIC_IP>
 # 서비스 상태 확인
 sudo systemctl status nginx
 
-# 구성 검증
+# 구성 유효성 검사
 sudo nginx -t
 
 # 활성 연결 확인 (stub_status가 활성화된 경우)
 curl -s http://localhost/health
 ```
 
-## 오리진 연결성
+## 오리진 연결
 
-에지 노드가 오리진 서버에 접근할 수 있는지 확인합니다:
+엣지 노드가 오리진 서버에 도달할 수 있는지 확인합니다:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# 오리진 연결 테스트 (오리진 URL로 교체하세요)
+# 오리진 연결 테스트 (오리진 URL로 교체하십시오)
 curl -I "https://your-origin.example.com/"
 ```
 
-실패하는 경우 다음을 확인하세요:
+실패하는 경우 다음을 확인하십시오:
 
 1. Terraform 구성에서 `origin_server` 변수가 올바른지
-2. 오리진 서버가 에지 노드의 퍼블릭 IP에서 오는 인바운드 연결을 허용하는지
-3. VM에서 DNS 해석이 작동하는지 (`nslookup your-origin.example.com`)
+2. 오리진 서버가 엣지 노드의 공용 IP에서의 인바운드 연결을 허용하는지
+3. VM에서 DNS 확인이 작동하는지 (`nslookup your-origin.example.com`)
 
-## Cloud-Init 진행 상황
+## Cloud-Init 진행 상태
 
-cloud-init 로그를 통해 프로비저닝 진행 상황을 모니터링합니다:
+cloud-init 로그를 통해 프로비저닝 진행 상태를 모니터링합니다:
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
@@ -145,7 +143,7 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 
 ## 엔드투엔드 테스트
 
-전체 요청 주기를 실행하고 응답 체인을 확인합니다:
+전체 요청 사이클을 실행하고 응답 체인을 확인합니다:
 
 ```bash
 # 첫 번째 요청 — MISS (오리진에서 가져옴)
@@ -208,7 +206,7 @@ curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
   | python3 -m json.tool | grep -E "Is-Mobile|Is-Desktop|is_mobile"
 ```
 
-예상 결과:
+예상 출력:
 
 ```
 "Cloudfront-Is-Desktop-Viewer": "false",
@@ -227,7 +225,7 @@ sudo journalctl -u nginx --no-pager -n 50
 
 ### Cloud-init이 완료되지 않은 경우
 
-`terraform apply` 이후 cloud-init은 2-3분이 소요됩니다. 진행 상황을 확인하세요:
+`terraform apply` 후 cloud-init은 2-3분이 소요됩니다. 진행 상태를 확인하십시오:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -235,13 +233,13 @@ sudo cloud-init status
 sudo tail -f /var/log/cloud-init-output.log
 ```
 
-### 캐시가 항상 MISS로 표시되는 경우
+### 캐시가 항상 MISS를 표시하는 경우
 
-- 오리진이 캐시 가능한 응답 코드(200, 301, 302)를 반환하는지 확인하세요
-- 오리진이 `Cache-Control: no-cache` 또는 `no-store` 헤더를 전송하지 않는지 확인하세요
-- NGINX 에러 로그를 확인하세요: `sudo tail -f /var/log/nginx/error.log`
+- 오리진이 캐시 가능한 응답 코드(200, 301, 302)를 반환하는지 확인하십시오
+- 오리진이 `Cache-Control: no-cache` 또는 `no-store` 헤더를 보내지 않는지 확인하십시오
+- NGINX 오류 로그를 확인하십시오: `sudo tail -f /var/log/nginx/error.log`
 
 ### 포트 80/443에서 연결이 거부되는 경우
 
-- NSG 규칙이 적용되었는지 확인하세요: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
-- NGINX가 리스닝 중인지 확인하세요: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`
+- NSG 규칙이 적용되었는지 확인하십시오: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- NGINX가 수신 대기 중인지 확인하십시오: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

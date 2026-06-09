@@ -1,10 +1,7 @@
 ---
 title: 検証
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  期待されるHTTPレスポンスコード、X-Cache-Statusヘッダー値（HIT/MISS）、ヘルスチェックJSONレスポンス、キャッシュディレクトリの検査、オリジン接続確認、およびcloud-init、NGINX起動、NSG問題のトラブルシューティングによるスモークテストコマンド
 sidebar:
   order: 5
 i18n:
@@ -12,11 +9,11 @@ i18n:
   translator: machine
 ---
 
-デプロイ後、CDN エッジノードが正しく機能していることを確認するために、以下のチェックを実行してください。`terraform apply` の後、cloud-init が NGINX のインストールを完了するまで 2〜3 分お待ちください。
+デプロイ後、CDNエッジノードが正しく機能していることを確認するために、以下のチェックを実行してください。`terraform apply` 後、cloud-initがNGINXのインストールを完了するまで2〜3分お待ちください。
 
 ## ヘルスチェック
 
-NGINX が稼働しレスポンスを返していることを確認します：
+NGINXが稼働しレスポンスを返していることを確認します：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/health" | jq .
@@ -39,7 +36,7 @@ curl -s "http://<PUBLIC_IP>/health" | jq .
 }
 ```
 
-Terraform の出力を使用する場合：
+Terraformの出力を使用する場合：
 
 ```bash
 curl -s "$(terraform output -raw health_check_url)" | jq .
@@ -47,24 +44,24 @@ curl -s "$(terraform output -raw health_check_url)" | jq .
 
 ## キャッシュミス（最初のリクエスト）
 
-任意のパスへの最初のリクエストはキャッシュミスとなります — エッジがオリジンからフェッチします：
+任意のパスへの最初のリクエストはキャッシュミスとなり、エッジがオリジンからコンテンツを取得します：
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-レスポンスに以下のヘッダーがあることを確認します：
+レスポンスで以下のヘッダーを確認してください：
 
 ```
 X-Cache-Status: MISS
 X-CDN-Edge: cdn-simulator
 ```
 
-`MISS` は、コンテンツがキャッシュになく、オリジンサーバーからフェッチされたことを意味します。
+`MISS` はコンテンツがキャッシュになく、オリジンサーバーから取得されたことを意味します。
 
 ## キャッシュヒット（後続のリクエスト）
 
-同じリクエストを直後に繰り返します：
+同じリクエストをすぐに繰り返します：
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -77,11 +74,11 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` は、オリジンに接続せずに NGINX ディスクキャッシュからレスポンスが配信されたことを確認します。
+`HIT` はオリジンに接続せずにNGINXのディスクキャッシュからレスポンスが提供されたことを確認します。
 
 ## キャッシュディレクトリの検査
 
-VM に SSH 接続して、キャッシュされたコンテンツがディスク上に存在することを確認します：
+VMにSSH接続して、キャッシュされたコンテンツがディスク上に存在することを確認します：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -93,9 +90,9 @@ sudo find /var/cache/nginx/cdn -type f | head -20
 sudo du -sh /var/cache/nginx/cdn
 ```
 
-## NGINX ステータス
+## NGINXステータス
 
-NGINX が稼働しており、設定が有効であることを確認します：
+NGINXが稼働しており、設定が有効であることを確認します：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -106,7 +103,7 @@ sudo systemctl status nginx
 # 設定を検証
 sudo nginx -t
 
-# アクティブな接続を表示（stub_status が有効な場合）
+# アクティブな接続を表示（stub_statusが有効な場合）
 curl -s http://localhost/health
 ```
 
@@ -117,27 +114,27 @@ curl -s http://localhost/health
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# オリジンへの接続をテスト（お使いのオリジン URL に置き換えてください）
+# オリジンへの接続をテスト（オリジンURLに置き換えてください）
 curl -I "https://your-origin.example.com/"
 ```
 
-これが失敗する場合は、以下を確認してください：
+失敗した場合は以下を確認してください：
 
-1. Terraform 設定で `origin_server` 変数が正しいこと
-2. オリジンサーバーがエッジノードのパブリック IP からの受信接続を許可していること
-3. VM から DNS 解決が機能すること（`nslookup your-origin.example.com`）
+1. Terraform設定の `origin_server` 変数が正しいこと
+2. オリジンサーバーがエッジノードのパブリックIPからのインバウンド接続を許可していること
+3. VMからDNS解決が機能すること（`nslookup your-origin.example.com`）
 
-## Cloud-Init の進行状況
+## Cloud-Initの進捗
 
-cloud-init ログでプロビジョニングの進行状況を監視します：
+cloud-initのログでプロビジョニングの進捗を監視します：
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 ```
 
-期待されるフェーズ：`[init]`、`[nic]`（動的 NIC 検出）、`[complete]`。
+期待されるフェーズ：`[init]`、`[nic]`（動的NIC検出）、`[complete]`。
 
-cloud-init がエラーを報告する場合：
+cloud-initがエラーを報告する場合：
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
@@ -148,11 +145,11 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 完全なリクエストサイクルを実行し、レスポンスチェーンを検証します：
 
 ```bash
-# 最初のリクエスト — MISS（オリジンからフェッチ）
+# 最初のリクエスト — MISS（オリジンから取得）
 echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
-# 2回目のリクエスト — HIT（キャッシュから配信）
+# 2回目のリクエスト — HIT（キャッシュから提供）
 echo "=== Request 2 (expect HIT) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 ```
@@ -168,13 +165,13 @@ HTTP 200 | Cache: HIT
 
 ## ベンダーヘッダーの検証
 
-すべての CDN ベンダーヘッダーが注入されていることを確認するには、`/headers` パスにリクエストします（httpbin.org をオリジンとして使用している場合）：
+`/headers` パスをリクエストして、すべてのCDNベンダーヘッダーが注入されていることを確認します（httpbin.orgをオリジンとして使用している場合）：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 ```
 
-期待されるレスポンスには 5 つのベンダーすべてのヘッダーが含まれます：
+期待されるレスポンスには5つのベンダーすべてからのヘッダーが含まれます：
 
 ```json
 {
@@ -200,7 +197,7 @@ curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 
 ### デバイス検出テスト
 
-モバイル User-Agent でテストして、デバイス検出ヘッダーが変化することを確認します：
+モバイルのUser-Agentでテストして、デバイス検出ヘッダーが変化することを確認します：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
@@ -217,7 +214,7 @@ curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
 
 ## トラブルシューティング
 
-### NGINX が稼働していない
+### NGINXが稼働していない
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -225,9 +222,9 @@ sudo systemctl status nginx
 sudo journalctl -u nginx --no-pager -n 50
 ```
 
-### Cloud-init が完了していない
+### Cloud-initが完了していない
 
-`terraform apply` 後、cloud-init には 2〜3 分かかります。進行状況を確認します：
+`terraform apply` 後、cloud-initには2〜3分かかります。進捗を確認してください：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -235,13 +232,13 @@ sudo cloud-init status
 sudo tail -f /var/log/cloud-init-output.log
 ```
 
-### キャッシュが常に MISS を表示する
+### キャッシュが常にMISSを表示する
 
 - オリジンがキャッシュ可能なレスポンスコード（200、301、302）を返していることを確認してください
-- オリジンが `Cache-Control: no-cache` または `no-store` ヘッダーを送信していないことを確認してください
-- NGINX エラーログを確認してください：`sudo tail -f /var/log/nginx/error.log`
+- オリジンが `Cache-Control: no-cache` や `no-store` ヘッダーを送信していないことを確認してください
+- NGINXのエラーログを確認してください：`sudo tail -f /var/log/nginx/error.log`
 
-### ポート 80/443 で接続が拒否される
+### ポート80/443で接続が拒否される
 
-- NSG ルールが適用されていることを確認してください：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
-- NGINX がリッスンしていることを確認してください：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`
+- NSGルールが適用されていることを確認してください：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- NGINXがリッスンしていることを確認してください：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

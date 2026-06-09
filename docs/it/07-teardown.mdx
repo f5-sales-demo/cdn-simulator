@@ -1,9 +1,9 @@
 ---
-title: Teardown
+title: Smantellamento
 description: >-
-  Run terraform destroy to remove all Azure resources (resource group, VM, VNet,
-  PIP, NSG), clean up local Terraform state, and revert DNS or hosts file
-  changes.
+  Eseguire terraform destroy per rimuovere tutte le risorse Azure (gruppo di
+  risorse, VM, VNet, PIP, NSG), pulire lo stato locale di Terraform e
+  ripristinare le modifiche al DNS o al file hosts.
 sidebar:
   order: 7
 i18n:
@@ -11,7 +11,7 @@ i18n:
   translator: machine
 ---
 
-Al termine della sessione di laboratorio, distruggere tutte le risorse Azure per interrompere la fatturazione.
+Quando la sessione del laboratorio è completata, distruggere tutte le risorse Azure per interrompere la fatturazione.
 
 ## Terraform Destroy
 
@@ -25,9 +25,9 @@ terraform plan -destroy
 terraform destroy
 ```
 
-Terraform richiederà una conferma. Digitare `yes` per procedere.
+Terraform chiederà conferma. Digitare `yes` per procedere.
 
-## Verifica della pulizia
+## Verificare la pulizia
 
 Confermare che tutte le risorse siano state rimosse:
 
@@ -39,17 +39,17 @@ az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
   || echo "Resource group still exists"
 ```
 
-## Pulizia dello stato locale
+## Pulire lo stato locale
 
-Rimuovere lo stato di Terraform e i file nella cache:
+Rimuovere lo stato di Terraform e i file memorizzati nella cache:
 
 ```bash
 rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 ```
 
-## Ripristino delle modifiche DNS/Hosts
+## Ripristinare le modifiche DNS/Hosts
 
-Se sono stati modificati i file DNS o hosts durante l'[integrazione](06-integrate/), ripristinare tali modifiche:
+Se sono stati modificati il DNS o i file hosts durante l'[integrazione](06-integrate/), ripristinare tali modifiche:
 
 ```bash
 # Remove hosts file entry (Linux/macOS)

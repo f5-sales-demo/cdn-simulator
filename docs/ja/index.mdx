@@ -10,17 +10,15 @@ template: splash
 sidebar:
   hidden: true
 hero:
-  tagline: >-
-    Deploy a functional CDN edge node in Azure for integration testing with F5
-    Distributed Cloud.
+  tagline: F5 Distributed Cloud との統合テスト用に、機能的な CDN エッジノードを Azure にデプロイします。
   image:
     html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
   actions:
-    - text: Get Started
+    - text: はじめに
       link: 01-overview/
       icon: right-arrow
       variant: primary
-    - text: Deploy Now
+    - text: 今すぐデプロイ
       link: 03-deploy/
       icon: rocket
       variant: minimal
@@ -31,40 +29,40 @@ i18n:
 
 ## 提供する機能
 
-- **[単一エッジノード](01-overview/)** — NGINX をキャッシュリバースプロキシとして実行する Ubuntu 24.04 VM 1台、最小限の実用的 CDN エッジ
-- **[Terraform デプロイメント](03-deploy/)** — 完全な Azure Infrastructure as Code：VNet、PIP、NSG、および cloud-init プロビジョニング付き VM
-- **[67 以上の CDN ベンダーヘッダー](04-nginx-config/)** — Akamai、Cloudflare、CloudFront、Fastly、Azure Front Door のリクエストヘッダーをシミュレート（True-Client-IP、CF-Connecting-IP、ジオロケーション、デバイス検出、JA3/JA4 フィンガープリント、ボットスコアを含む）
+- **[単一エッジノード](01-overview/)** — NGINX をキャッシング リバースプロキシとして実行する Ubuntu 24.04 VM 1台、最小構成の CDN エッジ
+- **[Terraform デプロイメント](03-deploy/)** — 完全な Azure Infrastructure as Code: VNet、PIP、NSG、cloud-init プロビジョニング付き VM
+- **[67 以上の CDN ベンダーヘッダー](04-nginx-config/)** — Akamai、Cloudflare、CloudFront、Fastly、Azure Front Door のリクエストヘッダーをシミュレーション（True-Client-IP、CF-Connecting-IP、ジオロケーション、デバイス検出、JA3/JA4 フィンガープリント、ボットスコアを含む）
 - **[オリジン統合](06-integrate/)** — キャッシュミスを F5 XC HTTP ロードバランサーにオリジンとして転送するようエッジを設定
-- **[キャッシュ検証](05-verify/)** — X-Cache-Status ヘッダーと NGINX キャッシュ検査により HIT/MISS 動作を検証
+- **[キャッシュ検証](05-verify/)** — X-Cache-Status ヘッダーと NGINX キャッシュ検査による HIT/MISS 動作の検証
 
 ## クイックリファレンス
 
-デプロイ後、CDN エッジノードは以下のエンドポイントを公開します：
+デプロイ後、CDN エッジノードは以下のエンドポイントを公開します:
 
-| エンドポイント | メソッド | 用途 |
+| エンドポイント | メソッド | 目的 |
 |---|---|---|
 | `http://<PUBLIC_IP>/health` | GET | ヘルスチェック — コンポーネントステータスとベンダープロファイルを含む JSON を返す |
 | `http://<PUBLIC_IP>/` | GET | CDN プロキシ — リクエストをキャッシュしてオリジンサーバーに転送 |
-| `http://<PUBLIC_IP>/<any-path>` | GET | CDN プロキシ — すべてのパスがキャッシュとベンダーヘッダー付きでプロキシされる |
+| `http://<PUBLIC_IP>/<any-path>` | GET | CDN プロキシ — すべてのパスがキャッシングとベンダーヘッダー付きでプロキシされる |
 
-プロキシされたすべてのレスポンスに追加されるレスポンスヘッダー：
+すべてのプロキシレスポンスに追加されるレスポンスヘッダー:
 
-| ヘッダー | 例 | 用途 |
+| ヘッダー | 例 | 目的 |
 |---|---|---|
-| `X-Cache-Status` | `HIT` または `MISS` | レスポンスがキャッシュから提供されたかどうか |
+| `X-Cache-Status` | `HIT` または `MISS` | レスポンスがキャッシュから配信されたかどうか |
 | `X-CDN-Edge` | `cdn-simulator` | このエッジノードを識別 |
 | `X-CDN-POP` | `SJC` | シミュレートされた Point of Presence コード |
 | `X-Served-By` | `cache-sjc3120-SJC` | シミュレートされたキャッシュノード識別子 |
-| `X-Request-ID` | UUID | リクエストごとの一意な識別子 |
+| `X-Request-ID` | UUID | リクエストごとの一意の識別子 |
 
 ## ドキュメントガイド
 
-| ページ | 対象読者 | 用途 |
+| ページ | 対象者 | 目的 |
 |---|---|---|
-| [概要](01-overview/) | 人間 + AI | アーキテクチャ、マルチベンダーコンテキスト、シミュレート対象 |
+| [概要](01-overview/) | 人間 + AI | アーキテクチャ、マルチベンダーのコンテキスト、シミュレーション内容 |
 | [前提条件](02-prerequisites/) | AI | 必要なツール、Azure サブスクリプション、SSH キー、コスト見積もり |
 | [デプロイ](03-deploy/) | AI | 完全な Terraform HCL — コピーして apply でデプロイ |
-| [NGINX 設定](04-nginx-config/) | 人間 + AI | 67 以上の CDN ベンダーヘッダーの正確な値と用途 |
+| [NGINX 設定](04-nginx-config/) | 人間 + AI | 67 以上の CDN ベンダーヘッダーの正確な値と目的 |
 | [検証](05-verify/) | AI | 期待されるリクエスト/レスポンス動作を含むスモークテストコマンド |
-| [F5 XC との統合](06-integrate/) | 人間 + AI | エッジを F5 XC にオリジンとして接続、エンドツーエンド検証 |
-| [リソース削除](07-teardown/) | AI | すべてのリソースの破棄、クリーンアップコマンド |
+| [F5 XC との統合](06-integrate/) | 人間 + AI | エッジを F5 XC にオリジンとして接続、エンドツーエンドの検証 |
+| [削除](07-teardown/) | AI | すべてのリソースの破棄、クリーンアップコマンド |

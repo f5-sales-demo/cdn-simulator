@@ -1,10 +1,10 @@
 ---
-title: Verifizierung
+title: Überprüfen
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  Smoke-Test-Befehle mit erwarteten HTTP-Antwortcodes,
+  X-Cache-Status-Header-Werten (HIT/MISS), Health-Check-JSON-Antwort,
+  Cache-Verzeichnisinspektion, Origin-Konnektivitätsprüfungen und Fehlerbehebung
+  für cloud-init, NGINX-Start und NSG-Probleme
 sidebar:
   order: 5
 i18n:
@@ -12,9 +12,9 @@ i18n:
   translator: machine
 ---
 
-Führen Sie nach dem Deployment diese Prüfungen durch, um zu bestätigen, dass der CDN-Edge-Knoten korrekt funktioniert. Warten Sie 2-3 Minuten nach `terraform apply`, bis cloud-init die Installation von NGINX abgeschlossen hat.
+Führen Sie nach dem Deployment diese Prüfungen durch, um zu bestätigen, dass der CDN-Edge-Knoten korrekt funktioniert. Warten Sie nach `terraform apply` 2-3 Minuten, bis cloud-init die Installation von NGINX abgeschlossen hat.
 
-## Gesundheitsprüfung
+## Health-Check
 
 Überprüfen Sie, ob NGINX läuft und antwortet:
 
@@ -39,15 +39,15 @@ Erwartete Ausgabe:
 }
 ```
 
-Bei Verwendung von Terraform-Ausgaben:
+Bei Verwendung von Terraform-Outputs:
 
 ```bash
 curl -s "$(terraform output -raw health_check_url)" | jq .
 ```
 
-## Cache Miss (Erste Anfrage)
+## Cache-Miss (Erste Anfrage)
 
-Die erste Anfrage an einen beliebigen Pfad wird ein Cache Miss sein — der Edge-Knoten ruft die Daten vom Origin ab:
+Die erste Anfrage an einen beliebigen Pfad wird ein Cache-Miss sein — der Edge-Knoten holt die Daten vom Origin:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -62,9 +62,9 @@ X-CDN-Edge: cdn-simulator
 
 `MISS` bedeutet, dass der Inhalt nicht im Cache war und vom Origin-Server abgerufen wurde.
 
-## Cache Hit (Nachfolgende Anfrage)
+## Cache-Hit (Folgende Anfrage)
 
-Wiederholen Sie die gleiche Anfrage sofort:
+Wiederholen Sie dieselbe Anfrage sofort:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -77,9 +77,9 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` bestätigt, dass die Antwort aus dem NGINX-Festplatten-Cache bereitgestellt wurde, ohne den Origin zu kontaktieren.
+`HIT` bestätigt, dass die Antwort aus dem NGINX-Disk-Cache bereitgestellt wurde, ohne den Origin zu kontaktieren.
 
-## Cache-Verzeichnis-Inspektion
+## Cache-Verzeichnisinspektion
 
 Verbinden Sie sich per SSH mit der VM, um zu überprüfen, ob zwischengespeicherte Inhalte auf der Festplatte vorhanden sind:
 
@@ -100,7 +100,7 @@ sudo du -sh /var/cache/nginx/cdn
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Dienststatus prüfen
+# Service-Status prüfen
 sudo systemctl status nginx
 
 # Konfiguration validieren
@@ -123,13 +123,13 @@ curl -I "https://your-origin.example.com/"
 
 Falls dies fehlschlägt, prüfen Sie:
 
-1. Die Variable `origin_server` ist in der Terraform-Konfiguration korrekt
-2. Der Origin-Server erlaubt eingehende Verbindungen von der öffentlichen IP des Edge-Knotens
-3. Die DNS-Auflösung funktioniert von der VM aus (`nslookup your-origin.example.com`)
+1. Ob die Variable `origin_server` in der Terraform-Konfiguration korrekt ist
+2. Ob der Origin-Server eingehende Verbindungen von der öffentlichen IP des Edge-Knotens erlaubt
+3. Ob die DNS-Auflösung von der VM aus funktioniert (`nslookup your-origin.example.com`)
 
 ## Cloud-Init-Fortschritt
 
-Überwachen Sie den Provisionierungsfortschritt über das Cloud-Init-Log:
+Überwachen Sie den Bereitstellungsfortschritt über das Cloud-Init-Log:
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
@@ -148,27 +148,27 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 Führen Sie einen vollständigen Anfragezyklus durch und überprüfen Sie die Antwortkette:
 
 ```bash
-# Erste Anfrage — MISS (wird vom Origin abgerufen)
-echo "=== Request 1 (expect MISS) ==="
+# Erste Anfrage — MISS (holt vom Origin)
+echo "=== Anfrage 1 (erwarte MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
-# Zweite Anfrage — HIT (wird aus dem Cache bereitgestellt)
-echo "=== Request 2 (expect HIT) ==="
+# Zweite Anfrage — HIT (aus Cache bereitgestellt)
+echo "=== Anfrage 2 (erwarte HIT) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 ```
 
 Erwartete Ausgabe:
 
 ```
-=== Request 1 (expect MISS) ===
+=== Anfrage 1 (erwarte MISS) ===
 HTTP 200 | Cache: MISS
-=== Request 2 (expect HIT) ===
+=== Anfrage 2 (erwarte HIT) ===
 HTTP 200 | Cache: HIT
 ```
 
-## Vendor-Header-Verifizierung
+## Vendor-Header-Überprüfung
 
-Überprüfen Sie, ob alle CDN-Vendor-Header eingefügt werden, indem Sie den Pfad `/headers` aufrufen (bei Verwendung von httpbin.org als Origin):
+Überprüfen Sie, ob alle CDN-Vendor-Header eingefügt werden, indem Sie den Pfad `/headers` anfragen (bei Verwendung von httpbin.org als Origin):
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
@@ -198,7 +198,7 @@ Die erwartete Antwort enthält Header von allen fünf Anbietern:
 }
 ```
 
-### Geräteerkennung testen
+### Geräteerkennungstest
 
 Testen Sie mit einem mobilen User-Agent, um zu überprüfen, ob sich die Geräteerkennungs-Header ändern:
 
@@ -225,7 +225,7 @@ sudo systemctl status nginx
 sudo journalctl -u nginx --no-pager -n 50
 ```
 
-### Cloud-init noch nicht abgeschlossen
+### Cloud-init nicht abgeschlossen
 
 Nach `terraform apply` benötigt cloud-init 2-3 Minuten. Fortschritt prüfen:
 
@@ -241,7 +241,7 @@ sudo tail -f /var/log/cloud-init-output.log
 - Prüfen Sie, ob der Origin keine `Cache-Control: no-cache`- oder `no-store`-Header sendet
 - Prüfen Sie die NGINX-Fehlerprotokolle: `sudo tail -f /var/log/nginx/error.log`
 
-### Verbindung abgelehnt auf Port 80/443
+### Verbindung auf Port 80/443 abgelehnt
 
-- Überprüfen Sie, ob die NSG-Regeln angewendet sind: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- Überprüfen Sie, ob die NSG-Regeln angewendet werden: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
 - Überprüfen Sie, ob NGINX lauscht: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

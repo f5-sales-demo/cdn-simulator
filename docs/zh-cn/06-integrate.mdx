@@ -1,10 +1,8 @@
 ---
-title: 与源服务器集成
+title: 与源站服务器集成
 description: >-
-  Connect the CDN edge to the origin-server lab component (direct integration),
-  discover applications via the published endpoint manifest, verify end-to-end
-  traffic flow with header inspection and log correlation. Covers both direct
-  origin and future F5 XC insertion architectures.
+  将 CDN 边缘连接到源站服务器实验组件（直接集成），通过已发布的端点清单发现应用程序，使用请求头检查和日志关联验证端到端流量。涵盖直接源站和未来 F5
+  XC 插入架构。
 sidebar:
   order: 6
 i18n:
@@ -12,27 +10,27 @@ i18n:
   translator: machine
 ---
 
-本页涵盖两个集成阶段：
+本页面涵盖两个集成阶段：
 
-1. **直接集成** — CDN 边缘直接转发至源服务器（基线测试）
-2. **F5 XC 插入** — 在 CDN 和源服务器之间插入 F5 XC HTTP 负载均衡器（安全演示）
+1. **直接集成** — CDN 边缘直接转发到源站服务器（基线测试）
+2. **F5 XC 插入** — 在 CDN 和源站之间插入 F5 XC HTTP 负载均衡器（安全演示）
 
-先从直接集成开始建立基线，准备就绪后再插入 F5 XC。
+首先进行直接集成以建立基线，然后在准备就绪时插入 F5 XC。
 
-## 源服务器参考
+## 源站服务器参考
 
 [origin-server](https://f5xc-salesdemos.github.io/origin-server/) 实验组件提供用于安全测试的易受攻击 Web 应用程序。
 
 | 属性 | 值 |
 |---|---|
 | 文档 | [f5xc-salesdemos.github.io/origin-server](https://f5xc-salesdemos.github.io/origin-server/) |
-| 仓库 | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
+| 代码仓库 | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
 | 默认端口 | 80 |
 | 健康检查 | `GET /health` |
 
 ### 可用应用程序
 
-从源服务器发布的清单中获取当前应用程序目录：
+从源站服务器已发布的清单中获取当前应用程序目录：
 
 ```bash
 MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
@@ -40,7 +38,7 @@ MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-serv
 curl -sf "$MANIFEST_URL" | python3 -m json.tool
 ```
 
-如果尚未发布 release，可直接使用仓库源文件：
+如果尚未发布 release，可以直接使用仓库源文件：
 
 ```bash
 curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
@@ -54,28 +52,28 @@ curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/ma
 |---|---|---|
 | `/` | 落地页 | — |
 | `/health` | 健康检查 | — |
-| `/juice-shop/` | OWASP Juice Shop | WAF、Bot Defense、API Security |
-| `/dvwa/` | DVWA | WAF、Bot Defense |
-| `/vampi/` | VAmPI | API Security |
-| `/httpbin/` | httpbin | 诊断 |
+| `/juice-shop/` | OWASP Juice Shop | WAF、Bot 防御、API 安全 |
+| `/dvwa/` | DVWA | WAF、Bot 防御 |
+| `/vampi/` | VAmPI | API 安全 |
+| `/httpbin/` | httpbin | 诊断工具 |
 | `/whoami/` | whoami | 请求头验证 |
-| `/csd-demo/` | CSD Demo | Client-Side Defense |
+| `/csd-demo/` | CSD Demo | 客户端防御 |
 
 ## 阶段 1：直接集成（基线）
 
 ```
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
+│  客户端   │────▶│  CDN 边缘 (NGINX)    │────▶│  源站服务器          │
 │           │     │  20.65.90.112        │     │  20.12.78.159       │
-└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
-                 │  Disk cache           │     │  VAmPI, httpbin,    │
+└──────────┘     │  67+ CDN 请求头      │     │  Juice Shop, DVWA,  │
+                 │  磁盘缓存            │     │  VAmPI, httpbin,    │
                  └──────────────────────┘     │  whoami, CSD Demo   │
                                               └─────────────────────┘
 ```
 
-### 配置源服务器
+### 配置源站
 
-在 CDN 边缘 NGINX 配置中设置源服务器 IP：
+在 CDN 边缘 NGINX 配置中设置源站服务器 IP：
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -84,7 +82,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-或者在 Terraform 部署时通过 `terraform.tfvars` 设置：
+或在 Terraform 部署时通过 `terraform.tfvars` 设置：
 
 ```hcl
 origin_server = "http://<ORIGIN_IP>"
@@ -92,30 +90,30 @@ origin_server = "http://<ORIGIN_IP>"
 
 ### 验证所有应用程序
 
-通过 CDN 测试每个源应用程序：
+通过 CDN 测试每个源站应用程序：
 
 ```bash
 CDN=<CDN_EDGE_IP>
 
-# Health check (CDN local)
+# 健康检查（CDN 本地）
 curl -sf "http://$CDN/health" | python3 -m json.tool
 
-# Landing page
+# 落地页
 curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
 
 # Juice Shop
 curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
 
-# DVWA (follows redirect to login)
+# DVWA（跟随重定向到登录页）
 curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
 
 # VAmPI API
 curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
 
-# httpbin headers (shows CDN headers in JSON)
+# httpbin 请求头（以 JSON 格式显示 CDN 请求头）
 curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
 
-# whoami (shows ALL headers the origin receives)
+# whoami（显示源站接收到的所有请求头）
 curl -sf "http://$CDN/whoami/"
 
 # CSD Demo
@@ -124,9 +122,9 @@ curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-dem
 
 所有路径应返回 HTTP 200（DVWA 先返回 302，跟随重定向后返回 200）。
 
-### 在源服务器验证 CDN 请求头
+### 在源站验证 CDN 请求头
 
-`/whoami/` 端点显示源服务器接收到的每个请求头。通过 CDN 访问时，它会显示所有 67+ 个厂商请求头：
+`/whoami/` 端点显示源站接收到的每个请求头。当通过 CDN 访问时，它会显示所有 67+ 个厂商请求头：
 
 ```bash
 curl -sf "http://$CDN/whoami/"
@@ -134,7 +132,7 @@ curl -sf "http://$CDN/whoami/"
 
 验证以下关键请求头是否存在：
 
-| 厂商 | 请求头 | 预期值 |
+| 厂商 | 请求头 | 期望值 |
 |---|---|---|
 | 标准 | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
 | Akamai | `True-Client-Ip` | `<your_ip>` |
@@ -145,41 +143,41 @@ curl -sf "http://$CDN/whoami/"
 
 ### 交叉比对日志
 
-比较两台服务器上的访问日志以验证流量流向：
+比较两台服务器上的访问日志以验证流量路径：
 
 ```bash
-# CDN edge log — shows your client IP as source
+# CDN 边缘日志 — 显示您的客户端 IP 作为来源
 ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
 
-# Origin log — shows CDN edge IP as source
+# 源站日志 — 显示 CDN 边缘 IP 作为来源
 ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
 ```
 
-源服务器日志应显示 CDN 边缘 IP 作为连接客户端，而真实客户端 IP 通过 `X-Forwarded-For` 和厂商特定请求头传递。
+源站日志应显示 CDN 边缘 IP 作为连接客户端，而真实客户端 IP 通过 `X-Forwarded-For` 和厂商特定请求头传递。
 
 ### 缓存行为
 
 ```bash
-# First request — MISS (fetched from origin)
+# 第一次请求 — MISS（从源站获取）
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 
-# Second request — HIT (served from CDN cache)
+# 第二次请求 — HIT（从 CDN 缓存提供）
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 ```
 
 ## 阶段 2：F5 XC 插入（安全演示）
 
-完成基线测试后，在 CDN 和源服务器之间插入 F5 XC HTTP 负载均衡器：
+基线测试完成后，在 CDN 和源站之间插入 F5 XC HTTP 负载均衡器：
 
 ```
 ┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
+│  客户端   │────▶│  CDN 边缘      │────▶│  F5 XC HTTP LB   │────▶│  源站服务器      │
 │           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
 └──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-1. **创建 F5 XC HTTP 负载均衡器**，在其源池中配置源服务器
-2. **更新 CDN 边缘**，将其指向 F5 XC VIP 而非直接指向源服务器：
+1. **创建 F5 XC HTTP 负载均衡器**，将源站服务器添加到其源站池中
+2. **更新 CDN 边缘**，将其指向 F5 XC VIP 而不是直接指向源站：
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -188,24 +186,24 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-3. **验证 WAF 防护**是否在整个链路中生效：
+3. **验证 WAF 防护**贯穿整个链路：
 
 ```bash
-# SQL injection through CDN → F5 XC WAF should block
+# SQL 注入通过 CDN → F5 XC WAF 应拦截
 curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
 
-# Normal request should pass
+# 正常请求应通过
 curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 ```
 
-4. **在 F5 XC 中配置受信任客户端 IP 请求头**，以便从 CDN 请求头中读取真实客户端 IP（例如，模拟 Akamai 时使用 `True-Client-IP`，模拟 Cloudflare 时使用 `CF-Connecting-IP`）
+4. **在 F5 XC 中配置受信客户端 IP 请求头**，以从 CDN 请求头中读取真实客户端 IP（例如，模拟 Akamai 时使用 `True-Client-IP`，模拟 Cloudflare 时使用 `CF-Connecting-IP`）
 
 ## 多组件架构
 
-| 组件 | 仓库 | 用途 |
+| 组件 | 代码仓库 | 用途 |
 |---|---|---|
-| **CDN Edge**（本组件） | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | 缓存、厂商请求头 |
-| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | 易受攻击的 Web 应用程序 |
-| **F5 XC Config** | 多个仓库（waf、api-protection、bot-* 等） | 安全策略 |
+| **CDN 边缘**（本组件） | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | 缓存、厂商请求头 |
+| **源站服务器** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | 易受攻击的 Web 应用 |
+| **F5 XC 配置** | 多个（waf、api-protection、bot-* 等） | 安全策略 |
 
-每个组件都发布文档供 AI 助手读取以部署基础设施。origin-server 以 GitHub Release 工件的形式发布[端点清单](https://github.com/f5xc-salesdemos/origin-server/releases/latest)，列出所有应用程序路径和健康检查。
+每个组件都发布文档供 AI 助手读取以部署基础设施。源站服务器以 GitHub Release 构件的形式发布[端点清单](https://github.com/f5xc-salesdemos/origin-server/releases/latest)，列出所有应用程序路径和健康检查。

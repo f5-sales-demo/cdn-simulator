@@ -14,10 +14,10 @@ i18n:
 
 Cette page couvre deux étapes d'intégration :
 
-1. **Intégration directe** — Le CDN edge transmet au serveur d'origine directement (tests de référence)
-2. **Insertion F5 XC** — Le répartiteur de charge HTTP F5 XC est inséré entre le CDN et l'origine (démonstration de sécurité)
+1. **Intégration directe** — Le CDN edge transfère directement vers le serveur d'origine (tests de référence)
+2. **Insertion F5 XC** — Un répartiteur de charge HTTP F5 XC est inséré entre le CDN et l'origine (démonstration de sécurité)
 
-Commencez par l'intégration directe pour établir la ligne de référence, puis insérez F5 XC lorsque vous êtes prêt.
+Commencez par l'intégration directe pour établir la référence de base, puis insérez F5 XC lorsque vous êtes prêt.
 
 ## Référence du serveur d'origine
 
@@ -61,7 +61,7 @@ Le manifeste répertorie tous les chemins d'applications, les vérifications de 
 | `/whoami/` | whoami | Vérification des en-têtes |
 | `/csd-demo/` | CSD Demo | Client-Side Defense |
 
-## Étape 1 : Intégration directe (ligne de référence)
+## Étape 1 : Intégration directe (Référence de base)
 
 ```
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
@@ -122,11 +122,11 @@ curl -sf "http://$CDN/whoami/"
 curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
 ```
 
-Tous les chemins doivent retourner HTTP 200 (DVWA retourne 302 puis 200 lors du suivi de redirection).
+Tous les chemins doivent retourner HTTP 200 (DVWA retourne 302 puis 200 en suivant la redirection).
 
 ### Vérifier les en-têtes CDN au niveau de l'origine
 
-Le point de terminaison `/whoami/` affiche chaque en-tête que l'origine reçoit. Lorsqu'il est accédé via le CDN, il affiche les 67+ en-têtes de fournisseurs :
+Le point de terminaison `/whoami/` affiche chaque en-tête reçu par l'origine. Lorsqu'on y accède via le CDN, il affiche les 67+ en-têtes de fournisseurs :
 
 ```bash
 curl -sf "http://$CDN/whoami/"
@@ -143,7 +143,7 @@ Vérifiez que ces en-têtes clés sont présents :
 | Fastly | `Fastly-Client-Ip` | `<your_ip>` |
 | Azure FD | `X-Azure-Clientip` | `<your_ip>` |
 
-### Corrélation croisée des journaux
+### Recoupement des journaux
 
 Comparez les journaux d'accès sur les deux serveurs pour vérifier le flux de trafic :
 
@@ -155,7 +155,7 @@ ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
 ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
 ```
 
-Le journal de l'origine doit afficher l'adresse IP du CDN edge comme client connecté, tandis que l'adresse IP réelle du client est transportée dans `X-Forwarded-For` et les en-têtes spécifiques aux fournisseurs.
+Le journal de l'origine devrait montrer l'adresse IP du CDN edge comme client connecté, tandis que l'adresse IP réelle du client est transportée dans `X-Forwarded-For` et les en-têtes spécifiques aux fournisseurs.
 
 ### Comportement du cache
 
@@ -167,7 +167,7 @@ curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 ```
 
-## Étape 2 : Insertion F5 XC (démonstration de sécurité)
+## Étape 2 : Insertion F5 XC (Démonstration de sécurité)
 
 Après les tests de référence, insérez un répartiteur de charge HTTP F5 XC entre le CDN et l'origine :
 
@@ -205,7 +205,7 @@ curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 | Composant | Dépôt | Objectif |
 |---|---|---|
 | **CDN Edge** (celui-ci) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | Mise en cache, en-têtes de fournisseurs |
-| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | Applications web vulnérables |
-| **F5 XC Config** | Divers (waf, api-protection, bot-*, etc.) | Politiques de sécurité |
+| **Serveur d'origine** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | Applications web vulnérables |
+| **Configuration F5 XC** | Divers (waf, api-protection, bot-*, etc.) | Politiques de sécurité |
 
-Chaque composant publie une documentation que les assistants IA lisent pour déployer l'infrastructure. Le serveur d'origine publie un [manifeste de points de terminaison](https://github.com/f5xc-salesdemos/origin-server/releases/latest) en tant qu'artefact de Release GitHub répertoriant tous les chemins d'applications et les vérifications de santé.
+Chaque composant publie une documentation que les assistants IA consultent pour déployer l'infrastructure. Le serveur d'origine publie un [manifeste de points de terminaison](https://github.com/f5xc-salesdemos/origin-server/releases/latest) en tant qu'artefact de release GitHub répertoriant tous les chemins d'applications et les vérifications de santé.

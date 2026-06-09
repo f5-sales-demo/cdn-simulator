@@ -1,10 +1,8 @@
 ---
 title: オリジンサーバーとの統合
 description: >-
-  Connect the CDN edge to the origin-server lab component (direct integration),
-  discover applications via the published endpoint manifest, verify end-to-end
-  traffic flow with header inspection and log correlation. Covers both direct
-  origin and future F5 XC insertion architectures.
+  CDNエッジをオリジンサーバーラボコンポーネントに接続（直接統合）し、公開されたエンドポイントマニフェストを通じてアプリケーションを検出し、ヘッダー検査とログ相関でエンドツーエンドのトラフィックフローを検証します。直接オリジンと将来のF5
+  XC挿入アーキテクチャの両方をカバーします。
 sidebar:
   order: 6
 i18n:
@@ -12,7 +10,7 @@ i18n:
   translator: machine
 ---
 
-このページでは2つの統合ステージを扱います：
+このページでは2つの統合段階について説明します：
 
 1. **直接統合** — CDNエッジがオリジンサーバーに直接転送（ベースラインテスト）
 2. **F5 XC挿入** — CDNとオリジン間にF5 XC HTTPロードバランサーを挿入（セキュリティデモ）
@@ -21,7 +19,7 @@ i18n:
 
 ## オリジンサーバーリファレンス
 
-[origin-server](https://f5xc-salesdemos.github.io/origin-server/) ラボコンポーネントは、セキュリティテスト用の脆弱なWebアプリケーションを提供します。
+[origin-server](https://f5xc-salesdemos.github.io/origin-server/)ラボコンポーネントは、セキュリティテスト用の脆弱なWebアプリケーションを提供します。
 
 | プロパティ | 値 |
 |---|---|
@@ -32,7 +30,7 @@ i18n:
 
 ### 利用可能なアプリケーション
 
-origin-serverの公開マニフェストから現在のアプリケーションカタログを取得します：
+オリジンサーバーの公開マニフェストから現在のアプリケーションカタログを取得します：
 
 ```bash
 MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
@@ -46,7 +44,7 @@ curl -sf "$MANIFEST_URL" | python3 -m json.tool
 curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
 ```
 
-マニフェストには、すべてのアプリケーションパス、ヘルスチェック、コンテナイメージ、およびデモ機能のマッピングが記載されています。
+マニフェストには、すべてのアプリケーションパス、ヘルスチェック、コンテナイメージ、デモ機能マッピングが記載されています。
 
 ### アプリケーションパス
 
@@ -54,28 +52,28 @@ curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/ma
 |---|---|---|
 | `/` | ランディングページ | — |
 | `/health` | ヘルスチェック | — |
-| `/juice-shop/` | OWASP Juice Shop | WAF、Bot Defense、API Security |
+| `/juice-shop/` | OWASP Juice Shop | WAF、Bot Defense、APIセキュリティ |
 | `/dvwa/` | DVWA | WAF、Bot Defense |
-| `/vampi/` | VAmPI | API Security |
+| `/vampi/` | VAmPI | APIセキュリティ |
 | `/httpbin/` | httpbin | 診断 |
 | `/whoami/` | whoami | ヘッダー検証 |
-| `/csd-demo/` | CSD Demo | Client-Side Defense |
+| `/csd-demo/` | CSD Demo | クライアントサイドディフェンス |
 
 ## ステージ1：直接統合（ベースライン）
 
 ```
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
+│  クライアント │────▶│  CDNエッジ (NGINX)    │────▶│  オリジンサーバー     │
 │           │     │  20.65.90.112        │     │  20.12.78.159       │
-└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
-                 │  Disk cache           │     │  VAmPI, httpbin,    │
+└──────────┘     │  67以上のCDNヘッダー   │     │  Juice Shop, DVWA,  │
+                 │  ディスクキャッシュ      │     │  VAmPI, httpbin,    │
                  └──────────────────────┘     │  whoami, CSD Demo   │
                                               └─────────────────────┘
 ```
 
 ### オリジンの設定
 
-CDNエッジのNGINX設定にオリジンサーバーのIPを設定します：
+CDNエッジのNGINX設定でオリジンサーバーのIPを設定します：
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -84,7 +82,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-または、`terraform.tfvars` を使用してTerraformデプロイ時に設定することもできます：
+または、`terraform.tfvars`でTerraformデプロイ時に設定します：
 
 ```hcl
 origin_server = "http://<ORIGIN_IP>"
@@ -92,49 +90,49 @@ origin_server = "http://<ORIGIN_IP>"
 
 ### すべてのアプリケーションの検証
 
-CDNを通じて各オリジンアプリケーションをテストします：
+CDN経由で各オリジンアプリケーションをテストします：
 
 ```bash
 CDN=<CDN_EDGE_IP>
 
-# Health check (CDN local)
+# ヘルスチェック（CDNローカル）
 curl -sf "http://$CDN/health" | python3 -m json.tool
 
-# Landing page
+# ランディングページ
 curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
 
 # Juice Shop
 curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
 
-# DVWA (follows redirect to login)
+# DVWA（ログインへリダイレクト）
 curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
 
 # VAmPI API
 curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
 
-# httpbin headers (shows CDN headers in JSON)
+# httpbin ヘッダー（CDNヘッダーをJSONで表示）
 curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
 
-# whoami (shows ALL headers the origin receives)
+# whoami（オリジンが受信するすべてのヘッダーを表示）
 curl -sf "http://$CDN/whoami/"
 
 # CSD Demo
 curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
 ```
 
-すべてのパスはHTTP 200を返すはずです（DVWAは302を返した後、フォローで200を返します）。
+すべてのパスがHTTP 200を返す必要があります（DVWAはリダイレクト後に302、次に200を返します）。
 
-### オリジンでのCDNヘッダー検証
+### オリジンでのCDNヘッダーの検証
 
-`/whoami/` エンドポイントは、オリジンが受信するすべてのヘッダーを表示します。CDNを通じてアクセスすると、67以上のベンダーヘッダーがすべて表示されます：
+`/whoami/`エンドポイントは、オリジンが受信するすべてのヘッダーを表示します。CDN経由でアクセスすると、67以上のベンダーヘッダーがすべて表示されます：
 
 ```bash
 curl -sf "http://$CDN/whoami/"
 ```
 
-以下の主要なヘッダーが存在することを確認します：
+以下の主要ヘッダーが存在することを確認します：
 
-| ベンダー | ヘッダー | 期待値 |
+| ベンダー | ヘッダー | 期待される値 |
 |---|---|---|
 | 標準 | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
 | Akamai | `True-Client-Ip` | `<your_ip>` |
@@ -145,25 +143,25 @@ curl -sf "http://$CDN/whoami/"
 
 ### ログの相互参照
 
-両方のサーバーのアクセスログを比較して、トラフィックフローを検証します：
+両方のサーバーのアクセスログを比較してトラフィックフローを検証します：
 
 ```bash
-# CDN edge log — shows your client IP as source
+# CDNエッジログ — ソースとしてクライアントIPを表示
 ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
 
-# Origin log — shows CDN edge IP as source
+# オリジンログ — ソースとしてCDNエッジIPを表示
 ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
 ```
 
-オリジンのログでは、接続クライアントとしてCDNエッジのIPが表示されるはずです。一方、実際のクライアントIPは `X-Forwarded-For` およびベンダー固有のヘッダーに含まれます。
+オリジンログではCDNエッジIPが接続クライアントとして表示され、実際のクライアントIPは`X-Forwarded-For`およびベンダー固有のヘッダーで伝達されます。
 
 ### キャッシュ動作
 
 ```bash
-# First request — MISS (fetched from origin)
+# 最初のリクエスト — MISS（オリジンから取得）
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 
-# Second request — HIT (served from CDN cache)
+# 2回目のリクエスト — HIT（CDNキャッシュから配信）
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 ```
 
@@ -173,12 +171,12 @@ curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 
 ```
 ┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
+│  クライアント │────▶│  CDNエッジ      │────▶│  F5 XC HTTP LB   │────▶│  オリジンサーバー │
 │           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
 └──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-1. **F5 XC HTTPロードバランサーを作成**し、そのオリジンプールにオリジンサーバーを設定します
+1. **F5 XC HTTPロードバランサーを作成**し、オリジンプールにオリジンサーバーを設定します
 2. **CDNエッジを更新**して、オリジンに直接ではなくF5 XC VIPを指すようにします：
 
 ```bash
@@ -188,24 +186,24 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-3. **WAFの適用をフルチェーンで検証**します：
+3. **WAF適用を検証**して、フルチェーンを通じて確認します：
 
 ```bash
-# SQL injection through CDN → F5 XC WAF should block
+# CDN経由のSQLインジェクション → F5 XC WAFがブロックするはず
 curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
 
-# Normal request should pass
+# 通常のリクエストは通過するはず
 curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 ```
 
-4. **F5 XCで信頼されたクライアントIPヘッダーを設定**し、CDNヘッダーから実際のクライアントIPを読み取るようにします（例：Akamaiシミュレーションの場合は `True-Client-IP`、Cloudflareシミュレーションの場合は `CF-Connecting-IP`）
+4. **F5 XCで信頼済みクライアントIPヘッダーを設定**し、CDNヘッダーから実際のクライアントIPを読み取るようにします（例：Akamaiシミュレーション用の`True-Client-IP`、Cloudflareシミュレーション用の`CF-Connecting-IP`）
 
 ## マルチコンポーネントアーキテクチャ
 
 | コンポーネント | リポジトリ | 目的 |
 |---|---|---|
-| **CDNエッジ**（本コンポーネント） | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | キャッシング、ベンダーヘッダー |
-| **オリジンサーバー** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | 脆弱なWebアプリケーション |
-| **F5 XC設定** | 各種（waf、api-protection、bot-*など） | セキュリティポリシー |
+| **CDNエッジ**（これ） | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | キャッシュ、ベンダーヘッダー |
+| **オリジンサーバー** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | 脆弱なWebアプリ |
+| **F5 XC設定** | Various (waf, api-protection, bot-*, etc.) | セキュリティポリシー |
 
 各コンポーネントは、AIアシスタントがインフラストラクチャをデプロイするために読み取るドキュメントを公開しています。origin-serverは、すべてのアプリケーションパスとヘルスチェックを一覧にした[エンドポイントマニフェスト](https://github.com/f5xc-salesdemos/origin-server/releases/latest)をGitHub Releaseアーティファクトとして公開しています。

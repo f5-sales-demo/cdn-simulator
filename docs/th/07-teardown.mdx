@@ -1,9 +1,9 @@
 ---
-title: Teardown
+title: การรื้อถอน
 description: >-
-  Run terraform destroy to remove all Azure resources (resource group, VM, VNet,
-  PIP, NSG), clean up local Terraform state, and revert DNS or hosts file
-  changes.
+  เรียกใช้ terraform destroy เพื่อลบทรัพยากร Azure ทั้งหมด (resource group, VM,
+  VNet, PIP, NSG) ล้างสถานะ Terraform ในเครื่อง และย้อนกลับการเปลี่ยนแปลง DNS
+  หรือไฟล์ hosts
 sidebar:
   order: 7
 i18n:
@@ -11,37 +11,37 @@ i18n:
   translator: machine
 ---
 
-เมื่อเสร็จสิ้นเซสชันของแล็บ ให้ทำลายทรัพยากร Azure ทั้งหมดเพื่อหยุดการเรียกเก็บเงิน
+เมื่อเซสชันแล็บเสร็จสิ้น ให้ทำลายทรัพยากร Azure ทั้งหมดเพื่อหยุดการเรียกเก็บค่าใช้จ่าย
 
-## Terraform Destroy
+## การทำลายด้วย Terraform
 
-จากไดเรกทอรีที่มีไฟล์คอนฟิกูเรชัน Terraform:
+จากไดเรกทอรีที่มีการกำหนดค่า Terraform:
 
 ```bash
-# Review what will be destroyed
+# ตรวจสอบสิ่งที่จะถูกทำลาย
 terraform plan -destroy
 
-# Destroy all resources
+# ทำลายทรัพยากรทั้งหมด
 terraform destroy
 ```
 
-Terraform จะถามยืนยัน พิมพ์ `yes` เพื่อดำเนินการต่อ
+Terraform จะถามเพื่อยืนยัน พิมพ์ `yes` เพื่อดำเนินการต่อ
 
 ## ตรวจสอบการล้างข้อมูล
 
-ยืนยันว่าทรัพยากรทั้งหมดถูกลบแล้ว:
+ยืนยันว่าทรัพยากรทั้งหมดถูกลบออกแล้ว:
 
 ```bash
-# Check resource group is gone
+# ตรวจสอบว่า resource group ถูกลบแล้ว
 az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
   | grep -q "ResourceGroupNotFound" \
   && echo "Resource group deleted" \
   || echo "Resource group still exists"
 ```
 
-## ล้าง Local State
+## ล้างสถานะในเครื่อง
 
-ลบไฟล์ Terraform state และไฟล์แคช:
+ลบสถานะ Terraform และไฟล์แคช:
 
 ```bash
 rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
@@ -49,11 +49,11 @@ rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 
 ## ย้อนกลับการเปลี่ยนแปลง DNS/Hosts
 
-หากคุณแก้ไข DNS หรือไฟล์ hosts ระหว่าง[การผสานรวม](06-integrate/) ให้ย้อนกลับการเปลี่ยนแปลงเหล่านั้น:
+หากคุณแก้ไข DNS หรือไฟล์ hosts ระหว่าง[การเชื่อมต่อ](06-integrate/) ให้ย้อนกลับการเปลี่ยนแปลงเหล่านั้น:
 
 ```bash
-# Remove hosts file entry (Linux/macOS)
+# ลบรายการในไฟล์ hosts (Linux/macOS)
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-หากคุณสร้าง DNS A record ให้ลบผ่านผู้ให้บริการ DNS ของคุณ
+หากคุณสร้างระเบียน DNS A ให้ลบผ่านผู้ให้บริการ DNS ของคุณ

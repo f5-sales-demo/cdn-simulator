@@ -1,10 +1,10 @@
 ---
 title: التحقق
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  أوامر اختبار أولي باستخدام أكواد استجابة HTTP المتوقعة، وقيم ترويسة
+  X-Cache-Status (HIT/MISS)، واستجابة JSON لفحص الصحة، وفحص مجلد التخزين المؤقت،
+  والتحقق من الاتصال بالخادم الأصلي، واستكشاف مشكلات cloud-init وبدء تشغيل NGINX
+  ومجموعات أمان الشبكة
 sidebar:
   order: 5
 i18n:
@@ -39,15 +39,15 @@ curl -s "http://<PUBLIC_IP>/health" | jq .
 }
 ```
 
-إذا كنت تستخدم مخرجات Terraform:
+في حال استخدام مخرجات Terraform:
 
 ```bash
 curl -s "$(terraform output -raw health_check_url)" | jq .
 ```
 
-## فقدان ذاكرة التخزين المؤقت (الطلب الأول)
+## إخفاق التخزين المؤقت (الطلب الأول)
 
-سيكون الطلب الأول لأي مسار فقدان في ذاكرة التخزين المؤقت — حيث تجلب العقدة الطرفية المحتوى من خادم المصدر:
+سيكون الطلب الأول لأي مسار إخفاقاً في التخزين المؤقت — حيث تجلب العقدة الطرفية المحتوى من الخادم الأصلي:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -60,11 +60,11 @@ X-Cache-Status: MISS
 X-CDN-Edge: cdn-simulator
 ```
 
-`MISS` يعني أن المحتوى لم يكن موجوداً في ذاكرة التخزين المؤقت وتم جلبه من خادم المصدر.
+`MISS` تعني أن المحتوى لم يكن موجوداً في التخزين المؤقت وتم جلبه من الخادم الأصلي.
 
-## إصابة ذاكرة التخزين المؤقت (الطلب اللاحق)
+## إصابة التخزين المؤقت (الطلب اللاحق)
 
-كرر نفس الطلب فوراً:
+كرر نفس الطلب مباشرة:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -77,16 +77,16 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` يؤكد أن الاستجابة تم تقديمها من ذاكرة التخزين المؤقت على قرص NGINX دون الاتصال بخادم المصدر.
+`HIT` تؤكد أن الاستجابة تم تقديمها من التخزين المؤقت على قرص NGINX دون الاتصال بالخادم الأصلي.
 
-## فحص دليل ذاكرة التخزين المؤقت
+## فحص مجلد التخزين المؤقت
 
 اتصل بالجهاز الافتراضي عبر SSH للتحقق من وجود المحتوى المخزن مؤقتاً على القرص:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# تحقق من أن دليل التخزين المؤقت يحتوي على محتوى
+# تحقق من أن مجلد التخزين المؤقت يحتوي على محتوى
 sudo find /var/cache/nginx/cdn -type f | head -20
 
 # تحقق من حجم التخزين المؤقت
@@ -106,36 +106,36 @@ sudo systemctl status nginx
 # تحقق من صحة التكوين
 sudo nginx -t
 
-# عرض الاتصالات النشطة (إذا كان stub_status مُفعلاً)
+# عرض الاتصالات النشطة (إذا كان stub_status مفعلاً)
 curl -s http://localhost/health
 ```
 
-## الاتصال بخادم المصدر
+## الاتصال بالخادم الأصلي
 
-تحقق من أن العقدة الطرفية يمكنها الوصول إلى خادم المصدر:
+تحقق من أن العقدة الطرفية تستطيع الوصول إلى الخادم الأصلي:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# اختبار الاتصال بخادم المصدر (استبدل بعنوان URL الخاص بخادم المصدر)
+# اختبر الاتصال بالخادم الأصلي (استبدل بعنوان URL الخاص بخادمك الأصلي)
 curl -I "https://your-origin.example.com/"
 ```
 
-إذا فشل هذا الاختبار، تحقق من:
+إذا فشل هذا، تحقق من:
 
 1. أن متغير `origin_server` صحيح في تكوين Terraform
-2. أن خادم المصدر يسمح بالاتصالات الواردة من عنوان IP العام للعقدة الطرفية
+2. أن الخادم الأصلي يسمح بالاتصالات الواردة من عنوان IP العام للعقدة الطرفية
 3. أن تحليل DNS يعمل من الجهاز الافتراضي (`nslookup your-origin.example.com`)
 
 ## تقدم Cloud-Init
 
-راقب تقدم التزويد عبر سجل cloud-init:
+راقب تقدم التهيئة عبر سجل cloud-init:
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 ```
 
-المراحل المتوقعة: `[init]`، `[nic]` (الكشف الديناميكي عن واجهة الشبكة)، `[complete]`.
+المراحل المتوقعة: `[init]`، `[nic]` (اكتشاف واجهة الشبكة الديناميكي)، `[complete]`.
 
 إذا أبلغ cloud-init عن أخطاء:
 
@@ -143,16 +143,16 @@ ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 ```
 
-## الاختبار الشامل
+## اختبار شامل من البداية إلى النهاية
 
-قم بتنفيذ دورة طلب كاملة وتحقق من سلسلة الاستجابة:
+نفذ دورة طلب كاملة وتحقق من سلسلة الاستجابة:
 
 ```bash
-# الطلب الأول — MISS (جلب من خادم المصدر)
+# الطلب الأول — MISS (جلب من الخادم الأصلي)
 echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
-# الطلب الثاني — HIT (تقديم من ذاكرة التخزين المؤقت)
+# الطلب الثاني — HIT (تقديم من التخزين المؤقت)
 echo "=== Request 2 (expect HIT) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 ```
@@ -166,9 +166,9 @@ HTTP 200 | Cache: MISS
 HTTP 200 | Cache: HIT
 ```
 
-## التحقق من ترويسات مزودي CDN
+## التحقق من ترويسات المزودين
 
-تحقق من أن جميع ترويسات مزودي CDN يتم حقنها عن طريق طلب المسار `/headers` (عند استخدام httpbin.org كخادم مصدر):
+تحقق من أن جميع ترويسات مزودي CDN يتم حقنها عبر طلب المسار `/headers` (عند استخدام httpbin.org كخادم أصلي):
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
@@ -198,9 +198,9 @@ curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 }
 ```
 
-### اختبار كشف نوع الجهاز
+### اختبار اكتشاف الجهاز
 
-اختبر باستخدام وكيل مستخدم للأجهزة المحمولة للتحقق من تغير ترويسات كشف نوع الجهاز:
+اختبر باستخدام وكيل مستخدم للأجهزة المحمولة للتحقق من تغيّر ترويسات اكتشاف الجهاز:
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
@@ -225,7 +225,7 @@ sudo systemctl status nginx
 sudo journalctl -u nginx --no-pager -n 50
 ```
 
-### لم ينتهِ cloud-init بعد
+### لم ينته cloud-init بعد
 
 بعد تنفيذ `terraform apply`، يستغرق cloud-init من 2-3 دقائق. تحقق من التقدم:
 
@@ -235,13 +235,13 @@ sudo cloud-init status
 sudo tail -f /var/log/cloud-init-output.log
 ```
 
-### ذاكرة التخزين المؤقت تُظهر MISS دائماً
+### التخزين المؤقت يظهر دائماً MISS
 
-- تحقق من أن خادم المصدر يُرجع رموز استجابة قابلة للتخزين المؤقت (200، 301، 302)
-- تحقق من أن خادم المصدر لا يُرسل ترويسات `Cache-Control: no-cache` أو `no-store`
+- تحقق من أن الخادم الأصلي يعيد أكواد استجابة قابلة للتخزين المؤقت (200، 301، 302)
+- تحقق من أن الخادم الأصلي لا يرسل ترويسات `Cache-Control: no-cache` أو `no-store`
 - تحقق من سجلات أخطاء NGINX: `sudo tail -f /var/log/nginx/error.log`
 
 ### رفض الاتصال على المنفذ 80/443
 
-- تحقق من تطبيق قواعد NSG: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- تحقق من تطبيق قواعد مجموعة أمان الشبكة: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
 - تحقق من أن NGINX يستمع: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

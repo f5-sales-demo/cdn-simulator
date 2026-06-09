@@ -1,11 +1,9 @@
 ---
 title: 部署
 description: >-
-  Terraform IaC deployment of the performance-optimized CDN edge node — Azure
-  F-series compute-optimized VM with Ubuntu 24.04, kernel tuning, NGINX proxy
-  cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers
-  provisioned via cloud-init. All configuration files are in the terraform/
-  directory.
+  使用 Terraform IaC 部署性能优化的 CDN 边缘节点 — Azure F 系列计算优化虚拟机，运行 Ubuntu
+  24.04，配备内核调优、NGINX 代理缓存、上游 keepalive、gzip 压缩以及 67+ CDN 供应商头部，通过 cloud-init
+  配置。所有配置文件位于 terraform/ 目录中。
 sidebar:
   order: 3
 i18n:
@@ -13,13 +11,13 @@ i18n:
   translator: machine
 ---
 
-所有 Terraform 文件位于 [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) 目录中。克隆仓库后可直接部署：
+所有 Terraform 文件位于 [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) 目录中。克隆仓库并直接部署：
 
 ```bash
 git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
 cd cdn-simulator/terraform
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your Azure subscription ID and origin server
+# 编辑 terraform.tfvars，填入您的 Azure 订阅 ID 和源站服务器
 ```
 
 ## Terraform 配置
@@ -28,17 +26,17 @@ cp terraform.tfvars.example terraform.tfvars
 
 terraform 目录包含 9 个文件，遵循演示资源标准：
 
-- `versions.tf` — Terraform 和提供商版本约束（azurerm ~> 4.0、azuread ~> 3.0）
+- `versions.tf` — Terraform 和提供商版本约束（azurerm ~> 4.0，azuread ~> 3.0）
 - `providers.tf` — Azure RM 和 Azure AD 提供商配置
 - `data.tf` — Azure AD 数据源，用于部署者自动解析
 - `locals.tf` — 部署者解析、Azure 云采用框架资源命名、标准标签
 - `main.tf` — 资源组（命名为 `rg-cdn-simulator-{environment}-{deployer}`）
 - `variables.tf` — 所有输入变量（3 个必需，8 个可选）
 - `network.tf` — VNet（10.100.0.0/16）、子网、公共 IP、NSG（端口 22/80/443）、NIC
-- `vm.tf` — 使用 cloud-init 的 Ubuntu 24.04 VM，通过 templatefile() 实现
+- `vm.tf` — Ubuntu 24.04 虚拟机，通过 templatefile() 使用 cloud-init
 - `outputs.tf` — 17 个输出（15 个标准 + 2 个组件特定）
 
-`variables.tf` 定义了 11 个输入变量，分为通用、计算和组件特定三个部分。`deployer` 标识符从您的 Azure AD 账户自动解析——您只需设置 `subscription_id`、`origin_server` 和 `origin_host`：
+`variables.tf` 定义了 11 个输入变量，分为通用、计算和组件特定三个部分。`deployer` 标识符从您的 Azure AD 账户自动解析 — 您只需设置 `subscription_id`、`origin_server` 和 `origin_host`：
 
 ```hcl file=./_data/variables.tf
 ```
@@ -50,25 +48,25 @@ terraform 目录包含 9 个文件，遵循演示资源标准：
 ```hcl file=./_data/network.tf
 ```
 
-### 使用 Cloud-Init 的虚拟机
+### 带有 Cloud-Init 的虚拟机
 
-`vm.tf` 创建 Ubuntu 24.04 VM。SSH 公钥路径通过 `pathexpand()` 展开以处理 `~`。Cloud-init 模板接收 `origin_server` 和 `origin_host` 变量：
+`vm.tf` 创建 Ubuntu 24.04 虚拟机。SSH 公钥路径通过 `pathexpand()` 展开以处理 `~`。Cloud-init 模板接收 `origin_server` 和 `origin_host` 变量：
 
 ```hcl file=./_data/vm.tf
 ```
 
 ### Cloud-Init 配置
 
-`cloud-init.yaml` 为 VM 配置内核调优、systemd 限制、性能优化的 NGINX 配置、128 MB 缓存键区域、上游 keepalive 连接池、gzip 压缩以及 67+ CDN 供应商头部。共享辅助库（`/usr/local/lib/cloud-init-helpers.sh`）提供重试逻辑和进度日志记录到 `/var/log/cloud-init-progress.log`。
+`cloud-init.yaml` 对虚拟机进行配置，包括内核调优、systemd 限制、性能优化的 NGINX 配置、128 MB 缓存键区域、上游 keepalive 连接池、gzip 压缩和 67+ CDN 供应商头部。共享辅助库（`/usr/local/lib/cloud-init-helpers.sh`）提供重试逻辑和进度日志记录到 `/var/log/cloud-init-progress.log`。
 
-Cloud-init 使用 Terraform 模板变量：`${origin_server}` 和 `${origin_host}` 用于上游配置。NGINX 变量如 `${request_id}` 在 Terraform templatefile 中转义为 `$${request_id}`。
+cloud-init 使用 Terraform 模板变量：`${origin_server}` 和 `${origin_host}` 用于上游配置。NGINX 变量如 `${request_id}` 在 Terraform templatefile 中转义为 `$${request_id}`。
 
 ```yaml file=./_data/cloud-init.yaml
 ```
 
 ### 输出
 
-`outputs.tf` 遵循演示资源标准公开 17 个输出——15 个所有演示资源共享的标准输出（`deployer`、`public_ip`、`private_ip`、`ssh_command`、`resource_group_name`、`vm_name`、`nsg_name`、`vnet_name`、`subnet_id`、`component`、`environment`、`resource_group_id`、`vm_id`、`nsg_id`、`location`）加上 2 个组件特定输出（`edge_url`、`health_check_url`）：
+`outputs.tf` 遵循演示资源标准公开 17 个输出 — 15 个所有演示资源共享的标准输出（`deployer`、`public_ip`、`private_ip`、`ssh_command`、`resource_group_name`、`vm_name`、`nsg_name`、`vnet_name`、`subnet_id`、`component`、`environment`、`resource_group_id`、`vm_id`、`nsg_id`、`location`）加上 2 个组件特定输出（`edge_url`、`health_check_url`）：
 
 ```hcl file=./_data/outputs.tf
 ```
@@ -83,23 +81,23 @@ Cloud-init 使用 Terraform 模板变量：`${origin_server}` 和 `${origin_host
 ## 部署
 
 ```bash
-# Initialize Terraform
+# 初始化 Terraform
 terraform init
 
-# Review the plan
+# 查看计划
 terraform plan
 
-# Apply
+# 应用
 terraform apply
 ```
 
 部署成功后，Terraform 会输出公共 IP、SSH 命令和边缘 URL。
 
-## VM 规格选择
+## 虚拟机规格
 
-F 系列计算优化 VM 推荐用于此 CPU 密集型 NGINX 代理工作负载。默认的 `Standard_F4s_v2`（4 vCPU、8 GiB）适用于实验和演示用途。对于负载测试或生产基准测试场景，可覆盖 `vm_size` 变量。Cloud-init 内核调优和 NGINX 配置会根据 vCPU 数量自动扩展（`worker_processes auto`）。
+F 系列计算优化虚拟机推荐用于此 CPU 密集型 NGINX 代理工作负载。默认的 `Standard_F4s_v2`（4 vCPU，8 GiB）适用于实验和演示用途。如需负载测试或生产基准测试场景，请覆盖 `vm_size` 变量。Cloud-init 内核调优和 NGINX 配置会随 vCPU 数量自动扩展（`worker_processes auto`）。
 
-## 部署后操作
+## 部署后
 
 `terraform apply` 完成后，请等待 2-3 分钟让 cloud-init 完成 NGINX 的安装和配置。验证健康检查端点：
 
@@ -124,7 +122,7 @@ curl -s "http://$(terraform output -raw public_ip)/health" | jq .
 }
 ```
 
-## 与上游组件的连接
+## 从上游组件连接
 
 CDN 模拟器需要已部署的源站服务器。使用源站服务器的 terraform 输出来填充所需变量：
 
@@ -145,4 +143,4 @@ EOF
 | `origin_server` | 源站服务器 `public_ip` 输出 | `http://<ip>`（包含协议） |
 | `origin_host` | 源站服务器 `public_ip` 输出 | `<ip>:80`（不含协议，包含端口） |
 
-继续阅读 [NGINX 配置](../04-nginx-config/) 了解自定义选项，或阅读[验证](../05-verify/)进行缓存测试。
+前往 [NGINX 配置](../04-nginx-config/) 了解自定义选项，或前往 [验证](../05-verify/) 进行缓存测试。

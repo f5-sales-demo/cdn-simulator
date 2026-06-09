@@ -1,13 +1,13 @@
 ---
 title: Integration mit dem Origin-Server
 description: >-
-  Connect the CDN edge to the origin-server lab component (direct integration),
-  discover applications via the published endpoint manifest, verify end-to-end
-  traffic flow with header inspection and log correlation. Covers both direct
-  origin and future F5 XC insertion architectures.
+  Verbinden Sie die CDN-Edge mit der Origin-Server-Laborkomponente (direkte
+  Integration), entdecken Sie Anwendungen über das veröffentlichte
+  Endpunkt-Manifest, überprüfen Sie den End-to-End-Datenfluss mit
+  Header-Inspektion und Log-Korrelation. Behandelt sowohl die direkte
+  Origin-Anbindung als auch zukünftige F5 XC-Einfügungsarchitekturen.
 sidebar:
   order: 6
-  label: Integration mit dem Origin-Server
 i18n:
   sourceHash: 7e12e7a4634c
   translator: machine
@@ -15,14 +15,14 @@ i18n:
 
 Diese Seite behandelt zwei Integrationsstufen:
 
-1. **Direkte Integration** — CDN-Edge leitet direkt an den Origin-Server weiter (Baseline-Tests)
+1. **Direkte Integration** — CDN-Edge leitet direkt an den Origin-Server weiter (Basistests)
 2. **F5 XC-Einfügung** — F5 XC HTTP Load Balancer wird zwischen CDN und Origin eingefügt (Sicherheitsdemo)
 
-Beginnen Sie mit der direkten Integration, um die Baseline zu etablieren, und fügen Sie dann F5 XC ein, wenn Sie bereit sind.
+Beginnen Sie mit der direkten Integration, um die Basiskonfiguration zu etablieren, und fügen Sie dann F5 XC ein, wenn Sie bereit sind.
 
 ## Origin-Server-Referenz
 
-Die [origin-server](https://f5xc-salesdemos.github.io/origin-server/) Lab-Komponente stellt verwundbare Webanwendungen für Sicherheitstests bereit.
+Die [origin-server](https://f5xc-salesdemos.github.io/origin-server/)-Laborkomponente stellt verwundbare Webanwendungen für Sicherheitstests bereit.
 
 | Eigenschaft | Wert |
 |---|---|
@@ -62,7 +62,7 @@ Das Manifest listet alle Anwendungspfade, Health Checks, Container-Images und De
 | `/whoami/` | whoami | Header-Verifizierung |
 | `/csd-demo/` | CSD Demo | Client-Side Defense |
 
-## Stufe 1: Direkte Integration (Baseline)
+## Stufe 1: Direkte Integration (Basiskonfiguration)
 
 ```
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
@@ -76,7 +76,7 @@ Das Manifest listet alle Anwendungspfade, Health Checks, Container-Images und De
 
 ### Origin konfigurieren
 
-Setzen Sie die Origin-Server-IP in der NGINX-Konfiguration des CDN-Edge:
+Setzen Sie die Origin-Server-IP in der CDN-Edge NGINX-Konfiguration:
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -85,13 +85,13 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Oder setzen Sie sie zur Terraform-Deploy-Zeit über `terraform.tfvars`:
+Oder setzen Sie sie bei der Terraform-Bereitstellung über `terraform.tfvars`:
 
 ```hcl
 origin_server = "http://<ORIGIN_IP>"
 ```
 
-### Alle Anwendungen verifizieren
+### Alle Anwendungen überprüfen
 
 Testen Sie jede Origin-Anwendung über das CDN:
 
@@ -113,7 +113,7 @@ curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
 # VAmPI API
 curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
 
-# httpbin-Header (zeigt CDN-Header als JSON)
+# httpbin Header (zeigt CDN-Header als JSON)
 curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
 
 # whoami (zeigt ALLE Header, die der Origin empfängt)
@@ -125,9 +125,9 @@ curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-dem
 
 Alle Pfade sollten HTTP 200 zurückgeben (DVWA gibt 302 zurück, dann 200 bei Weiterleitung).
 
-### CDN-Header am Origin verifizieren
+### CDN-Header am Origin überprüfen
 
-Der `/whoami/`-Endpunkt zeigt jeden Header, den der Origin empfängt. Bei Zugriff über das CDN werden alle 67+ Vendor-Header angezeigt:
+Der `/whoami/`-Endpunkt zeigt jeden Header, den der Origin empfängt. Beim Zugriff über das CDN werden alle 67+ Vendor-Header angezeigt:
 
 ```bash
 curl -sf "http://$CDN/whoami/"
@@ -146,17 +146,17 @@ curl -sf "http://$CDN/whoami/"
 
 ### Logs abgleichen
 
-Vergleichen Sie die Zugriffsprotokolle auf beiden Servern, um den Traffic-Fluss zu verifizieren:
+Vergleichen Sie die Zugriffsprotokolle auf beiden Servern, um den Datenfluss zu verifizieren:
 
 ```bash
 # CDN-Edge-Log — zeigt Ihre Client-IP als Quelle
 ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
 
-# Origin-Log — zeigt die CDN-Edge-IP als Quelle
+# Origin-Log — zeigt CDN-Edge-IP als Quelle
 ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
 ```
 
-Das Origin-Log sollte die CDN-Edge-IP als verbindenden Client anzeigen, während die tatsächliche Client-IP in `X-Forwarded-For` und anbieterspezifischen Headern übertragen wird.
+Das Origin-Log sollte die CDN-Edge-IP als verbindenden Client anzeigen, während die echte Client-IP in `X-Forwarded-For` und anbieterspezifischen Headern übertragen wird.
 
 ### Cache-Verhalten
 
@@ -170,7 +170,7 @@ curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 
 ## Stufe 2: F5 XC-Einfügung (Sicherheitsdemo)
 
-Nach den Baseline-Tests fügen Sie einen F5 XC HTTP Load Balancer zwischen CDN und Origin ein:
+Fügen Sie nach den Basistests einen F5 XC HTTP Load Balancer zwischen CDN und Origin ein:
 
 ```
 ┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
@@ -180,7 +180,7 @@ Nach den Baseline-Tests fügen Sie einen F5 XC HTTP Load Balancer zwischen CDN u
 ```
 
 1. **Erstellen Sie den F5 XC HTTP Load Balancer** mit dem Origin-Server in seinem Origin-Pool
-2. **Aktualisieren Sie den CDN-Edge**, um auf die F5 XC VIP statt direkt auf den Origin zu verweisen:
+2. **Aktualisieren Sie die CDN-Edge**, sodass sie auf die F5 XC VIP statt direkt auf den Origin zeigt:
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -189,7 +189,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-3. **Verifizieren Sie die WAF-Durchsetzung** über die gesamte Kette:
+3. **Überprüfen Sie die WAF-Durchsetzung** über die gesamte Kette:
 
 ```bash
 # SQL-Injection über CDN → F5 XC WAF sollte blockieren
@@ -199,14 +199,14 @@ curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
 curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 ```
 
-4. **Konfigurieren Sie den Trusted-Client-IP-Header** in F5 XC, um die echte Client-IP aus den CDN-Headern zu lesen (z. B. `True-Client-IP` für Akamai-Simulation, `CF-Connecting-IP` für Cloudflare-Simulation)
+4. **Konfigurieren Sie den Trusted-Client-IP-Header** in F5 XC, um die echte Client-IP aus den CDN-Headern zu lesen (z. B. `True-Client-IP` für die Akamai-Simulation, `CF-Connecting-IP` für die Cloudflare-Simulation)
 
-## Multi-Komponenten-Architektur
+## Mehrkomponenten-Architektur
 
 | Komponente | Repository | Zweck |
 |---|---|---|
 | **CDN Edge** (dieses) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | Caching, Vendor-Header |
-| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | Verwundbare Webanwendungen |
-| **F5 XC Config** | Verschiedene (waf, api-protection, bot-*, etc.) | Sicherheitsrichtlinien |
+| **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | Verwundbare Web-Apps |
+| **F5 XC-Konfiguration** | Verschiedene (waf, api-protection, bot-*, etc.) | Sicherheitsrichtlinien |
 
 Jede Komponente veröffentlicht Dokumentation, die KI-Assistenten lesen, um die Infrastruktur bereitzustellen. Der Origin-Server veröffentlicht ein [Endpunkt-Manifest](https://github.com/f5xc-salesdemos/origin-server/releases/latest) als GitHub-Release-Artefakt, das alle Anwendungspfade und Health Checks auflistet.

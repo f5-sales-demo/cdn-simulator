@@ -1,10 +1,11 @@
 ---
 title: Verificar
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  Comandos de prueba de humo con códigos de respuesta HTTP esperados, valores
+  del encabezado X-Cache-Status (HIT/MISS), respuesta JSON de verificación de
+  salud, inspección del directorio de caché, comprobaciones de conectividad con
+  el origen, y solución de problemas de cloud-init, inicio de NGINX y problemas
+  de NSG
 sidebar:
   order: 5
 i18n:
@@ -14,7 +15,7 @@ i18n:
 
 Después del despliegue, ejecute estas comprobaciones para confirmar que el nodo edge del CDN está funcionando correctamente. Espere 2-3 minutos después de `terraform apply` para que cloud-init termine de instalar NGINX.
 
-## Comprobación de salud
+## Verificación de Salud
 
 Verifique que NGINX está en ejecución y respondiendo:
 
@@ -45,15 +46,15 @@ Si utiliza las salidas de Terraform:
 curl -s "$(terraform output -raw health_check_url)" | jq .
 ```
 
-## Cache Miss (Primera solicitud)
+## Fallo de Caché (Primera Solicitud)
 
-La primera solicitud a cualquier ruta será un cache miss — el edge obtiene el contenido del origen:
+La primera solicitud a cualquier ruta será un fallo de caché — el nodo edge obtiene el contenido del origen:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-Busque estas cabeceras en la respuesta:
+Busque estos encabezados en la respuesta:
 
 ```
 X-Cache-Status: MISS
@@ -62,7 +63,7 @@ X-CDN-Edge: cdn-simulator
 
 `MISS` significa que el contenido no estaba en caché y fue obtenido del servidor de origen.
 
-## Cache Hit (Solicitud posterior)
+## Acierto de Caché (Solicitud Subsiguiente)
 
 Repita la misma solicitud inmediatamente:
 
@@ -70,16 +71,16 @@ Repita la misma solicitud inmediatamente:
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-Cabeceras esperadas:
+Encabezados esperados:
 
 ```
 X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` confirma que la respuesta fue servida desde la caché de disco de NGINX sin contactar al origen.
+`HIT` confirma que la respuesta fue servida desde la caché en disco de NGINX sin contactar al origen.
 
-## Inspección del directorio de caché
+## Inspección del Directorio de Caché
 
 Conéctese por SSH a la VM para verificar que el contenido en caché existe en disco:
 
@@ -110,18 +111,18 @@ sudo nginx -t
 curl -s http://localhost/health
 ```
 
-## Conectividad con el origen
+## Conectividad con el Origen
 
 Verifique que el nodo edge puede alcanzar el servidor de origen:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Probar conectividad con el origen (reemplace con la URL de su origen)
+# Probar la conectividad con el origen (reemplace con su URL de origen)
 curl -I "https://your-origin.example.com/"
 ```
 
-Si esto falla, compruebe:
+Si esto falla, verifique:
 
 1. La variable `origin_server` es correcta en la configuración de Terraform
 2. El servidor de origen permite conexiones entrantes desde la IP pública del nodo edge
@@ -129,7 +130,7 @@ Si esto falla, compruebe:
 
 ## Progreso de Cloud-Init
 
-Monitoree el progreso del aprovisionamiento a través del log de cloud-init:
+Monitoree el progreso del aprovisionamiento a través del registro de cloud-init:
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
@@ -143,9 +144,9 @@ Si cloud-init reporta errores:
 ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 ```
 
-## Prueba de extremo a extremo
+## Prueba de Extremo a Extremo
 
-Ejecute un ciclo completo de solicitudes y verifique la cadena de respuesta:
+Ejecute un ciclo completo de solicitud y verifique la cadena de respuesta:
 
 ```bash
 # Primera solicitud — MISS (obtiene del origen)
@@ -166,15 +167,15 @@ HTTP 200 | Cache: MISS
 HTTP 200 | Cache: HIT
 ```
 
-## Verificación de cabeceras de proveedor
+## Verificación de Encabezados de Proveedores
 
-Verifique que todas las cabeceras de proveedores CDN están siendo inyectadas solicitando la ruta `/headers` (cuando se usa httpbin.org como origen):
+Verifique que todos los encabezados de proveedores CDN están siendo inyectados solicitando la ruta `/headers` (cuando se usa httpbin.org como origen):
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 ```
 
-La respuesta esperada incluye cabeceras de los cinco proveedores:
+La respuesta esperada incluye encabezados de los cinco proveedores:
 
 ```json
 {
@@ -198,9 +199,9 @@ La respuesta esperada incluye cabeceras de los cinco proveedores:
 }
 ```
 
-### Prueba de detección de dispositivo
+### Prueba de Detección de Dispositivo
 
-Pruebe con un User-Agent móvil para verificar que las cabeceras de detección de dispositivo cambian:
+Pruebe con un User-Agent móvil para verificar que los encabezados de detección de dispositivo cambian:
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
@@ -215,7 +216,7 @@ Esperado:
 "Cloudfront-Is-Mobile-Viewer": "true",
 ```
 
-## Solución de problemas
+## Solución de Problemas
 
 ### NGINX no está en ejecución
 
@@ -238,8 +239,8 @@ sudo tail -f /var/log/cloud-init-output.log
 ### La caché siempre muestra MISS
 
 - Verifique que el origen devuelve códigos de respuesta cacheables (200, 301, 302)
-- Compruebe que el origen no envía cabeceras `Cache-Control: no-cache` o `no-store`
-- Revise los logs de error de NGINX: `sudo tail -f /var/log/nginx/error.log`
+- Compruebe que el origen no envía encabezados `Cache-Control: no-cache` o `no-store`
+- Revise los registros de error de NGINX: `sudo tail -f /var/log/nginx/error.log`
 
 ### Conexión rechazada en el puerto 80/443
 

@@ -1,10 +1,10 @@
 ---
 title: सत्यापन
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  अपेक्षित HTTP प्रतिक्रिया कोड, X-Cache-Status हेडर मान (HIT/MISS), स्वास्थ्य
+  जांच JSON प्रतिक्रिया, कैश डायरेक्टरी निरीक्षण, ऑरिजिन कनेक्टिविटी जांच, और
+  cloud-init, NGINX स्टार्टअप, और NSG समस्याओं के लिए समस्या निवारण के साथ स्मोक
+  टेस्ट कमांड
 sidebar:
   order: 5
 i18n:
@@ -12,9 +12,9 @@ i18n:
   translator: machine
 ---
 
-डिप्लॉयमेंट के बाद, CDN एज नोड सही ढंग से काम कर रहा है यह पुष्टि करने के लिए ये जाँचें चलाएँ। cloud-init द्वारा NGINX की इंस्टॉलेशन पूरी होने के लिए `terraform apply` के बाद 2-3 मिनट का समय दें।
+डिप्लॉयमेंट के बाद, CDN एज नोड सही ढंग से कार्य कर रहा है यह पुष्टि करने के लिए ये जांचें चलाएं। `terraform apply` के बाद cloud-init द्वारा NGINX इंस्टॉलेशन पूरा होने के लिए 2-3 मिनट का समय दें।
 
-## स्वास्थ्य जाँच (Health Check)
+## स्वास्थ्य जांच
 
 सत्यापित करें कि NGINX चल रहा है और प्रतिक्रिया दे रहा है:
 
@@ -47,7 +47,7 @@ curl -s "$(terraform output -raw health_check_url)" | jq .
 
 ## कैश मिस (पहला अनुरोध)
 
-किसी भी पथ के लिए पहला अनुरोध कैश मिस होगा — एज ऑरिजिन से डेटा लाता है:
+किसी भी पथ पर पहला अनुरोध कैश मिस होगा — एज ऑरिजिन से डेटा लाता है:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -60,11 +60,11 @@ X-Cache-Status: MISS
 X-CDN-Edge: cdn-simulator
 ```
 
-`MISS` का अर्थ है कि सामग्री कैश में नहीं थी और ऑरिजिन सर्वर से लाई गई।
+`MISS` का अर्थ है कि सामग्री कैश में नहीं थी और ऑरिजिन सर्वर से लाई गई थी।
 
 ## कैश हिट (बाद का अनुरोध)
 
-तुरंत वही अनुरोध दोहराएँ:
+वही अनुरोध तुरंत दोहराएं:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -77,11 +77,11 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` पुष्टि करता है कि प्रतिक्रिया ऑरिजिन से संपर्क किए बिना NGINX डिस्क कैश से परोसी गई।
+`HIT` पुष्टि करता है कि प्रतिक्रिया ऑरिजिन से संपर्क किए बिना NGINX डिस्क कैश से दी गई थी।
 
 ## कैश डायरेक्टरी निरीक्षण
 
-डिस्क पर कैश की गई सामग्री मौजूद है यह सत्यापित करने के लिए VM में SSH करें:
+डिस्क पर कैश्ड सामग्री मौजूद है यह सत्यापित करने के लिए VM में SSH करें:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -112,7 +112,7 @@ curl -s http://localhost/health
 
 ## ऑरिजिन कनेक्टिविटी
 
-सत्यापित करें कि एज नोड ऑरिजिन सर्वर तक पहुँच सकता है:
+सत्यापित करें कि एज नोड ऑरिजिन सर्वर तक पहुंच सकता है:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -121,7 +121,7 @@ ssh azureuser@<PUBLIC_IP>
 curl -I "https://your-origin.example.com/"
 ```
 
-यदि यह विफल होता है, तो जाँचें:
+यदि यह विफल होता है, तो जांचें:
 
 1. Terraform कॉन्फ़िग में `origin_server` वेरिएबल सही है
 2. ऑरिजिन सर्वर एज नोड के पब्लिक IP से इनबाउंड कनेक्शन की अनुमति देता है
@@ -137,7 +137,7 @@ ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 
 अपेक्षित चरण: `[init]`, `[nic]` (डायनामिक NIC डिटेक्शन), `[complete]`।
 
-यदि cloud-init त्रुटियाँ रिपोर्ट करता है:
+यदि cloud-init त्रुटियां रिपोर्ट करता है:
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
@@ -145,7 +145,7 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 
 ## एंड-टू-एंड परीक्षण
 
-एक पूर्ण अनुरोध चक्र चलाएँ और प्रतिक्रिया श्रृंखला सत्यापित करें:
+एक पूर्ण अनुरोध चक्र चलाएं और प्रतिक्रिया श्रृंखला सत्यापित करें:
 
 ```bash
 # First request — MISS (fetches from origin)
@@ -168,13 +168,13 @@ HTTP 200 | Cache: HIT
 
 ## वेंडर हेडर सत्यापन
 
-सभी CDN वेंडर हेडर्स इंजेक्ट हो रहे हैं यह सत्यापित करने के लिए `/headers` पथ का अनुरोध करें (जब ऑरिजिन के रूप में httpbin.org का उपयोग कर रहे हों):
+सभी CDN वेंडर हेडर्स इंजेक्ट हो रहे हैं यह सत्यापित करने के लिए `/headers` पथ पर अनुरोध करें (जब httpbin.org को ऑरिजिन के रूप में उपयोग कर रहे हों):
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 ```
 
-अपेक्षित प्रतिक्रिया में सभी पाँच वेंडर्स के हेडर्स शामिल हैं:
+अपेक्षित प्रतिक्रिया में सभी पांच वेंडर्स के हेडर्स शामिल हैं:
 
 ```json
 {
@@ -227,7 +227,7 @@ sudo journalctl -u nginx --no-pager -n 50
 
 ### Cloud-init पूरा नहीं हुआ
 
-`terraform apply` के बाद, cloud-init को 2-3 मिनट लगते हैं। प्रगति जाँचें:
+`terraform apply` के बाद, cloud-init को 2-3 मिनट लगते हैं। प्रगति जांचें:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -237,9 +237,9 @@ sudo tail -f /var/log/cloud-init-output.log
 
 ### कैश हमेशा MISS दिखा रहा है
 
-- सत्यापित करें कि ऑरिजिन कैश करने योग्य रिस्पॉन्स कोड (200, 301, 302) लौटाता है
-- जाँचें कि ऑरिजिन `Cache-Control: no-cache` या `no-store` हेडर्स नहीं भेजता
-- NGINX एरर लॉग जाँचें: `sudo tail -f /var/log/nginx/error.log`
+- सत्यापित करें कि ऑरिजिन कैश करने योग्य प्रतिक्रिया कोड लौटाता है (200, 301, 302)
+- जांचें कि ऑरिजिन `Cache-Control: no-cache` या `no-store` हेडर्स नहीं भेजता
+- NGINX एरर लॉग्स जांचें: `sudo tail -f /var/log/nginx/error.log`
 
 ### पोर्ट 80/443 पर कनेक्शन अस्वीकृत
 

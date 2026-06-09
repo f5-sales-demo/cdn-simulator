@@ -1,10 +1,10 @@
 ---
-title: Integrate with Origin Server
+title: การเชื่อมต่อกับ Origin Server
 description: >-
-  Connect the CDN edge to the origin-server lab component (direct integration),
-  discover applications via the published endpoint manifest, verify end-to-end
-  traffic flow with header inspection and log correlation. Covers both direct
-  origin and future F5 XC insertion architectures.
+  เชื่อมต่อ CDN edge กับคอมโพเนนต์แล็บ origin-server (การเชื่อมต่อโดยตรง)
+  ค้นพบแอปพลิเคชันผ่าน endpoint manifest ที่เผยแพร่ ตรวจสอบการไหลของทราฟฟิกแบบ
+  end-to-end ด้วยการตรวจสอบ header และการเปรียบเทียบ log
+  ครอบคลุมทั้งสถาปัตยกรรมแบบ direct origin และแบบแทรก F5 XC ในอนาคต
 sidebar:
   order: 6
 i18n:
@@ -12,16 +12,16 @@ i18n:
   translator: machine
 ---
 
-หน้านี้ครอบคลุมสองขั้นตอนของการรวมระบบ:
+หน้านี้ครอบคลุมสองขั้นตอนของการเชื่อมต่อ:
 
-1. **การรวมระบบแบบตรง** — CDN edge ส่งต่อไปยัง origin server โดยตรง (การทดสอบ baseline)
+1. **การเชื่อมต่อโดยตรง** — CDN edge ส่งต่อไปยัง origin server โดยตรง (การทดสอบพื้นฐาน)
 2. **การแทรก F5 XC** — F5 XC HTTP load balancer ถูกแทรกระหว่าง CDN และ origin (การสาธิตด้านความปลอดภัย)
 
-เริ่มต้นด้วยการรวมระบบแบบตรงเพื่อสร้าง baseline จากนั้นจึงแทรก F5 XC เมื่อพร้อม
+เริ่มต้นด้วยการเชื่อมต่อโดยตรงเพื่อสร้างพื้นฐาน จากนั้นแทรก F5 XC เมื่อพร้อม
 
 ## ข้อมูลอ้างอิง Origin Server
 
-คอมโพเนนต์แล็บ [origin-server](https://f5xc-salesdemos.github.io/origin-server/) ให้บริการเว็บแอปพลิเคชันที่มีช่องโหว่สำหรับการทดสอบด้านความปลอดภัย
+คอมโพเนนต์แล็บ [origin-server](https://f5xc-salesdemos.github.io/origin-server/) ให้บริการเว็บแอปพลิเคชันที่มีช่องโหว่สำหรับการทดสอบความปลอดภัย
 
 | คุณสมบัติ | ค่า |
 |---|---|
@@ -30,7 +30,7 @@ i18n:
 | พอร์ตเริ่มต้น | 80 |
 | Health Check | `GET /health` |
 
-### แอปพลิเคชันที่ให้บริการ
+### แอปพลิเคชันที่มีให้บริการ
 
 ดึงรายการแอปพลิเคชันปัจจุบันจาก manifest ที่เผยแพร่ของ origin-server:
 
@@ -40,13 +40,13 @@ MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-serv
 curl -sf "$MANIFEST_URL" | python3 -m json.tool
 ```
 
-หากยังไม่มี release ให้ใช้ซอร์สจาก repository โดยตรง:
+หากยังไม่มี release ให้ใช้แหล่งข้อมูลจาก repository โดยตรง:
 
 ```bash
 curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
 ```
 
-manifest จะแสดงรายการ application paths, health checks, container images และการเชื่อมโยงฟีเจอร์สาธิตทั้งหมด
+manifest จะแสดงรายการเส้นทางแอปพลิเคชันทั้งหมด, health check, container image และการจับคู่ฟีเจอร์สาธิต
 
 ### เส้นทางแอปพลิเคชัน
 
@@ -61,7 +61,7 @@ manifest จะแสดงรายการ application paths, health checks, 
 | `/whoami/` | whoami | การตรวจสอบ Header |
 | `/csd-demo/` | CSD Demo | Client-Side Defense |
 
-## ขั้นตอนที่ 1: การรวมระบบแบบตรง (Baseline)
+## ขั้นตอนที่ 1: การเชื่อมต่อโดยตรง (พื้นฐาน)
 
 ```
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
@@ -75,7 +75,7 @@ manifest จะแสดงรายการ application paths, health checks, 
 
 ### กำหนดค่า Origin
 
-ตั้งค่า IP ของ origin server ในการตั้งค่า NGINX ของ CDN edge:
+ตั้งค่า IP ของ origin server ในการกำหนดค่า NGINX ของ CDN edge:
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -122,11 +122,11 @@ curl -sf "http://$CDN/whoami/"
 curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
 ```
 
-เส้นทางทั้งหมดควรคืนค่า HTTP 200 (DVWA คืนค่า 302 จากนั้น 200 เมื่อติดตาม redirect)
+เส้นทางทั้งหมดควรส่งคืน HTTP 200 (DVWA ส่งคืน 302 จากนั้น 200 เมื่อติดตาม redirect)
 
-### ตรวจสอบ CDN Headers ที่ Origin
+### ตรวจสอบ CDN Header ที่ Origin
 
-endpoint `/whoami/` แสดง header ทุกตัวที่ origin ได้รับ เมื่อเข้าถึงผ่าน CDN จะแสดง vendor headers มากกว่า 67 ตัว:
+endpoint `/whoami/` จะแสดง header ทุกรายการที่ origin ได้รับ เมื่อเข้าถึงผ่าน CDN จะแสดง vendor header ทั้ง 67+ รายการ:
 
 ```bash
 curl -sf "http://$CDN/whoami/"
@@ -143,9 +143,9 @@ curl -sf "http://$CDN/whoami/"
 | Fastly | `Fastly-Client-Ip` | `<your_ip>` |
 | Azure FD | `X-Azure-Clientip` | `<your_ip>` |
 
-### ตรวจสอบข้ามอ้างอิงกับ Logs
+### เปรียบเทียบ Log
 
-เปรียบเทียบ access logs บนเซิร์ฟเวอร์ทั้งสองเพื่อตรวจสอบ traffic flow:
+เปรียบเทียบ access log บนเซิร์ฟเวอร์ทั้งสองเครื่องเพื่อตรวจสอบการไหลของทราฟฟิก:
 
 ```bash
 # CDN edge log — shows your client IP as source
@@ -155,9 +155,9 @@ ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
 ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
 ```
 
-origin log ควรแสดง CDN edge IP เป็นไคลเอนต์ที่เชื่อมต่อ ในขณะที่ IP จริงของไคลเอนต์จะอยู่ใน `X-Forwarded-For` และ vendor-specific headers
+log ของ origin ควรแสดง IP ของ CDN edge เป็นไคลเอนต์ที่เชื่อมต่อ ในขณะที่ IP จริงของไคลเอนต์จะถูกส่งผ่าน `X-Forwarded-For` และ header เฉพาะผู้ให้บริการ
 
-### พฤติกรรมการ Cache
+### พฤติกรรมแคช
 
 ```bash
 # First request — MISS (fetched from origin)
@@ -169,7 +169,7 @@ curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 
 ## ขั้นตอนที่ 2: การแทรก F5 XC (การสาธิตด้านความปลอดภัย)
 
-หลังจากทดสอบ baseline แล้ว ให้แทรก F5 XC HTTP load balancer ระหว่าง CDN และ origin:
+หลังจากทดสอบพื้นฐานแล้ว ให้แทรก F5 XC HTTP load balancer ระหว่าง CDN และ origin:
 
 ```
 ┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
@@ -178,7 +178,7 @@ curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 └──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-1. **สร้าง F5 XC HTTP load balancer** โดยมี origin server อยู่ใน origin pool
+1. **สร้าง F5 XC HTTP load balancer** โดยมี origin server ใน origin pool
 2. **อัปเดต CDN edge** ให้ชี้ไปที่ F5 XC VIP แทนที่จะชี้ไปที่ origin โดยตรง:
 
 ```bash
@@ -188,7 +188,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-3. **ตรวจสอบการบังคับใช้ WAF** ตลอดทั้ง chain:
+3. **ตรวจสอบการบังคับใช้ WAF** ตลอดทั้งห่วงโซ่:
 
 ```bash
 # SQL injection through CDN → F5 XC WAF should block
@@ -198,14 +198,14 @@ curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
 curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 ```
 
-4. **กำหนดค่า Trusted Client IP Header** ใน F5 XC เพื่ออ่าน IP จริงของไคลเอนต์จาก CDN headers (เช่น `True-Client-IP` สำหรับการจำลอง Akamai, `CF-Connecting-IP` สำหรับการจำลอง Cloudflare)
+4. **กำหนดค่า Trusted Client IP Header** ใน F5 XC เพื่ออ่าน IP จริงของไคลเอนต์จาก CDN header (เช่น `True-Client-IP` สำหรับการจำลอง Akamai, `CF-Connecting-IP` สำหรับการจำลอง Cloudflare)
 
-## สถาปัตยกรรมหลายคอมโพเนนต์
+## สถาปัตยกรรมแบบหลายคอมโพเนนต์
 
 | คอมโพเนนต์ | Repository | วัตถุประสงค์ |
 |---|---|---|
-| **CDN Edge** (นี้) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | การ cache, vendor headers |
+| **CDN Edge** (นี้) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | แคช, vendor header |
 | **Origin Server** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | เว็บแอปที่มีช่องโหว่ |
-| **F5 XC Config** | หลากหลาย (waf, api-protection, bot-*, ฯลฯ) | นโยบายความปลอดภัย |
+| **F5 XC Config** | หลายรายการ (waf, api-protection, bot-*, เป็นต้น) | นโยบายความปลอดภัย |
 
-แต่ละคอมโพเนนต์เผยแพร่เอกสารที่ AI assistants อ่านเพื่อ deploy โครงสร้างพื้นฐาน origin-server เผยแพร่ [endpoint manifest](https://github.com/f5xc-salesdemos/origin-server/releases/latest) เป็น GitHub Release artifact ที่แสดงรายการ application paths และ health checks ทั้งหมด
+แต่ละคอมโพเนนต์เผยแพร่เอกสารที่ AI assistant อ่านเพื่อ deploy โครงสร้างพื้นฐาน origin-server เผยแพร่ [endpoint manifest](https://github.com/f5xc-salesdemos/origin-server/releases/latest) เป็น GitHub Release artifact ที่แสดงรายการเส้นทางแอปพลิเคชันและ health check ทั้งหมด

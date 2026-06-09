@@ -1,10 +1,11 @@
 ---
-title: Verify
+title: Vérification
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  Commandes de test de fumée avec les codes de réponse HTTP attendus, les
+  valeurs d'en-tête X-Cache-Status (HIT/MISS), la réponse JSON de vérification
+  de santé, l'inspection du répertoire de cache, les vérifications de
+  connectivité à l'origine, et le dépannage pour cloud-init, le démarrage de
+  NGINX et les problèmes de NSG
 sidebar:
   order: 5
 i18n:
@@ -12,7 +13,7 @@ i18n:
   translator: machine
 ---
 
-Après le déploiement, exécutez ces vérifications pour confirmer que le nœud edge du CDN fonctionne correctement. Attendez 2 à 3 minutes après `terraform apply` pour que cloud-init termine l'installation de NGINX.
+Après le déploiement, exécutez ces vérifications pour confirmer que le nœud CDN edge fonctionne correctement. Prévoyez 2 à 3 minutes après `terraform apply` pour que cloud-init termine l'installation de NGINX.
 
 ## Vérification de santé
 
@@ -62,9 +63,9 @@ X-CDN-Edge: cdn-simulator
 
 `MISS` signifie que le contenu n'était pas en cache et a été récupéré depuis le serveur d'origine.
 
-## Succès de cache (requête suivante)
+## Cache réussi (requête suivante)
 
-Répétez la même requête immédiatement :
+Répétez immédiatement la même requête :
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -77,7 +78,7 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` confirme que la réponse a été servie depuis le cache disque de NGINX sans contacter l'origine.
+`HIT` confirme que la réponse a été servie depuis le cache disque NGINX sans contacter l'origine.
 
 ## Inspection du répertoire de cache
 
@@ -110,7 +111,7 @@ sudo nginx -t
 curl -s http://localhost/health
 ```
 
-## Connectivité avec l'origine
+## Connectivité à l'origine
 
 Vérifiez que le nœud edge peut atteindre le serveur d'origine :
 
@@ -121,7 +122,7 @@ ssh azureuser@<PUBLIC_IP>
 curl -I "https://your-origin.example.com/"
 ```
 
-En cas d'échec, vérifiez :
+Si cela échoue, vérifiez :
 
 1. La variable `origin_server` est correcte dans la configuration Terraform
 2. Le serveur d'origine autorise les connexions entrantes depuis l'IP publique du nœud edge
@@ -135,7 +136,7 @@ Surveillez la progression du provisionnement via le journal cloud-init :
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 ```
 
-Phases attendues : `[init]`, `[nic]` (détection dynamique de la carte réseau), `[complete]`.
+Phases attendues : `[init]`, `[nic]` (détection dynamique de la NIC), `[complete]`.
 
 Si cloud-init signale des erreurs :
 
@@ -145,7 +146,7 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 
 ## Test de bout en bout
 
-Exécutez un cycle complet de requêtes et vérifiez la chaîne de réponse :
+Exécutez un cycle complet de requête et vérifiez la chaîne de réponse :
 
 ```bash
 # Première requête — MISS (récupération depuis l'origine)
@@ -168,7 +169,7 @@ HTTP 200 | Cache: HIT
 
 ## Vérification des en-têtes des fournisseurs
 
-Vérifiez que tous les en-têtes des fournisseurs CDN sont injectés en interrogeant le chemin `/headers` (lorsque httpbin.org est utilisé comme origine) :
+Vérifiez que tous les en-têtes des fournisseurs CDN sont injectés en effectuant une requête vers le chemin `/headers` (lors de l'utilisation de httpbin.org comme origine) :
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
@@ -217,7 +218,7 @@ Résultat attendu :
 
 ## Dépannage
 
-### NGINX n'est pas en cours d'exécution
+### NGINX ne fonctionne pas
 
 ```bash
 ssh azureuser@<PUBLIC_IP>

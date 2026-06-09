@@ -1,9 +1,8 @@
 ---
 title: 先決條件
 description: >-
-  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
-  permissions, and Azure AD requirements for deploying the performance-optimized
-  CDN edge node VM
+  部署效能最佳化 CDN 邊緣節點 VM 所需的工具（Azure CLI、Terraform >= 1.5、SSH 金鑰對）、Azure 訂閱權限及
+  Azure AD 需求
 sidebar:
   order: 2
 i18n:
@@ -15,7 +14,7 @@ i18n:
 
 ### Azure 訂閱
 
-具有以下資源建立權限的有效 Azure 訂閱：
+一個有效的 Azure 訂閱，且具備建立以下資源的權限：
 
 - 資源群組
 - 虛擬網路和子網路
@@ -63,17 +62,17 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 ### Azure AD 權限
 
-您的 Azure AD 帳戶必須具有 `User.Read` 權限。部署者識別碼（用於資源命名）會自動從您的 Azure AD 設定檔中取得。若使用服務主體或受控識別驗證，請明確設定 `deployer` Terraform 變數。
+您的 Azure AD 帳戶必須具備 `User.Read` 權限。部署者識別碼（用於資源命名）會自動從您的 Azure AD 設定檔中取得。若使用服務主體或受控識別進行驗證，請明確設定 `deployer` Terraform 變數。
 
 ## 選用條件
 
 ### 自訂網域
 
-如果您希望使用正式的 TLS 憑證而非自我簽署憑證：
+如果您希望使用真正的 TLS 憑證而非自我簽署憑證：
 
-- 具有 DNS 控制權的網域名稱
+- 一個具備 DNS 控制權的網域名稱
 - 能夠建立指向 Azure 公用 IP 的 A 記錄
 
 ### 來源伺服器 URL
 
-此邊緣節點將轉發流量的 F5 XC HTTP 負載平衡器 URL。此設定可在部署後進行配置——預設的 NGINX 設定使用預留位置，您可在 NGINX 配置中進行更新。
+此邊緣節點將轉送流量的 F5 XC HTTP 負載平衡器 URL。這可以在部署後進行設定——預設的 NGINX 設定使用一個預留位置，您可以在 NGINX 設定中進行更新。

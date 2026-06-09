@@ -1,5 +1,5 @@
 ---
-title: CDN Simulator
+title: Simulatore CDN
 description: >-
   NGINX-based CDN edge node simulator that injects realistic headers from
   Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys
@@ -11,16 +11,16 @@ sidebar:
   hidden: true
 hero:
   tagline: >-
-    Deploy a functional CDN edge node in Azure for integration testing with F5
-    Distributed Cloud.
+    Distribuisci un nodo edge CDN funzionale in Azure per i test di integrazione
+    con F5 Distributed Cloud.
   image:
     html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
   actions:
-    - text: Get Started
+    - text: Inizia
       link: 01-overview/
       icon: right-arrow
       variant: primary
-    - text: Deploy Now
+    - text: Distribuisci Ora
       link: 03-deploy/
       icon: rocket
       variant: minimal
@@ -31,10 +31,10 @@ i18n:
 
 ## Cosa Offre
 
-- **[Singolo Nodo Edge](01-overview/)** — Una VM Ubuntu 24.04 che esegue NGINX come reverse proxy con caching, il minimo indispensabile per un edge CDN
+- **[Singolo Nodo Edge](01-overview/)** — Una VM Ubuntu 24.04 che esegue NGINX come reverse proxy con cache, il minimo CDN edge funzionante
 - **[Distribuzione Terraform](03-deploy/)** — Infrastruttura Azure completa come codice: VNet, PIP, NSG e VM con provisioning cloud-init
-- **[67+ Header CDN Multi-Vendor](04-nginx-config/)** — Simula gli header di richiesta di Akamai, Cloudflare, CloudFront, Fastly e Azure Front Door, inclusi True-Client-IP, CF-Connecting-IP, geolocalizzazione, rilevamento dispositivo, fingerprint JA3/JA4 e punteggi bot
-- **[Integrazione con l'Origin](06-integrate/)** — Configura l'edge per inoltrare i cache miss a un HTTP load balancer F5 XC come origin
+- **[67+ Header di Vendor CDN](04-nginx-config/)** — Simula gli header di richiesta di Akamai, Cloudflare, CloudFront, Fastly e Azure Front Door, inclusi True-Client-IP, CF-Connecting-IP, geolocalizzazione, rilevamento dispositivo, fingerprint JA3/JA4 e punteggi bot
+- **[Integrazione Origin](06-integrate/)** — Configura l'edge per inoltrare i cache miss a un bilanciatore di carico HTTP F5 XC come origin
 - **[Verifica della Cache](05-verify/)** — Valida il comportamento HIT/MISS con gli header X-Cache-Status e l'ispezione della cache NGINX
 
 ## Riferimento Rapido
@@ -44,27 +44,27 @@ Dopo la distribuzione, il nodo edge CDN espone:
 | Endpoint | Metodo | Scopo |
 |---|---|---|
 | `http://<PUBLIC_IP>/health` | GET | Health check — restituisce JSON con stato dei componenti e profili vendor |
-| `http://<PUBLIC_IP>/` | GET | Proxy CDN — memorizza in cache e inoltra le richieste al server origin |
-| `http://<PUBLIC_IP>/<any-path>` | GET | Proxy CDN — tutti i percorsi sono proxati con caching e header vendor |
+| `http://<PUBLIC_IP>/` | GET | Proxy CDN — mette in cache e inoltra le richieste al server origin |
+| `http://<PUBLIC_IP>/<any-path>` | GET | Proxy CDN — tutti i percorsi vengono inoltrati tramite proxy con cache e header vendor |
 
-Header di risposta aggiunti a ogni risposta proxata:
+Header di risposta aggiunti a ogni risposta inoltrata tramite proxy:
 
 | Header | Esempio | Scopo |
 |---|---|---|
 | `X-Cache-Status` | `HIT` o `MISS` | Indica se la risposta è stata servita dalla cache |
 | `X-CDN-Edge` | `cdn-simulator` | Identifica questo nodo edge |
 | `X-CDN-POP` | `SJC` | Codice simulato del Point of Presence |
-| `X-Served-By` | `cache-sjc3120-SJC` | Identificativo simulato del nodo cache |
-| `X-Request-ID` | UUID | Identificativo univoco per richiesta |
+| `X-Served-By` | `cache-sjc3120-SJC` | Identificatore simulato del nodo cache |
+| `X-Request-ID` | UUID | Identificatore univoco per richiesta |
 
 ## Guida alla Documentazione
 
 | Pagina | Destinatari | Scopo |
 |---|---|---|
-| [Panoramica](01-overview/) | Umani + AI | Architettura, contesto multi-vendor, cosa viene simulato |
-| [Prerequisiti](02-prerequisites/) | AI | Strumenti richiesti, sottoscrizione Azure, chiavi SSH, stima dei costi |
+| [Panoramica](01-overview/) | Umano + AI | Architettura, contesto multi-vendor, cosa viene simulato |
+| [Prerequisiti](02-prerequisites/) | AI | Strumenti necessari, sottoscrizione Azure, chiavi SSH, stima dei costi |
 | [Distribuzione](03-deploy/) | AI | HCL Terraform completo — copia e applica per distribuire |
-| [Configurazione NGINX](04-nginx-config/) | Umani + AI | Tutti i 67+ header CDN vendor con valori esatti e relativi scopi |
+| [Configurazione NGINX](04-nginx-config/) | Umano + AI | Tutti i 67+ header CDN vendor con valori esatti e scopi |
 | [Verifica](05-verify/) | AI | Comandi di smoke test con comportamento atteso di richiesta/risposta |
-| [Integrazione con F5 XC](06-integrate/) | Umani + AI | Connetti l'edge a F5 XC come origin, verifica end-to-end |
-| [Dismissione](07-teardown/) | AI | Distruggi tutte le risorse, comandi di pulizia |
+| [Integrazione con F5 XC](06-integrate/) | Umano + AI | Connetti l'edge a F5 XC come origin, verifica end-to-end |
+| [Smantellamento](07-teardown/) | AI | Distruggi tutte le risorse, comandi di pulizia |

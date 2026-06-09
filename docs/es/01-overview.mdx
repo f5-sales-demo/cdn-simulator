@@ -13,7 +13,7 @@ i18n:
 
 ## Propósito
 
-Este componente simula un nodo edge CDN para entornos de laboratorio y demostración. Representa el rol que proveedores como Akamai, Cloudflare, Amazon CloudFront o Fastly desempeñan en la arquitectura de red de un cliente — la capa de caché más cercana a los usuarios finales que se sitúa frente a un servidor de origen.
+Este componente simula un nodo edge CDN para entornos de laboratorio y demostración. Representa el rol que proveedores como Akamai, Cloudflare, Amazon CloudFront o Fastly desempeñan en la arquitectura de red de un cliente — la capa de caché más cercana a los usuarios finales que se sitúa delante de un servidor de origen.
 
 En arquitecturas de producción multi-proveedor, los clientes comúnmente combinan un CDN de terceros con F5 Distributed Cloud:
 
@@ -21,7 +21,7 @@ En arquitecturas de producción multi-proveedor, los clientes comúnmente combin
 End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
-Este simulador reemplaza el CDN comercial con un nodo edge basado en NGINX para que la integración pueda ser demostrada y probada sin contratos de proveedores ni infraestructura de producción.
+Este simulador reemplaza el CDN comercial con un nodo edge basado en NGINX para que la integración pueda demostrarse y probarse sin contratos de proveedores ni infraestructura de producción.
 
 ## Arquitectura
 
@@ -37,22 +37,22 @@ Este simulador reemplaza el CDN comercial con un nodo edge basado en NGINX para 
 
 El nodo edge NGINX:
 
-- **Termina TLS** en el edge (autofirmado o Let's Encrypt)
+- **Termina TLS** en el edge (certificado autofirmado o Let's Encrypt)
 - **Almacena respuestas en caché** en disco usando `proxy_cache_path`
 - **Reenvía fallos de caché** a un servidor de origen configurable (el VIP del balanceador de carga HTTP de F5 XC)
-- **Reporta el estado de caché** mediante el encabezado de respuesta `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
+- **Reporta el estado de la caché** mediante el encabezado de respuesta `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
 
-## Qué simula este componente
+## Qué simula esto
 
 | Función CDN | Implementación NGINX |
 |---|---|
 | Caché en el edge | `proxy_cache` con almacenamiento basado en disco |
-| Generación de clave de caché | `proxy_cache_key` basada en esquema, host y URI |
-| Obtención desde origen | `proxy_pass` al balanceador de carga HTTP de F5 XC |
+| Generación de clave de caché | `proxy_cache_key` basado en esquema, host y URI |
+| Extracción desde origen | `proxy_pass` al balanceador de carga HTTP de F5 XC |
 | Terminación TLS | Directiva `ssl_certificate` de NGINX |
 | Respeto de Cache-Control | `proxy_cache_valid` con paso de encabezados del origen |
 | Reporte de estado de caché | `add_header X-Cache-Status $upstream_cache_status` |
-| Endpoint de salud | Ubicación `/health` que retorna 200 OK |
+| Endpoint de salud | Ubicación `/health` que devuelve 200 OK |
 
 ## Endpoints y comportamiento de solicitud/respuesta
 
@@ -92,7 +92,7 @@ Encabezados de solicitud inyectados hacia el origen (más de 67 encabezados de 5
 | Identidad del edge | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
 | Estándar | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
 
-Encabezados de respuesta añadidos a cada respuesta proxied:
+Encabezados de respuesta añadidos a cada respuesta proxificada:
 
 | Encabezado | Valores | Propósito |
 |---|---|---|
@@ -102,13 +102,13 @@ Encabezados de respuesta añadidos a cada respuesta proxied:
 | `X-Served-By` | `cache-sjc3120-SJC` | Nodo de caché simulado en formato Fastly |
 | `X-Request-ID` | UUID (por solicitud) | Identificador único de solicitud |
 
-### Comportamiento de caché
+### Comportamiento de la caché
 
-- Primera solicitud a cualquier ruta: `X-Cache-Status: MISS` (obtenida del origen, ahora en caché)
-- Solicitudes idénticas subsiguientes: `X-Cache-Status: HIT` (servida desde la caché en disco)
+- Primera solicitud a cualquier ruta: `X-Cache-Status: MISS` (obtenida del origen, ahora almacenada en caché)
+- Solicitudes idénticas posteriores: `X-Cache-Status: HIT` (servida desde la caché en disco)
 - Clave de caché: `$scheme$host$request_uri` (esquema + nombre de host + ruta completa + cadena de consulta)
 - TTL de caché: 10 minutos para 200/301/302, 1 minuto para 404
-- Servicio obsoleto: retorna contenido en caché ante errores del origen (500/502/503/504)
+- Servicio de contenido obsoleto: devuelve contenido en caché ante errores del origen (500/502/503/504)
 
 ### Acceso a la VM
 
@@ -116,9 +116,9 @@ Encabezados de respuesta añadidos a cada respuesta proxied:
 |---|---|
 | SSH | `ssh azureuser@<PUBLIC_IP>` |
 | Configuración de NGINX | `/etc/nginx/conf.d/cdn-edge.conf` |
-| Logs de NGINX | `/var/log/nginx/access.log` y `/var/log/nginx/error.log` |
+| Registros de NGINX | `/var/log/nginx/access.log` y `/var/log/nginx/error.log` |
 | Directorio de caché | `/var/cache/nginx/cdn/` |
-| Log de cloud-init | `/var/log/cloud-init-output.log` |
+| Registro de cloud-init | `/var/log/cloud-init-output.log` |
 
 ## Diseño modular de componentes
 
@@ -133,8 +133,8 @@ El operador humano añade componentes uno a la vez. La documentación de cada co
 
 NGINX fue seleccionado como el motor de simulación CDN porque:
 
-1. **Producto de F5** — F5 adquirió NGINX Inc. en 2019; es parte del portafolio de F5
-2. **Probado en la industria** — Cloudflare ejecutó todo su CDN sobre NGINX durante más de una década antes de migrar a Pingora; Netflix usa NGINX para su CDN Open Connect
+1. **Producto de F5** — F5 adquirió NGINX Inc. en 2019; forma parte del portafolio de F5
+2. **Probado en la industria** — Cloudflare ejecutó todo su CDN sobre NGINX durante más de una década antes de migrar a Pingora; Netflix utiliza NGINX para su CDN Open Connect
 3. **Proceso único** — gestiona la terminación TLS y el almacenamiento en caché en un solo binario, a diferencia de Varnish que requiere un proxy TLS separado
 4. **Despliegue sencillo** — `apt install nginx` en Ubuntu 24.04, dos directivas habilitan el almacenamiento en caché
 5. **Bien documentado** — documentación oficial extensa para almacenamiento en caché de contenido y configuración de proxy inverso

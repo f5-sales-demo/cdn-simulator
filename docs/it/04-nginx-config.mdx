@@ -1,11 +1,12 @@
 ---
 title: Configurazione NGINX
 description: >-
-  Production-optimized NGINX configuration reference — performance tuning
-  (kernel, buffers, keepalive, gzip, open_file_cache), 25 GB disk cache with
-  thundering herd prevention, upstream keepalive pool, 67+ CDN vendor headers
-  from Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door, and device
-  detection. Verified under 48-hour load test at 170K req/s peak.
+  Riferimento per la configurazione NGINX ottimizzata per la produzione —
+  ottimizzazione delle prestazioni (kernel, buffer, keepalive, gzip,
+  open_file_cache), cache su disco da 25 GB con prevenzione del thundering herd,
+  pool di keepalive upstream, oltre 67 header di vendor CDN da
+  Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door e rilevamento
+  dispositivi. Verificato con test di carico di 48 ore a un picco di 170K req/s.
 sidebar:
   order: 4
 i18n:
@@ -13,39 +14,39 @@ i18n:
   translator: machine
 ---
 
-Il provisioning cloud-init distribuisce una configurazione NGINX CDN edge completamente ottimizzata per le prestazioni. Questa pagina documenta ogni livello di configurazione, dal tuning del kernel al comportamento della cache fino all'iniezione degli header dei vendor. Tutte le impostazioni sono state verificate durante un test di carico continuo di 48 ore con un picco di 172.540 req/s.
+Il provisioning cloud-init distribuisce una configurazione edge CDN NGINX completamente ottimizzata per le prestazioni. Questa pagina documenta ogni livello di configurazione, dall'ottimizzazione del kernel al comportamento della cache fino all'iniezione degli header dei vendor. Tutte le impostazioni sono state verificate con un test di carico continuo di 48 ore con picchi di 172.540 req/s.
 
 ## File di configurazione
 
 | File | Scopo |
 |---|---|
-| `/etc/sysctl.d/99-cdn-tuning.conf` | Tuning di rete del kernel Linux |
+| `/etc/sysctl.d/99-cdn-tuning.conf` | Ottimizzazione di rete del kernel Linux |
 | `/etc/systemd/system/nginx.service.d/override.conf` | Limiti dei file descriptor per NGINX |
-| `/etc/security/limits.d/99-nginx.conf` | Limiti a livello OS per l'utente www-data |
+| `/etc/security/limits.d/99-nginx.conf` | Limiti a livello di sistema operativo per l'utente www-data |
 | `/etc/nginx/nginx.conf` | Configurazione principale NGINX (worker, buffer, gzip, logging) |
 | `/etc/nginx/conf.d/cdn-edge.conf` | Configurazione proxy CDN (cache, upstream, header) |
 
-## Tuning del kernel
+## Ottimizzazione del kernel
 
-Applicato tramite `/etc/sysctl.d/99-cdn-tuning.conf` all'avvio.
+Applicata tramite `/etc/sysctl.d/99-cdn-tuning.conf` all'avvio.
 
 | Parametro | Valore | Default | Scopo |
 |---|---|---|---|
-| `net.core.somaxconn` | 65535 | 4096 | Dimensione della coda di backlog del listen |
-| `net.core.netdev_max_backlog` | 65535 | 1000 | Backlog dei pacchetti in ingresso per CPU |
-| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | Coda delle richieste SYN (previene la perdita di pacchetti sotto burst) |
-| `net.ipv4.tcp_tw_reuse` | 1 | 2 | Riutilizzo dei socket TIME_WAIT per connessioni in uscita |
+| `net.core.somaxconn` | 65535 | 4096 | Dimensione della coda di backlog in ascolto |
+| `net.core.netdev_max_backlog` | 65535 | 1000 | Backlog dei pacchetti in arrivo per CPU |
+| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | Coda delle richieste SYN (previene le perdite durante i picchi) |
+| `net.ipv4.tcp_tw_reuse` | 1 | 2 | Riutilizzo dei socket TIME_WAIT per le connessioni in uscita |
 | `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | Range delle porte effimere (64K vs 28K) |
-| `net.core.rmem_max` | 16 MB | 212 KB | Buffer massimo del socket di ricezione |
-| `net.core.wmem_max` | 16 MB | 212 KB | Buffer massimo del socket di invio |
+| `net.core.rmem_max` | 16 MB | 212 KB | Buffer massimo del socket in ricezione |
+| `net.core.wmem_max` | 16 MB | 212 KB | Buffer massimo del socket in invio |
 | `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | Buffer di ricezione per socket (min/default/max) |
 | `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | Buffer di invio per socket (min/default/max) |
-| `net.ipv4.tcp_fin_timeout` | 15 | 60 | Timeout FIN_WAIT_2 (pulizia socket più rapida) |
-| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | Avvia i probe keepalive dopo 5 min di inattività |
-| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | Mantiene la finestra di congestione attiva sulle connessioni inattive |
-| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | Numero massimo di socket TIME_WAIT |
-| `fs.file-max` | 2097152 | variabile | Limite dei file descriptor a livello di sistema |
-| `vm.swappiness` | 10 | 60 | Preferisce la RAM allo swap per i dati della cache |
+| `net.ipv4.tcp_fin_timeout` | 15 | 60 | Timeout FIN_WAIT_2 (pulizia dei socket più rapida) |
+| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | Avvio sonde keepalive dopo 5 min di inattività |
+| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | Mantiene calda la finestra di congestione sulle connessioni inattive |
+| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | Socket TIME_WAIT massimi |
+| `fs.file-max` | 2097152 | varia | Limite dei file descriptor a livello di sistema |
+| `vm.swappiness` | 10 | 60 | Preferisce la RAM allo swap per i dati in cache |
 
 ## Configurazione principale NGINX
 
@@ -63,9 +64,9 @@ events {
 }
 ```
 
-L'override di Systemd in `/etc/systemd/system/nginx.service.d/override.conf` imposta `LimitNOFILE=65535` per coerenza.
+L'override di systemd in `/etc/systemd/system/nginx.service.d/override.conf` imposta `LimitNOFILE=65535` per la corrispondenza.
 
-### Buffer del proxy
+### Buffer proxy
 
 ```nginx
 proxy_buffering on;
@@ -74,7 +75,7 @@ proxy_buffers 64 16k;            # 1 MB per connection (64 x 16k)
 proxy_busy_buffers_size 256k;    # Can send 256k to client while still reading
 ```
 
-La dimensione del busy buffer di 256k è critica — deve superare la risposta memorizzata in cache più grande (Juice Shop è 75 KB). L'impostazione originale di 64k causava serializzazione sotto carico.
+La dimensione del busy buffer di 256k è critica — deve superare la risposta in cache più grande (Juice Shop è 75 KB). L'impostazione originale di 64k causava serializzazione sotto carico.
 
 ### Compressione Gzip
 
@@ -100,7 +101,7 @@ open_file_cache_min_uses 2;
 open_file_cache_errors on;
 ```
 
-Memorizza in cache i file descriptor e i metadati degli oggetti nella cache, eliminando le chiamate di sistema `stat()` e `open()` sui file più richiesti.
+Memorizza in cache i file descriptor e i metadati degli oggetti nella cache, eliminando le syscall `stat()` e `open()` sui file più richiesti.
 
 ### Keepalive del client
 
@@ -109,7 +110,7 @@ keepalive_timeout 65;
 keepalive_requests 100000;       # Was 1000 — caused connection recycling at 90K req/s
 ```
 
-A 90K req/s con `keepalive_requests 1000`, le connessioni venivano riciclate ogni 11 secondi, generando socket TIME_WAIT. L'aumento a 100.000 ha eliminato completamente questo problema.
+A 90K req/s con `keepalive_requests 1000`, le connessioni si riciclavano ogni 11 secondi, generando socket TIME_WAIT. L'aumento a 100.000 ha eliminato completamente questo problema.
 
 ### Logging degli accessi
 
@@ -118,7 +119,7 @@ log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $
 access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
 ```
 
-Il formato di log `cdn` include `$upstream_cache_status` (HIT/MISS) e `$request_time` per l'analisi della latenza. Il logging con buffer (256k/flush ogni 5s) riduce il sovraccarico I/O sotto alto carico.
+Il formato di log `cdn` include `$upstream_cache_status` (HIT/MISS) e `$request_time` per l'analisi della latenza. Il logging con buffer (256k/flush ogni 5s) riduce l'overhead di I/O sotto carico elevato.
 
 ## Keepalive upstream
 
@@ -131,7 +132,7 @@ upstream origin_backend {
 }
 ```
 
-Con 4 worker x 256 keepalive = 1.024 connessioni attive verso l'origin. Combinato con `proxy_http_version 1.1` e `proxy_set_header Connection ""`, questo elimina il sovraccarico dell'handshake TCP su ogni cache miss.
+Con 4 worker x 256 keepalive = 1.024 connessioni calde verso l'origin. Combinato con `proxy_http_version 1.1` e `proxy_set_header Connection ""`, questo elimina l'overhead dell'handshake TCP ad ogni cache miss.
 
 ## Configurazione della cache
 
@@ -149,9 +150,9 @@ proxy_cache_path /var/cache/nginx/cdn
 | Parametro | Valore | Scopo |
 |---|---|---|
 | `keys_zone=cdn_cache:32m` | 32 MB di memoria condivisa | Memorizza circa 256.000 chiavi di cache e metadati |
-| `max_size=25g` | Limite disco di 25 GB | Utilizza la maggior parte del disco OS da 30 GB; eviction LRU al raggiungimento del limite |
-| `inactive=24h` | Timeout di inattività di 24 ore | Il contenuto non acceduto per 24h viene rimosso (non è lo stesso del TTL) |
-| `use_temp_path=off` | Scrittura diretta nella directory della cache | Evita gli spostamenti di file tra filesystem diversi |
+| `max_size=25g` | Limite disco di 25 GB | Utilizza la maggior parte del disco OS da 30 GB; evizione LRU al raggiungimento del limite |
+| `inactive=24h` | Timeout di inattività di 24 ore | Il contenuto non accesso per 24 ore viene rimosso (non è la stessa cosa del TTL) |
+| `use_temp_path=off` | Scrittura diretta nella directory della cache | Evita spostamenti di file tra filesystem diversi |
 
 ### Comportamento della cache
 
@@ -173,14 +174,14 @@ proxy_hide_header Vary;
 
 | Direttiva | Valore | Scopo |
 |---|---|---|
-| `proxy_cache_valid 200 301 302 4h` | TTL di 4 ore | Contenuto in cache valido per 4 ore (aumentato per ridurre i cali di throughput durante le ondate di aggiornamento) |
+| `proxy_cache_valid 200 301 302 4h` | TTL di 4 ore | Il contenuto in cache è valido per 4 ore (aumentato per ridurre i cali di throughput durante le ondate di aggiornamento) |
 | `proxy_cache_lock on` | Prevenzione del thundering herd | Solo 1 richiesta va all'origin per ogni URL non in cache; le altre attendono il riempimento della cache |
-| `proxy_cache_lock_age 3s` | Timeout del lock | Se la prima richiesta non è completata in 3s, ne viene fatta passare un'altra |
-| `proxy_cache_background_update on` | Aggiornamento a latenza zero | Serve immediatamente il contenuto stale mentre l'aggiornamento avviene in background |
+| `proxy_cache_lock_age 3s` | Timeout del lock | Se la prima richiesta non è completata in 3s, ne viene consentita un'altra |
+| `proxy_cache_background_update on` | Aggiornamento a latenza zero | Serve immediatamente il contenuto stale mentre aggiorna in background |
 | `proxy_cache_use_stale` | Resilienza | Serve contenuto stale durante errori dell'origin (500/502/503/504) o durante l'aggiornamento |
-| `proxy_ignore_headers` | Forzare il caching | Ignora Set-Cookie, Cache-Control, Expires, Vary dell'origin — il CDN decide il comportamento di TTL e Vary (Juice Shop invia `max-age=0` e tripli header `Vary` che impedivano un caching efficace) |
-| `proxy_hide_header X-Cache-Status` | Rimuove l'header dell'origin | L'NGINX dell'origin aggiunge il proprio X-Cache-Status — viene rimosso affinché sia visibile solo lo stato della cache del CDN |
-| `proxy_hide_header Vary` | Previene la frammentazione della cache | L'origin invia molteplici header `Vary: Accept-Encoding`. Rimuoverli previene la frammentazione delle chiavi di cache tra le permutazioni di `Accept-Encoding`. La direttiva `gzip_vary on` di NGINX aggiunge automaticamente il singolo header `Vary` corretto |
+| `proxy_ignore_headers` | Forzare il caching | Ignora Set-Cookie, Cache-Control, Expires, Vary dall'origin — il CDN decide il TTL e il comportamento di Vary (Juice Shop invia `max-age=0` e tripli header `Vary` che impedivano un caching efficace) |
+| `proxy_hide_header X-Cache-Status` | Rimozione header dell'origin | L'NGINX di origin aggiunge il proprio X-Cache-Status — viene rimosso affinché sia visibile solo lo stato della cache del CDN |
+| `proxy_hide_header Vary` | Prevenzione della frammentazione della cache | L'origin invia molteplici header `Vary: Accept-Encoding`. La loro rimozione previene la frammentazione delle chiavi di cache tra le permutazioni di `Accept-Encoding`. La direttiva `gzip_vary on` di NGINX aggiunge automaticamente il singolo header `Vary` corretto |
 
 ### Timeout del proxy
 
@@ -190,7 +191,7 @@ proxy_connect_timeout 10s;
 proxy_send_timeout 15s;
 ```
 
-Concede all'origin più tempo di risposta sotto carico pur fallendo rapidamente in caso di problemi di connessione.
+Concede all'origin più tempo di risposta sotto carico, fallendo comunque rapidamente in caso di problemi di connessione.
 
 ### Blocco server
 
@@ -205,9 +206,9 @@ server {
 
 ## Header dei vendor CDN
 
-Il simulatore inietta header di tutti e cinque i principali vendor CDN simultaneamente. Questo consente di configurare F5 XC con il "Trusted Client IP Header" di qualsiasi vendor e di vedere payload di header realistici indipendentemente dal CDN simulato.
+Il simulatore inietta simultaneamente gli header di tutti e cinque i principali vendor CDN. Ciò consente a F5 XC di essere configurato con il "Trusted Client IP Header" di qualsiasi vendor e di vedere payload di header realistici indipendentemente dal CDN simulato.
 
-### Header standard del settore (tutti i CDN)
+### Header standard di settore (tutti i CDN)
 
 | Header | Valore | Scopo |
 |---|---|---|
@@ -225,7 +226,7 @@ Il simulatore inietta header di tutti e cinque i principali vendor CDN simultane
 | Header | Valore | Scopo |
 |---|---|---|
 | `True-Client-IP` | IP del client | Indirizzo IP originale dell'utente finale |
-| `X-Akamai-Edgescape` | Stringa geo composita | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
+| `X-Akamai-Edgescape` | Stringa geo composta | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
 | `X-Akamai-Device-Characteristics` | Proprietà del dispositivo | brand_name, model_name, is_mobile, is_tablet, is_wireless_device, device_os, device_os_version, resolution_width, resolution_height |
 | `X-Akamai-Request-ID` | UUID della richiesta | Identificatore univoco della richiesta |
 
@@ -233,19 +234,19 @@ Il simulatore inietta header di tutti e cinque i principali vendor CDN simultane
 
 | Header | Valore | Scopo |
 |---|---|---|
-| `CF-Connecting-IP` | IP del client | Vero IP del client (sempre presente) |
+| `CF-Connecting-IP` | IP del client | IP reale del client (sempre presente) |
 | `CF-IPCountry` | `US` | Codice paese a due lettere |
 | `cf-ipcity` | `San Jose` | Città del client |
-| `cf-ipcontinent` | `NA` | Codice del continente |
+| `cf-ipcontinent` | `NA` | Codice continente |
 | `cf-iplatitude` / `cf-iplongitude` | Coordinate | Geolocalizzazione |
 | `cf-region` / `cf-region-code` | `California` / `CA` | Informazioni sulla regione |
-| `cf-metro-code` | `807` | Codice metro US |
+| `cf-metro-code` | `807` | Codice metro USA |
 | `cf-postal-code` | `95113` | Codice postale |
 | `cf-timezone` | `America/Los_Angeles` | Fuso orario IANA |
-| `Cf-Ray` | `{request_id}-SJC` | ID ray univoco con codice IATA del POP |
+| `Cf-Ray` | `{request_id}-SJC` | Ray ID univoco con codice IATA del POP |
 | `CF-Visitor` | `{"scheme":"https"}` | Informazioni sul protocollo del visitatore |
 | `cf-bot-score` | `85` | Punteggio bot (1=bot, 99=umano) |
-| `cf-verified-bot` | `false` | Flag di bot verificato |
+| `cf-verified-bot` | `false` | Flag di bot verificato noto |
 | `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | Fingerprint TLS JA3 |
 | `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | Fingerprint TLS JA4 |
 
@@ -253,7 +254,7 @@ Il simulatore inietta header di tutti e cinque i principali vendor CDN simultane
 
 | Header | Valore | Scopo |
 |---|---|---|
-| `CloudFront-Viewer-Address` | `IP:port` | IP del client e porta sorgente |
+| `CloudFront-Viewer-Address` | `IP:porta` | IP del client e porta sorgente |
 | `CloudFront-Viewer-Country` | `US` | Codice paese |
 | `CloudFront-Viewer-Country-Name` | `United States` | Nome completo del paese |
 | `CloudFront-Viewer-Country-Region` | `CA` | Codice regione |
@@ -262,7 +263,7 @@ Il simulatore inietta header di tutti e cinque i principali vendor CDN simultane
 | `CloudFront-Viewer-Postal-Code` | `95113` | Codice postale |
 | `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | Geolocalizzazione |
 | `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | Fuso orario IANA |
-| `CloudFront-Viewer-Metro-Code` | `807` | Codice metro US |
+| `CloudFront-Viewer-Metro-Code` | `807` | Codice metro USA |
 | `CloudFront-Viewer-ASN` | `7018` | Numero di Sistema Autonomo |
 | `CloudFront-Viewer-Http-Version` | `2.0` | Versione HTTP del client |
 | `CloudFront-Forwarded-Proto` | `https` | Protocollo originale |
@@ -278,10 +279,10 @@ Il simulatore inietta header di tutti e cinque i principali vendor CDN simultane
 
 | Header | Valore | Scopo |
 |---|---|---|
-| `Fastly-Client-IP` | IP del client | Vero IP del client |
+| `Fastly-Client-IP` | IP del client | IP reale del client |
 | `Fastly-SSL` | `1` | La connessione era su TLS |
 | `Fastly-Client` | `1` | Richiesta lato client (non shield) |
-| `Fastly-FF` | `cache-sjc3120-SJC` | Identificazione del nodo cache |
+| `Fastly-FF` | `cache-sjc3120-SJC` | Identificazione del nodo di cache |
 | `X-Geo-Country-Code` | `US` | Paese (convenzione variabile VCL) |
 | `X-Geo-Country-Code3` | `USA` | Codice paese a tre lettere |
 | `X-Geo-Country-Name` | `United States` | Nome completo del paese |
@@ -290,7 +291,7 @@ Il simulatore inietta header di tutti e cinque i principali vendor CDN simultane
 | `X-Geo-Continent-Code` | `NA` | Continente |
 | `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | Geolocalizzazione |
 | `X-Geo-Postal-Code` | `95113` | Codice postale |
-| `X-Geo-Metro-Code` | `807` | Codice metro US |
+| `X-Geo-Metro-Code` | `807` | Codice metro USA |
 | `X-Geo-ASN` | `7018` | Numero di Sistema Autonomo |
 | `X-Geo-Conn-Speed` | `broadband` | Classe di velocità della connessione |
 | `X-Geo-Conn-Type` | `wired` | Tipo di connessione |
@@ -303,7 +304,7 @@ Il simulatore inietta header di tutti e cinque i principali vendor CDN simultane
 | `X-Azure-SocketIP` | IP del client | IP sorgente del socket TCP |
 | `X-Azure-Ref` | Stringa di riferimento codificata | Riferimento univoco della richiesta per la risoluzione dei problemi |
 | `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | Identificatore della risorsa Front Door |
-| `X-Azure-RequestChain` | `hops=1` | Conteggio degli hop per il rilevamento dei loop |
+| `X-Azure-RequestChain` | `hops=1` | Conteggio dei salti per il rilevamento dei loop |
 
 ### Header di risposta (aggiunti alle risposte del client)
 
@@ -312,24 +313,24 @@ Il simulatore inietta header di tutti e cinque i principali vendor CDN simultane
 | `X-Cache-Status` | `HIT`, `MISS`, `EXPIRED`, `STALE`, `UPDATING` | Comportamento della cache per questa richiesta |
 | `X-CDN-Edge` | `cdn-simulator` | Identifica questo nodo edge |
 | `X-CDN-POP` | `SJC` | Codice IATA simulato del Point of Presence |
-| `X-Served-By` | `cache-sjc3120-SJC` | Nodo cache simulato in formato Fastly |
+| `X-Served-By` | `cache-sjc3120-SJC` | Nodo di cache simulato in formato Fastly |
 | `X-Request-ID` | UUID (per richiesta) | Identificatore univoco della richiesta |
 
-## Rilevamento del dispositivo
+## Rilevamento dispositivi
 
 Il simulatore rileva il tipo di dispositivo dall'header `User-Agent` utilizzando le direttive `map` di NGINX:
 
 - **Mobile**: Corrisponde a iPhone, Android (non tablet), iPod, BlackBerry, Opera Mini, IEMobile
 - **Tablet**: Corrisponde a iPad, tablet Android, Kindle, PlayBook
-- **Desktop**: Predefinito quando né mobile né tablet corrispondono
+- **Desktop**: Default quando non corrisponde né mobile né tablet
 
-Il tipo di dispositivo è riflesso in:
+Il tipo di dispositivo si riflette in:
 - `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
 - `X-Akamai-Device-Characteristics` (campi `is_mobile`, `is_tablet`, `is_wireless_device`)
 
 ## Operazioni
 
-### Modifica del server origin
+### Modifica del server di origine
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -342,9 +343,9 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Oppure aggiornare `origin_host` in `terraform.tfvars` ed eseguire `terraform apply` per il reprovisioning.
+In alternativa, aggiornare `origin_host` in `terraform.tfvars` ed eseguire `terraform apply` per il reprovisioning.
 
-### Svuotamento della cache
+### Pulizia della cache
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -381,16 +382,16 @@ ss -tn state time-wait | wc -l
 
 ## Risultati del benchmark delle prestazioni
 
-Verificati durante un test di carico continuo di 48 ore:
+Verificati con test di carico continuo di 48 ore:
 
 | Metrica | Valore |
 |---|---|
-| Throughput di picco (con cache) | 172.540 req/s |
-| Throughput sostenuto (con cache) | 85.000-103.000 req/s |
-| Connessioni di picco | 15.000 concorrenti |
-| Rapporto di cache hit | 100% (a cache attiva) |
+| Throughput di picco (in cache) | 172.540 req/s |
+| Throughput sostenuto (in cache) | 85.000-103.000 req/s |
+| Connessioni di picco | 15.000 simultanee |
+| Rapporto di cache hit | 100% (a cache calda) |
 | Memoria sotto carico | 1,2 GB stabile (8% di 16 GB) |
 | CPU al picco | 100% (4 core - la CPU è il limite) |
-| Errori durante il test di 48h | 0 |
+| Errori durante il test di 48 ore | 0 |
 | Memory leak | Nessuno rilevato |
 | Connection leak | Nessuno rilevato |

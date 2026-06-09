@@ -1,9 +1,8 @@
 ---
-title: 사전 요구 사항
+title: 사전 요구사항
 description: >-
-  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
-  permissions, and Azure AD requirements for deploying the performance-optimized
-  CDN edge node VM
+  성능 최적화 CDN 엣지 노드 VM 배포를 위한 필수 도구(Azure CLI, Terraform >= 1.5, SSH 키 쌍), Azure
+  구독 권한 및 Azure AD 요구사항
 sidebar:
   order: 2
 i18n:
@@ -11,11 +10,11 @@ i18n:
   translator: machine
 ---
 
-## 필수 사항
+## 필수 항목
 
 ### Azure 구독
 
-다음 리소스를 생성할 수 있는 권한이 있는 활성 Azure 구독이 필요합니다:
+다음을 생성할 수 있는 권한이 포함된 활성 Azure 구독이 필요합니다:
 
 - 리소스 그룹
 - 가상 네트워크 및 서브넷
@@ -40,7 +39,7 @@ az account show --query '{name:name, id:id}' -o table
 
 ### Terraform
 
-Terraform >= 1.5 버전이 필요합니다:
+Terraform >= 1.5가 필요합니다:
 
 ```bash
 # Verify installation
@@ -65,15 +64,15 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 Azure AD 계정에 `User.Read` 권한이 있어야 합니다. 배포자 식별자(리소스 명명에 사용됨)는 Azure AD 프로필에서 자동으로 파생됩니다. 서비스 주체 또는 관리 ID 인증의 경우 `deployer` Terraform 변수를 명시적으로 설정하십시오.
 
-## 선택 사항
+## 선택 항목
 
 ### 사용자 지정 도메인
 
-자체 서명 인증서 대신 실제 TLS 인증서를 사용하려는 경우:
+자체 서명된 인증서 대신 실제 TLS 인증서를 사용하려는 경우:
 
-- DNS를 제어할 수 있는 도메인 이름
+- DNS 제어가 가능한 도메인 이름
 - Azure 공용 IP를 가리키는 A 레코드를 생성할 수 있는 권한
 
 ### 오리진 서버 URL
 
-이 엣지 노드가 트래픽을 전달할 F5 XC HTTP 로드 밸런서의 URL입니다. 이 값은 배포 후에 구성할 수 있습니다 — 기본 NGINX 구성은 NGINX 설정에서 업데이트할 수 있는 플레이스홀더를 사용합니다.
+이 엣지 노드가 트래픽을 전달할 F5 XC HTTP 로드 밸런서의 URL입니다. 이 설정은 배포 후에도 구성할 수 있습니다 — 기본 NGINX 구성은 NGINX 설정에서 업데이트하는 플레이스홀더를 사용합니다.

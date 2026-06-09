@@ -1,9 +1,9 @@
 ---
 title: Prérequis
 description: >-
-  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
-  permissions, and Azure AD requirements for deploying the performance-optimized
-  CDN edge node VM
+  Outils requis (Azure CLI, Terraform >= 1.5, paire de clés SSH), permissions
+  d'abonnement Azure et exigences Azure AD pour déployer la VM de nœud de
+  périphérie CDN optimisée en performance
 sidebar:
   order: 2
 i18n:
@@ -15,17 +15,17 @@ i18n:
 
 ### Abonnement Azure
 
-Un abonnement Azure actif avec les permissions pour créer :
+Un abonnement Azure actif avec la permission de créer :
 
 - Des groupes de ressources
-- Des réseaux virtuels et des sous-réseaux
+- Des réseaux virtuels et sous-réseaux
 - Des groupes de sécurité réseau
 - Des adresses IP publiques
 - Des machines virtuelles
 
 ### Azure CLI
 
-Installez et authentifiez l'Azure CLI :
+Installez et authentifiez Azure CLI :
 
 ```bash
 # Install (if not present)
@@ -69,11 +69,11 @@ Votre compte Azure AD doit disposer des permissions `User.Read`. L'identifiant d
 
 ### Domaine personnalisé
 
-Si vous souhaitez de vrais certificats TLS au lieu de certificats auto-signés :
+Si vous souhaitez de véritables certificats TLS plutôt que des certificats auto-signés :
 
-- Un nom de domaine avec le contrôle du DNS
+- Un nom de domaine avec le contrôle DNS
 - La possibilité de créer des enregistrements A pointant vers l'adresse IP publique Azure
 
 ### URL du serveur d'origine
 
-L'URL du répartiteur de charge HTTP F5 XC vers lequel ce nœud edge transmettra le trafic. Cela peut être configuré après le déploiement — la configuration NGINX par défaut utilise un espace réservé que vous mettez à jour dans la configuration NGINX.
+L'URL de l'équilibreur de charge HTTP F5 XC vers lequel ce nœud de périphérie transférera le trafic. Cela peut être configuré après le déploiement — la configuration NGINX par défaut utilise un espace réservé que vous mettez à jour dans la configuration NGINX.

@@ -1,8 +1,6 @@
 ---
-title: 總覽
-description: >-
-  Architecture, endpoints, vendor header simulation, and modular design of the
-  NGINX-based CDN edge node simulator deployed on Ubuntu 24.04 in Azure
+title: 概覽
+description: 部署在 Azure 上 Ubuntu 24.04 的 NGINX 型 CDN 邊緣節點模擬器之架構、端點、供應商標頭模擬及模組化設計
 sidebar:
   order: 1
 i18n:
@@ -12,7 +10,7 @@ i18n:
 
 ## 用途
 
-此元件模擬 CDN 邊緣節點，適用於實驗室和示範環境。它代表 Akamai、Cloudflare、Amazon CloudFront 或 Fastly 等供應商在客戶網路架構中所扮演的角色——最接近終端使用者、位於來源伺服器前方的快取層。
+此元件為實驗室和展示環境模擬 CDN 邊緣節點。它代表 Akamai、Cloudflare、Amazon CloudFront 或 Fastly 等供應商在客戶網路架構中所扮演的角色——位於源站伺服器前方、最接近終端使用者的快取層。
 
 在生產環境的多供應商架構中，客戶通常會將第三方 CDN 與 F5 Distributed Cloud 搭配使用：
 
@@ -20,7 +18,7 @@ i18n:
 End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
-此模擬器以基於 NGINX 的邊緣節點取代商業 CDN，使整合功能可在無需供應商合約或生產基礎設施的情況下進行展示與測試。
+此模擬器以 NGINX 型邊緣節點取代商業 CDN，使整合功能可在無需供應商合約或生產環境基礎設施的情況下進行展示和測試。
 
 ## 架構
 
@@ -38,8 +36,8 @@ NGINX 邊緣節點：
 
 - **在邊緣終止 TLS**（自簽憑證或 Let's Encrypt）
 - **在磁碟上快取回應**，使用 `proxy_cache_path`
-- **將快取未命中的請求轉發**至可設定的來源伺服器（F5 XC HTTP 負載平衡器 VIP）
-- **透過 `X-Cache-Status` 回應標頭報告快取狀態**（`HIT`、`MISS`、`BYPASS`、`EXPIRED`）
+- **將快取未命中的請求轉發**至可設定的源站伺服器（F5 XC HTTP 負載平衡器 VIP）
+- **透過 `X-Cache-Status` 回應標頭回報快取狀態**（`HIT`、`MISS`、`BYPASS`、`EXPIRED`）
 
 ## 模擬內容
 
@@ -47,11 +45,11 @@ NGINX 邊緣節點：
 |---|---|
 | 邊緣快取 | 使用磁碟儲存的 `proxy_cache` |
 | 快取金鑰產生 | 基於 scheme、host 和 URI 的 `proxy_cache_key` |
-| 來源拉取 | 透過 `proxy_pass` 至 F5 XC HTTP 負載平衡器 |
+| 源站拉取 | `proxy_pass` 至 F5 XC HTTP 負載平衡器 |
 | TLS 終止 | NGINX `ssl_certificate` 指令 |
-| Cache-Control 遵循 | 搭配來源標頭透傳的 `proxy_cache_valid` |
-| 快取狀態報告 | `add_header X-Cache-Status $upstream_cache_status` |
-| 健康檢查端點 | 回傳 200 OK 的 `/health` 位置 |
+| Cache-Control 遵循 | `proxy_cache_valid` 搭配源站標頭透傳 |
+| 快取狀態回報 | `add_header X-Cache-Status $upstream_cache_status` |
+| 健康檢查端點 | `/health` 位置回傳 200 OK |
 
 ## 端點與請求/回應行為
 
@@ -78,15 +76,15 @@ GET /health
 GET /<any-path>
 ```
 
-向來源注入的請求標頭（來自 5 家供應商的 67+ 個標頭）：
+向源站注入的請求標頭（來自 5 家供應商的 67+ 個標頭）：
 
 | 類別 | 新增的標頭 |
 |---|---|
 | 客戶端 IP | `True-Client-IP`、`CF-Connecting-IP`、`Fastly-Client-IP`、`X-Azure-ClientIP`、`CloudFront-Viewer-Address`、`X-Forwarded-For`、`X-Real-IP` |
-| 地理位置 | `X-Akamai-Edgescape`（複合）、`CF-IPCountry`、`cf-ipcity`、`cf-iplatitude/longitude`、`CloudFront-Viewer-Country/City/Latitude/Longitude`、`X-Geo-Country-Code/City/Region` |
+| 地理位置 | `X-Akamai-Edgescape`（複合型）、`CF-IPCountry`、`cf-ipcity`、`cf-iplatitude/longitude`、`CloudFront-Viewer-Country/City/Latitude/Longitude`、`X-Geo-Country-Code/City/Region` |
 | 裝置偵測 | `CloudFront-Is-Mobile-Viewer`、`CloudFront-Is-Desktop-Viewer`、`CloudFront-Is-Tablet-Viewer`、`X-Akamai-Device-Characteristics` |
 | TLS/指紋 | `CloudFront-Viewer-TLS`、`cf-ja3-hash`、`cf-ja4`、`CloudFront-Viewer-JA3-Fingerprint` |
-| 機器人偵測 | `cf-bot-score`（85 = 可能是人類）、`cf-verified-bot` |
+| Bot 偵測 | `cf-bot-score`（85 = 可能為真人）、`cf-verified-bot` |
 | 請求追蹤 | `Cf-Ray`、`X-Akamai-Request-ID`、`X-Amz-Cf-Id`、`X-Azure-Ref` |
 | 邊緣識別 | `X-CDN-Edge`、`X-CDN-POP`、`X-Served-By`、`Fastly-FF`、`X-Azure-FDID` |
 | 標準 | `Via`、`Forwarded`、`CDN-Loop`、`X-Forwarded-Proto/Host/Port` |
@@ -98,16 +96,16 @@ GET /<any-path>
 | `X-Cache-Status` | `HIT`、`MISS`、`BYPASS`、`EXPIRED`、`STALE` | 此請求的快取行為 |
 | `X-CDN-Edge` | `cdn-simulator` | 識別此邊緣節點 |
 | `X-CDN-POP` | `SJC` | 模擬的接入點 IATA 代碼 |
-| `X-Served-By` | `cache-sjc3120-SJC` | 以 Fastly 格式模擬的快取節點 |
+| `X-Served-By` | `cache-sjc3120-SJC` | Fastly 格式的模擬快取節點 |
 | `X-Request-ID` | UUID（每次請求） | 唯一請求識別碼 |
 
 ### 快取行為
 
-- 對任何路徑的首次請求：`X-Cache-Status: MISS`（從來源取得，現已快取）
-- 後續相同的請求：`X-Cache-Status: HIT`（從磁碟快取提供）
+- 首次請求任何路徑：`X-Cache-Status: MISS`（從源站取得，現已快取）
+- 後續相同請求：`X-Cache-Status: HIT`（從磁碟快取提供）
 - 快取金鑰：`$scheme$host$request_uri`（scheme + 主機名稱 + 完整路徑 + 查詢字串）
 - 快取 TTL：200/301/302 為 10 分鐘，404 為 1 分鐘
-- 過期服務：當來源發生錯誤時（500/502/503/504）回傳快取內容
+- 過期內容服務：當源站錯誤時（500/502/503/504）回傳快取內容
 
 ### VM 存取
 
@@ -121,12 +119,12 @@ GET /<any-path>
 
 ## 模組化元件設計
 
-這是較大實驗室環境的一部分。每個元件都是獨立且個別部署的：
+這是較大型實驗室環境的其中一個部分。每個元件皆為獨立且可獨立部署：
 
 - **此元件**提供 CDN 邊緣（Azure VM 上的 NGINX）
-- **其他元件**提供來源應用程式、F5 XC 設定、DNS、WAF 政策等
+- **其他元件**提供源站應用程式、F5 XC 設定、DNS、WAF 策略等
 
-人工操作員逐一新增元件。每個元件的文件皆以 AI 助理能讀取並自主部署基礎設施的方式撰寫。
+人工操作員逐一新增元件。每個元件的文件撰寫方式使 AI 助理能夠閱讀並自主部署基礎設施。
 
 ## 為何選擇 NGINX
 
@@ -134,6 +132,6 @@ GET /<any-path>
 
 1. **F5 產品** — F5 於 2019 年收購 NGINX Inc.；它是 F5 產品組合的一部分
 2. **業界驗證** — Cloudflare 在遷移至 Pingora 之前，整個 CDN 運行在 NGINX 上超過十年；Netflix 使用 NGINX 作為其 Open Connect CDN
-3. **單一行程** — 在一個二進位檔中處理 TLS 終止和快取，不同於 Varnish 需要獨立的 TLS 代理
+3. **單一程序** — 在單一二進位檔中處理 TLS 終止和快取，不像 Varnish 需要單獨的 TLS 代理
 4. **部署簡單** — 在 Ubuntu 24.04 上執行 `apt install nginx`，兩個指令即可啟用快取
-5. **文件完善** — 針對內容快取和反向代理設定有豐富的官方文件
+5. **文件完善** — 內容快取和反向代理設定有豐富的官方文件

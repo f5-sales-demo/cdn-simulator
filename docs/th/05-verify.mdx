@@ -1,10 +1,10 @@
 ---
-title: Verify
+title: การตรวจสอบ
 description: >-
-  Smoke test commands with expected HTTP response codes, X-Cache-Status header
-  values (HIT/MISS), health check JSON response, cache directory inspection,
-  origin connectivity checks, and troubleshooting for cloud-init, NGINX startup,
-  and NSG issues
+  คำสั่ง smoke test พร้อมรหัสตอบกลับ HTTP ที่คาดหวัง, ค่า X-Cache-Status header
+  (HIT/MISS), การตอบสนอง JSON ของ health check, การตรวจสอบไดเรกทอรีแคช,
+  การตรวจสอบการเชื่อมต่อ origin และการแก้ไขปัญหา cloud-init, การเริ่มต้น NGINX
+  และปัญหา NSG
 sidebar:
   order: 5
 i18n:
@@ -12,11 +12,11 @@ i18n:
   translator: machine
 ---
 
-หลังจากการ deploy ให้รันการตรวจสอบเหล่านี้เพื่อยืนยันว่า CDN edge node ทำงานได้อย่างถูกต้อง รอ 2-3 นาทีหลังจาก `terraform apply` เพื่อให้ cloud-init ติดตั้ง NGINX เสร็จสิ้น
+หลังจากการ deploy แล้ว ให้รันการตรวจสอบเหล่านี้เพื่อยืนยันว่า CDN edge node ทำงานได้อย่างถูกต้อง ให้รอ 2-3 นาทีหลังจาก `terraform apply` เพื่อให้ cloud-init ติดตั้ง NGINX เสร็จสมบูรณ์
 
-## Health Check
+## การตรวจสอบสุขภาพ
 
-ตรวจสอบว่า NGINX ทำงานอยู่และตอบสนอง:
+ตรวจสอบว่า NGINX กำลังทำงานและตอบสนองอยู่:
 
 ```bash
 curl -s "http://<PUBLIC_IP>/health" | jq .
@@ -47,22 +47,22 @@ curl -s "$(terraform output -raw health_check_url)" | jq .
 
 ## Cache Miss (คำขอแรก)
 
-คำขอแรกไปยัง path ใดก็ตามจะเป็น cache miss — edge จะดึงข้อมูลจาก origin:
+คำขอแรกไปยัง path ใดๆ จะเป็น cache miss — edge จะดึงข้อมูลจาก origin:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-มองหา headers เหล่านี้ในการตอบกลับ:
+มองหา headers เหล่านี้ในการตอบสนอง:
 
 ```
 X-Cache-Status: MISS
 X-CDN-Edge: cdn-simulator
 ```
 
-`MISS` หมายความว่าเนื้อหาไม่ได้อยู่ใน cache และถูกดึงมาจาก origin server
+`MISS` หมายความว่าเนื้อหาไม่อยู่ในแคชและถูกดึงมาจาก origin server
 
-## Cache Hit (คำขอครั้งถัดไป)
+## Cache Hit (คำขอถัดไป)
 
 ทำซ้ำคำขอเดิมทันที:
 
@@ -77,36 +77,36 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` ยืนยันว่าการตอบกลับถูกให้บริการจาก NGINX disk cache โดยไม่ต้องติดต่อ origin
+`HIT` ยืนยันว่าการตอบสนองถูกให้บริการจาก NGINX disk cache โดยไม่ต้องติดต่อ origin
 
-## การตรวจสอบ Cache Directory
+## การตรวจสอบไดเรกทอรีแคช
 
-SSH เข้าไปใน VM เพื่อตรวจสอบว่ามีเนื้อหาที่ถูก cache อยู่บนดิสก์:
+SSH เข้า VM เพื่อตรวจสอบว่ามีเนื้อหาที่แคชไว้อยู่บนดิสก์:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Check cache directory has content
+# ตรวจสอบว่าไดเรกทอรีแคชมีเนื้อหา
 sudo find /var/cache/nginx/cdn -type f | head -20
 
-# Check cache size
+# ตรวจสอบขนาดแคช
 sudo du -sh /var/cache/nginx/cdn
 ```
 
 ## สถานะ NGINX
 
-ตรวจสอบว่า NGINX ทำงานอยู่และการตั้งค่าถูกต้อง:
+ตรวจสอบว่า NGINX กำลังทำงานและการกำหนดค่าถูกต้อง:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Check service status
+# ตรวจสอบสถานะบริการ
 sudo systemctl status nginx
 
-# Validate configuration
+# ตรวจสอบความถูกต้องของการกำหนดค่า
 sudo nginx -t
 
-# View active connections (if stub_status is enabled)
+# ดูการเชื่อมต่อที่ใช้งานอยู่ (หากเปิดใช้ stub_status)
 curl -s http://localhost/health
 ```
 
@@ -117,17 +117,17 @@ curl -s http://localhost/health
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Test connectivity to origin (replace with your origin URL)
+# ทดสอบการเชื่อมต่อไปยัง origin (แทนที่ด้วย origin URL ของคุณ)
 curl -I "https://your-origin.example.com/"
 ```
 
 หากล้มเหลว ให้ตรวจสอบ:
 
-1. ตัวแปร `origin_server` ถูกต้องในการตั้งค่า Terraform
+1. ตัวแปร `origin_server` ถูกต้องใน Terraform config
 2. Origin server อนุญาตการเชื่อมต่อขาเข้าจาก public IP ของ edge node
-3. การแปลง DNS ทำงานได้จาก VM (`nslookup your-origin.example.com`)
+3. การแก้ไขชื่อ DNS ทำงานจาก VM (`nslookup your-origin.example.com`)
 
-## ความคืบหน้าของ Cloud-Init
+## ความคืบหน้า Cloud-Init
 
 ติดตามความคืบหน้าการจัดเตรียมผ่าน cloud-init log:
 
@@ -135,7 +135,7 @@ curl -I "https://your-origin.example.com/"
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 ```
 
-ขั้นตอนที่คาดหวัง: `[init]`, `[nic]` (การตรวจจับ NIC แบบ dynamic), `[complete]`
+เฟสที่คาดหวัง: `[init]`, `[nic]` (การตรวจจับ NIC แบบไดนามิก), `[complete]`
 
 หาก cloud-init รายงานข้อผิดพลาด:
 
@@ -145,14 +145,14 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 
 ## การทดสอบแบบ End-to-End
 
-รันวงจรคำขอทั้งหมดและตรวจสอบห่วงโซ่การตอบกลับ:
+รันวงจรคำขอแบบเต็มและตรวจสอบห่วงโซ่การตอบสนอง:
 
 ```bash
-# First request — MISS (fetches from origin)
+# คำขอแรก — MISS (ดึงจาก origin)
 echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
-# Second request — HIT (served from cache)
+# คำขอที่สอง — HIT (ให้บริการจากแคช)
 echo "=== Request 2 (expect HIT) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 ```
@@ -168,13 +168,13 @@ HTTP 200 | Cache: HIT
 
 ## การตรวจสอบ Vendor Header
 
-ตรวจสอบว่า CDN vendor headers ทั้งหมดถูกแทรกเข้าไปโดยการร้องขอ path `/headers` (เมื่อใช้ httpbin.org เป็น origin):
+ตรวจสอบว่า CDN vendor headers ทั้งหมดถูกแทรกโดยการร้องขอ path `/headers` (เมื่อใช้ httpbin.org เป็น origin):
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 ```
 
-การตอบกลับที่คาดหวังจะรวม headers จาก vendors ทั้งห้าราย:
+การตอบสนองที่คาดหวังจะรวม headers จาก vendor ทั้งห้าราย:
 
 ```json
 {
@@ -198,9 +198,9 @@ curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 }
 ```
 
-### การทดสอบ Device Detection
+### การทดสอบการตรวจจับอุปกรณ์
 
-ทดสอบด้วย mobile User-Agent เพื่อตรวจสอบว่า device detection headers เปลี่ยนแปลง:
+ทดสอบด้วย User-Agent ของมือถือเพื่อตรวจสอบว่า headers การตรวจจับอุปกรณ์เปลี่ยนแปลง:
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
@@ -225,7 +225,7 @@ sudo systemctl status nginx
 sudo journalctl -u nginx --no-pager -n 50
 ```
 
-### Cloud-init ยังไม่เสร็จสิ้น
+### Cloud-init ยังไม่เสร็จ
 
 หลังจาก `terraform apply` cloud-init ใช้เวลา 2-3 นาที ตรวจสอบความคืบหน้า:
 
@@ -235,13 +235,13 @@ sudo cloud-init status
 sudo tail -f /var/log/cloud-init-output.log
 ```
 
-### Cache แสดง MISS ตลอดเวลา
+### แคชแสดง MISS ตลอดเวลา
 
-- ตรวจสอบว่า origin ส่ง response code ที่สามารถ cache ได้ (200, 301, 302)
+- ตรวจสอบว่า origin ส่งคืนรหัสตอบกลับที่แคชได้ (200, 301, 302)
 - ตรวจสอบว่า origin ไม่ได้ส่ง headers `Cache-Control: no-cache` หรือ `no-store`
 - ตรวจสอบ NGINX error logs: `sudo tail -f /var/log/nginx/error.log`
 
-### การเชื่อมต่อถูกปฏิเสธที่พอร์ต 80/443
+### การเชื่อมต่อถูกปฏิเสธบนพอร์ต 80/443
 
-- ตรวจสอบว่า NSG rules ถูกนำไปใช้: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
-- ตรวจสอบว่า NGINX กำลังรับฟัง: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`
+- ตรวจสอบว่ากฎ NSG ถูกนำไปใช้: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- ตรวจสอบว่า NGINX กำลังรับฟังอยู่: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

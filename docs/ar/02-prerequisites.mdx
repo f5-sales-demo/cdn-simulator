@@ -1,9 +1,8 @@
 ---
 title: المتطلبات الأساسية
 description: >-
-  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
-  permissions, and Azure AD requirements for deploying the performance-optimized
-  CDN edge node VM
+  الأدوات المطلوبة (Azure CLI، Terraform >= 1.5، زوج مفاتيح SSH)، أذونات اشتراك
+  Azure، ومتطلبات Azure AD لنشر جهاز VM لعقدة حافة CDN المُحسَّنة للأداء
 sidebar:
   order: 2
 i18n:
@@ -11,7 +10,7 @@ i18n:
   translator: machine
 ---
 
-## المطلوب
+## مطلوب
 
 ### اشتراك Azure
 
@@ -40,7 +39,7 @@ az account show --query '{name:name, id:id}' -o table
 
 ### Terraform
 
-يتطلب Terraform بإصدار >= 1.5:
+يتطلب Terraform بإصدار 1.5 أو أعلى:
 
 ```bash
 # Verify installation
@@ -61,19 +60,19 @@ sudo apt update && sudo apt install terraform
 ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 ```
 
-### صلاحيات Azure AD
+### أذونات Azure AD
 
-يجب أن يمتلك حساب Azure AD الخاص بك صلاحيات `User.Read`. يتم اشتقاق معرّف الناشر (المستخدم في تسمية الموارد) تلقائياً من ملف تعريف Azure AD الخاص بك. في حالة المصادقة باستخدام كيان الخدمة أو الهوية المُدارة، قم بتعيين متغير Terraform المسمى `deployer` بشكل صريح.
+يجب أن يمتلك حساب Azure AD الخاص بك صلاحية `User.Read`. يتم اشتقاق معرّف الناشر (المستخدم في تسمية الموارد) تلقائيًا من ملف تعريف Azure AD الخاص بك. في حالة المصادقة باستخدام كيان الخدمة أو الهوية المُدارة، قم بتعيين متغير Terraform المسمى `deployer` بشكل صريح.
 
 ## اختياري
 
 ### نطاق مخصص
 
-إذا كنت تريد شهادات TLS حقيقية بدلاً من الشهادات الموقعة ذاتياً:
+إذا كنت ترغب في الحصول على شهادات TLS حقيقية بدلاً من الشهادات الموقعة ذاتيًا:
 
 - اسم نطاق مع إمكانية التحكم في DNS
 - القدرة على إنشاء سجلات A تشير إلى عنوان IP العام في Azure
 
 ### عنوان URL لخادم الأصل
 
-عنوان URL لموازن حمل HTTP الخاص بـ F5 XC الذي ستقوم عقدة الحافة هذه بتوجيه حركة المرور إليه. يمكن تكوين هذا بعد النشر — يستخدم تكوين NGINX الافتراضي عنصراً نائباً تقوم بتحديثه في تكوين NGINX.
+عنوان URL لموازن حمل HTTP الخاص بـ F5 XC الذي ستقوم عقدة الحافة هذه بتوجيه حركة المرور إليه. يمكن تكوين هذا بعد النشر — يستخدم تكوين NGINX الافتراضي عنصرًا نائبًا تقوم بتحديثه في تكوين NGINX.
