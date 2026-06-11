@@ -38,21 +38,21 @@ terraform 目錄包含 9 個遵循示範資源標準的檔案：
 
 `variables.tf` 定義了 11 個輸入變數，分為「一般」、「運算」及「元件專用」三個區段。`deployer` 識別碼會從您的 Azure AD 帳戶自動解析 — 您只需設定 `subscription_id`、`origin_server` 及 `origin_host`：
 
-```hcl file=./_data/variables.tf
+```hcl file=../_data/variables.tf
 ```
 
 ### 網路基礎架構
 
 `network.tf` 建立 VNet、子網路、公用 IP、NSG（連接埠 22/80/443）及 NIC：
 
-```hcl file=./_data/network.tf
+```hcl file=../_data/network.tf
 ```
 
 ### 搭載 Cloud-Init 的虛擬機器
 
 `vm.tf` 建立 Ubuntu 24.04 VM。SSH 公開金鑰路徑透過 `pathexpand()` 展開，以處理 `~`。Cloud-init 範本接收 `origin_server` 及 `origin_host` 變數：
 
-```hcl file=./_data/vm.tf
+```hcl file=../_data/vm.tf
 ```
 
 ### Cloud-Init 佈建
@@ -61,21 +61,21 @@ terraform 目錄包含 9 個遵循示範資源標準的檔案：
 
 Cloud-init 使用 Terraform 範本變數：`${origin_server}` 及 `${origin_host}` 用於上游設定。NGINX 變數（例如 `${request_id}`）在 Terraform templatefile 中以 `$${request_id}` 的形式跳脫。
 
-```yaml file=./_data/cloud-init.yaml
+```yaml file=../_data/cloud-init.yaml
 ```
 
 ### 輸出
 
 `outputs.tf` 依循示範資源標準公開 17 個輸出 — 15 個所有示範資源共用的標準輸出（`deployer`、`public_ip`、`private_ip`、`ssh_command`、`resource_group_name`、`vm_name`、`nsg_name`、`vnet_name`、`subnet_id`、`component`、`environment`、`resource_group_id`、`vm_id`、`nsg_id`、`location`），以及 2 個元件專用輸出（`edge_url`、`health_check_url`）：
 
-```hcl file=./_data/outputs.tf
+```hcl file=../_data/outputs.tf
 ```
 
 ### 範例變數檔案
 
 將 `terraform.tfvars.example` 複製為 `terraform.tfvars` 並填入您的值。`.gitignore` 已排除 `terraform.tfvars`，以防止提交認證資訊：
 
-```hcl file=./_data/terraform.tfvars.example
+```hcl file=../_data/terraform.tfvars.example
 ```
 
 ## 部署

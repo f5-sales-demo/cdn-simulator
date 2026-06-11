@@ -40,21 +40,21 @@ Das Terraform-Verzeichnis enthält 9 Dateien gemäß dem Demo-Ressourcen-Standar
 
 `variables.tf` definiert 11 Eingabevariablen, die in die Abschnitte „Allgemein", „Compute" und „Komponentenspezifisch" unterteilt sind. Der `deployer`-Bezeichner wird automatisch aus Ihrem Azure AD-Konto aufgelöst — Sie müssen nur `subscription_id`, `origin_server` und `origin_host` festlegen:
 
-```hcl file=./_data/variables.tf
+```hcl file=../_data/variables.tf
 ```
 
 ### Netzwerkinfrastruktur
 
 `network.tf` erstellt das VNet, Subnetz, die öffentliche IP, NSG (Ports 22/80/443) und NIC:
 
-```hcl file=./_data/network.tf
+```hcl file=../_data/network.tf
 ```
 
 ### Virtuelle Maschine mit Cloud-Init
 
 `vm.tf` erstellt die Ubuntu 24.04 VM. Der SSH-Public-Key-Pfad wird über `pathexpand()` erweitert, um `~` zu verarbeiten. Die Cloud-Init-Vorlage erhält die Variablen `origin_server` und `origin_host`:
 
-```hcl file=./_data/vm.tf
+```hcl file=../_data/vm.tf
 ```
 
 ### Cloud-Init-Provisionierung
@@ -63,21 +63,21 @@ Das Terraform-Verzeichnis enthält 9 Dateien gemäß dem Demo-Ressourcen-Standar
 
 Das cloud-init verwendet Terraform-Vorlagenvariablen: `${origin_server}` und `${origin_host}` für die Upstream-Konfiguration. NGINX-Variablen wie `${request_id}` werden als `$${request_id}` in der Terraform-Vorlagendatei maskiert.
 
-```yaml file=./_data/cloud-init.yaml
+```yaml file=../_data/cloud-init.yaml
 ```
 
 ### Ausgaben
 
 `outputs.tf` stellt 17 Ausgaben gemäß dem Demo-Ressourcen-Standard bereit — 15 Standard-Ausgaben, die von allen Demo-Ressourcen gemeinsam genutzt werden (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) sowie 2 komponentenspezifische Ausgaben (`edge_url`, `health_check_url`):
 
-```hcl file=./_data/outputs.tf
+```hcl file=../_data/outputs.tf
 ```
 
 ### Beispiel-Variablendatei
 
 Kopieren Sie `terraform.tfvars.example` nach `terraform.tfvars` und füllen Sie Ihre Werte ein. Die `.gitignore` schließt `terraform.tfvars` aus, um das versehentliche Committen von Anmeldeinformationen zu verhindern:
 
-```hcl file=./_data/terraform.tfvars.example
+```hcl file=../_data/terraform.tfvars.example
 ```
 
 ## Bereitstellen

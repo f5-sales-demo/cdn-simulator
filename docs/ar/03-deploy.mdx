@@ -39,21 +39,21 @@ cp terraform.tfvars.example terraform.tfvars
 
 يُعرِّف `variables.tf` ما مجموعه 11 متغير إدخال مُنظَّمة في أقسام: عام، وحوسبة، وخاص بالمكوّن. يتم حل معرّف `deployer` تلقائياً من حسابك على Azure AD — تحتاج فقط إلى تعيين `subscription_id` و`origin_server` و`origin_host`:
 
-```hcl file=./_data/variables.tf
+```hcl file=../_data/variables.tf
 ```
 
 ### البنية التحتية للشبكات
 
 يُنشئ `network.tf` الشبكة الافتراضية، والشبكة الفرعية، والـ IP العام، ومجموعة أمان الشبكة (المنافذ 22/80/443)، وبطاقة الشبكة:
 
-```hcl file=./_data/network.tf
+```hcl file=../_data/network.tf
 ```
 
 ### الجهاز الافتراضي مع Cloud-Init
 
 يُنشئ `vm.tf` جهاز VM بنظام Ubuntu 24.04. يتم توسيع مسار مفتاح SSH العام عبر `pathexpand()` للتعامل مع `~`. يتلقى قالب cloud-init متغيري `origin_server` و`origin_host`:
 
-```hcl file=./_data/vm.tf
+```hcl file=../_data/vm.tf
 ```
 
 ### توفير Cloud-Init
@@ -62,21 +62,21 @@ cp terraform.tfvars.example terraform.tfvars
 
 يستخدم cloud-init متغيرات قالب Terraform: `${origin_server}` و`${origin_host}` لتكوين الخادم الأصلي. يتم تخطي متغيرات NGINX مثل `${request_id}` كـ `$${request_id}` في templatefile الخاص بـ Terraform.
 
-```yaml file=./_data/cloud-init.yaml
+```yaml file=../_data/cloud-init.yaml
 ```
 
 ### المخرجات
 
 يعرض `outputs.tf` 17 مخرجاً وفق معيار موارد العرض التوضيحي — 15 مخرجاً قياسياً مشتركاً بين جميع موارد العرض التوضيحي (`deployer`، و`public_ip`، و`private_ip`، و`ssh_command`، و`resource_group_name`، و`vm_name`، و`nsg_name`، و`vnet_name`، و`subnet_id`، و`component`، و`environment`، و`resource_group_id`، و`vm_id`، و`nsg_id`، و`location`) بالإضافة إلى مخرجَين خاصَّين بالمكوّن (`edge_url`، و`health_check_url`):
 
-```hcl file=./_data/outputs.tf
+```hcl file=../_data/outputs.tf
 ```
 
 ### مثال على ملف المتغيرات
 
 انسخ `terraform.tfvars.example` إلى `terraform.tfvars` واملأ قيمك. يستثني `.gitignore` ملف `terraform.tfvars` لمنع إيداع بيانات الاعتماد:
 
-```hcl file=./_data/terraform.tfvars.example
+```hcl file=../_data/terraform.tfvars.example
 ```
 
 ## النشر

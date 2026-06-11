@@ -32,21 +32,21 @@ The terraform directory contains 9 files following the Demo Resource Standard:
 
 `variables.tf` defines 11 input variables organized into General, Compute, and Component-Specific sections. The `deployer` identifier is auto-resolved from your Azure AD account — you only need to set `subscription_id`, `origin_server`, and `origin_host`:
 
-```hcl file=./_data/variables.tf
+```hcl file=../_data/variables.tf
 ```
 
 ### Network Infrastructure
 
 `network.tf` creates the VNet, subnet, public IP, NSG (ports 22/80/443), and NIC:
 
-```hcl file=./_data/network.tf
+```hcl file=../_data/network.tf
 ```
 
 ### Virtual Machine with Cloud-Init
 
 `vm.tf` creates the Ubuntu 24.04 VM. The SSH public key path is expanded via `pathexpand()` to handle `~`. Cloud-init template receives `origin_server` and `origin_host` variables:
 
-```hcl file=./_data/vm.tf
+```hcl file=../_data/vm.tf
 ```
 
 ### Cloud-Init Provisioning
@@ -55,21 +55,21 @@ The terraform directory contains 9 files following the Demo Resource Standard:
 
 The cloud-init uses Terraform template variables: `${origin_server}` and `${origin_host}` for the upstream configuration. NGINX variables like `${request_id}` are escaped as `$${request_id}` in the Terraform templatefile.
 
-```yaml file=./_data/cloud-init.yaml
+```yaml file=../_data/cloud-init.yaml
 ```
 
 ### Outputs
 
 `outputs.tf` exposes 17 outputs following the Demo Resource Standard — 15 standard outputs shared by all demo resources (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) plus 2 component-specific outputs (`edge_url`, `health_check_url`):
 
-```hcl file=./_data/outputs.tf
+```hcl file=../_data/outputs.tf
 ```
 
 ### Example Variables File
 
 Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in your values. The `.gitignore` excludes `terraform.tfvars` to prevent committing credentials:
 
-```hcl file=./_data/terraform.tfvars.example
+```hcl file=../_data/terraform.tfvars.example
 ```
 
 ## Deploy
