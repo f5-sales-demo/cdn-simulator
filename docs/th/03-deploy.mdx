@@ -40,21 +40,21 @@ cp terraform.tfvars.example terraform.tfvars
 
 `variables.tf` กำหนดตัวแปร input จำนวน 11 ตัว จัดแบ่งเป็นส่วน General, Compute, และ Component-Specific ตัวระบุ `deployer` จะถูกแก้ไขอัตโนมัติจากบัญชี Azure AD ของคุณ — คุณจำเป็นต้องตั้งค่าเพียง `subscription_id`, `origin_server`, และ `origin_host`:
 
-```hcl file=./_data/variables.tf
+```hcl file=../_data/variables.tf
 ```
 
 ### โครงสร้างพื้นฐานเครือข่าย
 
 `network.tf` สร้าง VNet, subnet, public IP, NSG (พอร์ต 22/80/443), และ NIC:
 
-```hcl file=./_data/network.tf
+```hcl file=../_data/network.tf
 ```
 
 ### Virtual Machine พร้อม Cloud-Init
 
 `vm.tf` สร้าง Ubuntu 24.04 VM โดย path ของ SSH public key จะถูกขยายผ่าน `pathexpand()` เพื่อรองรับ `~` เทมเพลต Cloud-init จะรับตัวแปร `origin_server` และ `origin_host`:
 
-```hcl file=./_data/vm.tf
+```hcl file=../_data/vm.tf
 ```
 
 ### การจัดเตรียมด้วย Cloud-Init
@@ -63,21 +63,21 @@ cp terraform.tfvars.example terraform.tfvars
 
 Cloud-init ใช้ตัวแปรเทมเพลต Terraform ได้แก่ `${origin_server}` และ `${origin_host}` สำหรับการกำหนดค่า upstream ตัวแปร NGINX เช่น `${request_id}` จะถูก escape เป็น `$${request_id}` ใน Terraform templatefile
 
-```yaml file=./_data/cloud-init.yaml
+```yaml file=../_data/cloud-init.yaml
 ```
 
 ### Outputs
 
 `outputs.tf` เปิดเผย 17 outputs ตามมาตรฐาน ทรัพยากรสาธิต — 15 outputs มาตรฐานที่ใช้ร่วมกันโดยทรัพยากรสาธิตทั้งหมด (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) บวกกับ 2 outputs เฉพาะส่วนประกอบ (`edge_url`, `health_check_url`):
 
-```hcl file=./_data/outputs.tf
+```hcl file=../_data/outputs.tf
 ```
 
 ### ตัวอย่างไฟล์ Variables
 
 คัดลอก `terraform.tfvars.example` ไปยัง `terraform.tfvars` และกรอกค่าของคุณ `.gitignore` จะยกเว้น `terraform.tfvars` เพื่อป้องกันการ commit ข้อมูลรับรอง:
 
-```hcl file=./_data/terraform.tfvars.example
+```hcl file=../_data/terraform.tfvars.example
 ```
 
 ## การปรับใช้งาน

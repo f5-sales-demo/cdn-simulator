@@ -38,21 +38,21 @@ terraform 디렉터리에는 데모 리소스 표준을 따르는 9개의 파일
 
 `variables.tf`는 일반, 컴퓨팅, 구성 요소별 섹션으로 구성된 11개의 입력 변수를 정의합니다. `deployer` 식별자는 Azure AD 계정에서 자동으로 해석됩니다 — `subscription_id`, `origin_server`, `origin_host`만 설정하면 됩니다:
 
-```hcl file=./_data/variables.tf
+```hcl file=../_data/variables.tf
 ```
 
 ### 네트워크 인프라
 
 `network.tf`는 VNet, 서브넷, 공용 IP, NSG (포트 22/80/443), NIC를 생성합니다:
 
-```hcl file=./_data/network.tf
+```hcl file=../_data/network.tf
 ```
 
 ### Cloud-Init을 적용한 가상 머신
 
 `vm.tf`는 Ubuntu 24.04 VM을 생성합니다. SSH 공개 키 경로는 `~`를 처리하기 위해 `pathexpand()`를 통해 확장됩니다. Cloud-init 템플릿은 `origin_server` 및 `origin_host` 변수를 수신합니다:
 
-```hcl file=./_data/vm.tf
+```hcl file=../_data/vm.tf
 ```
 
 ### Cloud-Init 프로비저닝
@@ -61,21 +61,21 @@ terraform 디렉터리에는 데모 리소스 표준을 따르는 9개의 파일
 
 cloud-init은 업스트림 구성을 위해 Terraform 템플릿 변수 `${origin_server}` 및 `${origin_host}`를 사용합니다. `${request_id}`와 같은 NGINX 변수는 Terraform templatefile에서 `$${request_id}`로 이스케이프됩니다.
 
-```yaml file=./_data/cloud-init.yaml
+```yaml file=../_data/cloud-init.yaml
 ```
 
 ### 출력
 
 `outputs.tf`는 데모 리소스 표준을 따르는 17개의 출력을 노출합니다 — 모든 데모 리소스에서 공유되는 표준 출력 15개(`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`)와 구성 요소별 출력 2개(`edge_url`, `health_check_url`):
 
-```hcl file=./_data/outputs.tf
+```hcl file=../_data/outputs.tf
 ```
 
 ### 변수 파일 예시
 
 `terraform.tfvars.example`을 `terraform.tfvars`로 복사하고 값을 입력하세요. `.gitignore`는 자격 증명 커밋을 방지하기 위해 `terraform.tfvars`를 제외합니다:
 
-```hcl file=./_data/terraform.tfvars.example
+```hcl file=../_data/terraform.tfvars.example
 ```
 
 ## 배포

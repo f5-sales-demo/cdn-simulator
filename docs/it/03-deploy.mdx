@@ -40,21 +40,21 @@ La directory terraform contiene 9 file che seguono lo standard Demo Resource Sta
 
 `variables.tf` definisce 11 variabili di input organizzate nelle sezioni General, Compute e Component-Specific. L'identificatore `deployer` viene risolto automaticamente dall'account Azure AD — è necessario impostare solo `subscription_id`, `origin_server` e `origin_host`:
 
-```hcl file=./_data/variables.tf
+```hcl file=../_data/variables.tf
 ```
 
 ### Infrastruttura di rete
 
 `network.tf` crea la VNet, la subnet, l'IP pubblico, l'NSG (porte 22/80/443) e la NIC:
 
-```hcl file=./_data/network.tf
+```hcl file=../_data/network.tf
 ```
 
 ### Macchina virtuale con Cloud-Init
 
 `vm.tf` crea la VM Ubuntu 24.04. Il percorso della chiave pubblica SSH viene espanso tramite `pathexpand()` per gestire `~`. Il template cloud-init riceve le variabili `origin_server` e `origin_host`:
 
-```hcl file=./_data/vm.tf
+```hcl file=../_data/vm.tf
 ```
 
 ### Provisioning con Cloud-Init
@@ -63,21 +63,21 @@ La directory terraform contiene 9 file che seguono lo standard Demo Resource Sta
 
 Il cloud-init utilizza le variabili template di Terraform: `${origin_server}` e `${origin_host}` per la configurazione upstream. Le variabili NGINX come `${request_id}` vengono precedute da escape come `$${request_id}` nel templatefile di Terraform.
 
-```yaml file=./_data/cloud-init.yaml
+```yaml file=../_data/cloud-init.yaml
 ```
 
 ### Output
 
 `outputs.tf` espone 17 output seguendo il Demo Resource Standard — 15 output standard condivisi da tutte le risorse demo (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) più 2 output specifici del componente (`edge_url`, `health_check_url`):
 
-```hcl file=./_data/outputs.tf
+```hcl file=../_data/outputs.tf
 ```
 
 ### File di variabili di esempio
 
 Copiare `terraform.tfvars.example` in `terraform.tfvars` e inserire i propri valori. Il file `.gitignore` esclude `terraform.tfvars` per evitare il commit delle credenziali:
 
-```hcl file=./_data/terraform.tfvars.example
+```hcl file=../_data/terraform.tfvars.example
 ```
 
 ## Distribuisci

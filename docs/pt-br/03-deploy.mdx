@@ -40,21 +40,21 @@ O diretório terraform contém 9 arquivos seguindo o Padrão de Recursos de Demo
 
 `variables.tf` define 11 variáveis de entrada organizadas nas seções Geral, Computação e Específicas do Componente. O identificador `deployer` é resolvido automaticamente a partir da sua conta Azure AD — você só precisa definir `subscription_id`, `origin_server` e `origin_host`:
 
-```hcl file=./_data/variables.tf
+```hcl file=../_data/variables.tf
 ```
 
 ### Infraestrutura de Rede
 
 `network.tf` cria a VNet, sub-rede, IP público, NSG (portas 22/80/443) e NIC:
 
-```hcl file=./_data/network.tf
+```hcl file=../_data/network.tf
 ```
 
 ### Máquina Virtual com Cloud-Init
 
 `vm.tf` cria a VM Ubuntu 24.04. O caminho da chave pública SSH é expandido via `pathexpand()` para tratar `~`. O template cloud-init recebe as variáveis `origin_server` e `origin_host`:
 
-```hcl file=./_data/vm.tf
+```hcl file=../_data/vm.tf
 ```
 
 ### Provisionamento via Cloud-Init
@@ -63,21 +63,21 @@ O diretório terraform contém 9 arquivos seguindo o Padrão de Recursos de Demo
 
 O cloud-init utiliza variáveis de template do Terraform: `${origin_server}` e `${origin_host}` para a configuração do upstream. Variáveis do NGINX como `${request_id}` são escapadas como `$${request_id}` no templatefile do Terraform.
 
-```yaml file=./_data/cloud-init.yaml
+```yaml file=../_data/cloud-init.yaml
 ```
 
 ### Saídas
 
 `outputs.tf` expõe 17 saídas seguindo o Padrão de Recursos de Demonstração — 15 saídas padrão compartilhadas por todos os recursos de demonstração (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) mais 2 saídas específicas do componente (`edge_url`, `health_check_url`):
 
-```hcl file=./_data/outputs.tf
+```hcl file=../_data/outputs.tf
 ```
 
 ### Arquivo de Variáveis de Exemplo
 
 Copie `terraform.tfvars.example` para `terraform.tfvars` e preencha com seus valores. O `.gitignore` exclui `terraform.tfvars` para evitar o commit de credenciais:
 
-```hcl file=./_data/terraform.tfvars.example
+```hcl file=../_data/terraform.tfvars.example
 ```
 
 ## Implantação
