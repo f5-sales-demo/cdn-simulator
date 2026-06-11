@@ -1,8 +1,9 @@
 ---
 title: オリジンサーバーとの統合
 description: >-
-  CDNエッジをオリジンサーバーラボコンポーネントに接続（直接統合）し、公開されたエンドポイントマニフェストを通じてアプリケーションを検出し、ヘッダー検査とログ相関でエンドツーエンドのトラフィックフローを検証します。直接オリジンと将来のF5
-  XC挿入アーキテクチャの両方をカバーします。
+  CDN
+  エッジをオリジンサーバーラボコンポーネントに接続し（直接統合）、公開されたエンドポイントマニフェストを通じてアプリケーションを検出し、ヘッダーインスペクションとログ相関によってエンドツーエンドのトラフィックフローを検証します。直接オリジンと将来の
+  F5 XC 挿入アーキテクチャの両方をカバーします。
 sidebar:
   order: 6
 i18n:
@@ -10,16 +11,16 @@ i18n:
   translator: machine
 ---
 
-このページでは2つの統合段階について説明します：
+このページでは、2 つの統合段階について説明します：
 
-1. **直接統合** — CDNエッジがオリジンサーバーに直接転送（ベースラインテスト）
-2. **F5 XC挿入** — CDNとオリジン間にF5 XC HTTPロードバランサーを挿入（セキュリティデモ）
+1. **直接統合** — CDN エッジがオリジンサーバーに直接転送します（ベースラインテスト）
+2. **F5 XC 挿入** — CDN とオリジンの間に F5 XC HTTP ロードバランサーを挿入します（セキュリティデモ）
 
-まず直接統合でベースラインを確立し、準備ができたらF5 XCを挿入します。
+まず直接統合でベースラインを確立し、準備が整ったら F5 XC を挿入します。
 
 ## オリジンサーバーリファレンス
 
-[origin-server](https://f5xc-salesdemos.github.io/origin-server/)ラボコンポーネントは、セキュリティテスト用の脆弱なWebアプリケーションを提供します。
+[origin-server](https://f5xc-salesdemos.github.io/origin-server/) ラボコンポーネントは、セキュリティテスト用の脆弱な Web アプリケーションを提供します。
 
 | プロパティ | 値 |
 |---|---|
@@ -38,13 +39,13 @@ MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-serv
 curl -sf "$MANIFEST_URL" | python3 -m json.tool
 ```
 
-リリースがまだ存在しない場合は、リポジトリソースを直接使用します：
+リリースがまだ存在しない場合は、リポジトリのソースを直接使用します：
 
 ```bash
 curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
 ```
 
-マニフェストには、すべてのアプリケーションパス、ヘルスチェック、コンテナイメージ、デモ機能マッピングが記載されています。
+マニフェストには、すべてのアプリケーションパス、ヘルスチェック、コンテナイメージ、およびデモ機能のマッピングが記載されています。
 
 ### アプリケーションパス
 
@@ -52,28 +53,28 @@ curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/ma
 |---|---|---|
 | `/` | ランディングページ | — |
 | `/health` | ヘルスチェック | — |
-| `/juice-shop/` | OWASP Juice Shop | WAF、Bot Defense、APIセキュリティ |
-| `/dvwa/` | DVWA | WAF、Bot Defense |
-| `/vampi/` | VAmPI | APIセキュリティ |
+| `/juice-shop/` | OWASP Juice Shop | Web アプリファイアウォール (WAF)、Bot 標準防御、API セキュリティ |
+| `/dvwa/` | DVWA | Web アプリファイアウォール (WAF)、Bot 標準防御 |
+| `/vampi/` | VAmPI | API セキュリティ |
 | `/httpbin/` | httpbin | 診断 |
 | `/whoami/` | whoami | ヘッダー検証 |
-| `/csd-demo/` | CSD Demo | クライアントサイドディフェンス |
+| `/csd-demo/` | CSD Demo | クライアントサイド防御 |
 
-## ステージ1：直接統合（ベースライン）
+## ステージ 1：直接統合（ベースライン）
 
 ```
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│  クライアント │────▶│  CDNエッジ (NGINX)    │────▶│  オリジンサーバー     │
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
 │           │     │  20.65.90.112        │     │  20.12.78.159       │
-└──────────┘     │  67以上のCDNヘッダー   │     │  Juice Shop, DVWA,  │
-                 │  ディスクキャッシュ      │     │  VAmPI, httpbin,    │
+└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
+                 │  Disk cache           │     │  VAmPI, httpbin,    │
                  └──────────────────────┘     │  whoami, CSD Demo   │
                                               └─────────────────────┘
 ```
 
 ### オリジンの設定
 
-CDNエッジのNGINX設定でオリジンサーバーのIPを設定します：
+CDN エッジの NGINX 設定にオリジンサーバーの IP を設定します：
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -82,7 +83,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-または、`terraform.tfvars`でTerraformデプロイ時に設定します：
+または、`terraform.tfvars` を使用して Terraform デプロイ時に設定します：
 
 ```hcl
 origin_server = "http://<ORIGIN_IP>"
@@ -90,12 +91,12 @@ origin_server = "http://<ORIGIN_IP>"
 
 ### すべてのアプリケーションの検証
 
-CDN経由で各オリジンアプリケーションをテストします：
+CDN を通じて各オリジンアプリケーションをテストします：
 
 ```bash
 CDN=<CDN_EDGE_IP>
 
-# ヘルスチェック（CDNローカル）
+# ヘルスチェック（CDN ローカル）
 curl -sf "http://$CDN/health" | python3 -m json.tool
 
 # ランディングページ
@@ -104,13 +105,13 @@ curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
 # Juice Shop
 curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
 
-# DVWA（ログインへリダイレクト）
+# DVWA（ログインへのリダイレクトに従う）
 curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
 
 # VAmPI API
 curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
 
-# httpbin ヘッダー（CDNヘッダーをJSONで表示）
+# httpbin ヘッダー（JSON で CDN ヘッダーを表示）
 curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
 
 # whoami（オリジンが受信するすべてのヘッダーを表示）
@@ -120,19 +121,19 @@ curl -sf "http://$CDN/whoami/"
 curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
 ```
 
-すべてのパスがHTTP 200を返す必要があります（DVWAはリダイレクト後に302、次に200を返します）。
+すべてのパスは HTTP 200 を返す必要があります（DVWA はリダイレクト時に 302 を返し、その後 200 を返します）。
 
-### オリジンでのCDNヘッダーの検証
+### オリジンでの CDN ヘッダーの検証
 
-`/whoami/`エンドポイントは、オリジンが受信するすべてのヘッダーを表示します。CDN経由でアクセスすると、67以上のベンダーヘッダーがすべて表示されます：
+`/whoami/` エンドポイントは、オリジンが受信するすべてのヘッダーを表示します。CDN を通じてアクセスすると、67 以上のベンダーヘッダーがすべて表示されます：
 
 ```bash
 curl -sf "http://$CDN/whoami/"
 ```
 
-以下の主要ヘッダーが存在することを確認します：
+以下の主要なヘッダーが存在することを確認します：
 
-| ベンダー | ヘッダー | 期待される値 |
+| ベンダー | ヘッダー | 期待値 |
 |---|---|---|
 | 標準 | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
 | Akamai | `True-Client-Ip` | `<your_ip>` |
@@ -143,41 +144,41 @@ curl -sf "http://$CDN/whoami/"
 
 ### ログの相互参照
 
-両方のサーバーのアクセスログを比較してトラフィックフローを検証します：
+両サーバーのアクセスログを比較して、トラフィックフローを確認します：
 
 ```bash
-# CDNエッジログ — ソースとしてクライアントIPを表示
+# CDN エッジログ — クライアント IP がソースとして表示される
 ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
 
-# オリジンログ — ソースとしてCDNエッジIPを表示
+# オリジンログ — CDN エッジ IP がソースとして表示される
 ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
 ```
 
-オリジンログではCDNエッジIPが接続クライアントとして表示され、実際のクライアントIPは`X-Forwarded-For`およびベンダー固有のヘッダーで伝達されます。
+オリジンログには CDN エッジ IP が接続クライアントとして表示され、実際のクライアント IP は `X-Forwarded-For` およびベンダー固有のヘッダーに含まれます。
 
-### キャッシュ動作
+### キャッシュの動作
 
 ```bash
 # 最初のリクエスト — MISS（オリジンから取得）
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 
-# 2回目のリクエスト — HIT（CDNキャッシュから配信）
+# 2 回目のリクエスト — HIT（CDN キャッシュから提供）
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 ```
 
-## ステージ2：F5 XC挿入（セキュリティデモ）
+## ステージ 2：F5 XC 挿入（セキュリティデモ）
 
-ベースラインテスト後、CDNとオリジン間にF5 XC HTTPロードバランサーを挿入します：
+ベースラインテストの後、CDN とオリジンの間に F5 XC HTTP ロードバランサーを挿入します：
 
 ```
 ┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  クライアント │────▶│  CDNエッジ      │────▶│  F5 XC HTTP LB   │────▶│  オリジンサーバー │
+│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
 │           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
 └──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-1. **F5 XC HTTPロードバランサーを作成**し、オリジンプールにオリジンサーバーを設定します
-2. **CDNエッジを更新**して、オリジンに直接ではなくF5 XC VIPを指すようにします：
+1. **F5 XC HTTP ロードバランサーを作成**し、オリジンプールにオリジンサーバーを追加します
+2. **CDN エッジを更新**して、オリジンに直接ではなく F5 XC VIP を指すようにします：
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -186,24 +187,24 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-3. **WAF適用を検証**して、フルチェーンを通じて確認します：
+3. **フルチェーンを通じた WAF 適用の検証**：
 
 ```bash
-# CDN経由のSQLインジェクション → F5 XC WAFがブロックするはず
+# CDN → F5 XC WAF を通じた SQL インジェクション（ブロックされるはず）
 curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
 
-# 通常のリクエストは通過するはず
+# 通常のリクエストはパスするはず
 curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 ```
 
-4. **F5 XCで信頼済みクライアントIPヘッダーを設定**し、CDNヘッダーから実際のクライアントIPを読み取るようにします（例：Akamaiシミュレーション用の`True-Client-IP`、Cloudflareシミュレーション用の`CF-Connecting-IP`）
+4. **F5 XC で信頼済みクライアント IP ヘッダーを設定**し、CDN ヘッダーから実際のクライアント IP を読み取ります（例：Akamai シミュレーション用の `True-Client-IP`、Cloudflare シミュレーション用の `CF-Connecting-IP`）
 
 ## マルチコンポーネントアーキテクチャ
 
 | コンポーネント | リポジトリ | 目的 |
 |---|---|---|
-| **CDNエッジ**（これ） | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | キャッシュ、ベンダーヘッダー |
-| **オリジンサーバー** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | 脆弱なWebアプリ |
-| **F5 XC設定** | Various (waf, api-protection, bot-*, etc.) | セキュリティポリシー |
+| **CDN エッジ**（本リポジトリ） | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | キャッシュ、ベンダーヘッダー |
+| **オリジンサーバー** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | 脆弱な Web アプリ |
+| **F5 XC 設定** | 各種（waf、api-protection、bot-* など） | セキュリティポリシー |
 
-各コンポーネントは、AIアシスタントがインフラストラクチャをデプロイするために読み取るドキュメントを公開しています。origin-serverは、すべてのアプリケーションパスとヘルスチェックを一覧にした[エンドポイントマニフェスト](https://github.com/f5xc-salesdemos/origin-server/releases/latest)をGitHub Releaseアーティファクトとして公開しています。
+各コンポーネントは、AI アシスタントがインフラをデプロイするために読み取るドキュメントを公開しています。オリジンサーバーは、すべてのアプリケーションパスとヘルスチェックを一覧表示する[エンドポイントマニフェスト](https://github.com/f5xc-salesdemos/origin-server/releases/latest)を GitHub リリースアーティファクトとして公開しています。

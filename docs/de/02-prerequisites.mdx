@@ -1,9 +1,9 @@
 ---
 title: Voraussetzungen
 description: >-
-  Erforderliche Tools (Azure CLI, Terraform >= 1.5, SSH-Schlüsselpaar),
+  Erforderliche Werkzeuge (Azure CLI, Terraform >= 1.5, SSH-Schlüsselpaar),
   Azure-Abonnementberechtigungen und Azure AD-Anforderungen für die
-  Bereitstellung der leistungsoptimierten CDN-Edge-Node-VM
+  Bereitstellung der leistungsoptimierten CDN-Edge-Knoten-VM
 sidebar:
   order: 2
 i18n:
@@ -15,17 +15,17 @@ i18n:
 
 ### Azure-Abonnement
 
-Ein aktives Azure-Abonnement mit der Berechtigung zum Erstellen von:
+Ein aktives Azure-Abonnement mit Berechtigung zum Erstellen von:
 
 - Ressourcengruppen
-- Virtuellen Netzwerken und Subnetzen
+- Virtuelle Netzwerke und Subnetze
 - Netzwerksicherheitsgruppen
-- Öffentlichen IP-Adressen
-- Virtuellen Maschinen
+- Öffentliche IP-Adressen
+- Virtuelle Maschinen
 
 ### Azure CLI
 
-Installieren und authentifizieren Sie die Azure CLI:
+Azure CLI installieren und authentifizieren:
 
 ```bash
 # Install (if not present)
@@ -63,17 +63,17 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 ### Azure AD-Berechtigungen
 
-Ihr Azure AD-Konto muss über `User.Read`-Berechtigungen verfügen. Die Deployer-Kennung (verwendet in der Ressourcenbenennung) wird automatisch aus Ihrem Azure AD-Profil abgeleitet. Bei Authentifizierung über einen Dienstprinzipal oder eine verwaltete Identität setzen Sie die Terraform-Variable `deployer` explizit.
+Ihr Azure AD-Konto muss über `User.Read`-Berechtigungen verfügen. Die Bereitsteller-Kennung (die bei der Ressourcenbenennung verwendet wird) wird automatisch aus Ihrem Azure AD-Profil abgeleitet. Für die Authentifizierung per Dienstprinzipal oder verwalteter Identität setzen Sie die Terraform-Variable `deployer` explizit.
 
 ## Optional
 
 ### Benutzerdefinierte Domain
 
-Wenn Sie echte TLS-Zertifikate anstelle von selbstsignierten verwenden möchten:
+Falls Sie echte TLS-Zertifikate anstelle von selbstsignierten Zertifikaten wünschen:
 
 - Ein Domainname mit DNS-Kontrolle
-- Die Möglichkeit, A-Records zu erstellen, die auf die öffentliche Azure-IP-Adresse verweisen
+- Möglichkeit, A-Einträge zu erstellen, die auf die öffentliche Azure-IP-Adresse verweisen
 
-### Origin-Server-URL
+### Ursprungsserver-URL
 
-Die URL des F5 XC HTTP Load Balancers, an den dieser Edge-Node den Datenverkehr weiterleitet. Dies kann nach der Bereitstellung konfiguriert werden — die Standard-NGINX-Konfiguration verwendet einen Platzhalter, den Sie in der NGINX-Konfiguration aktualisieren.
+Die URL des F5 XC HTTP-Load-Balancers, an den dieser Edge-Knoten den Datenverkehr weiterleitet. Diese kann nach der Bereitstellung konfiguriert werden — die Standard-NGINX-Konfiguration verwendet einen Platzhalter, den Sie in der NGINX-Konfiguration aktualisieren.

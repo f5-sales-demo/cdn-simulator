@@ -1,8 +1,8 @@
 ---
 title: Prerequisiti
 description: >-
-  Strumenti richiesti (Azure CLI, Terraform >= 1.5, coppia di chiavi SSH),
-  permessi della sottoscrizione Azure e requisiti di Azure AD per il deployment
+  Strumenti necessari (Azure CLI, Terraform >= 1.5, coppia di chiavi SSH),
+  permessi della sottoscrizione Azure e requisiti Azure AD per il deployment
   della VM del nodo edge CDN ottimizzata per le prestazioni
 sidebar:
   order: 2
@@ -11,11 +11,11 @@ i18n:
   translator: machine
 ---
 
-## Requisiti
+## Obbligatori
 
 ### Sottoscrizione Azure
 
-Una sottoscrizione Azure attiva con i permessi per creare:
+Una sottoscrizione Azure attiva con il permesso di creare:
 
 - Gruppi di risorse
 - Reti virtuali e subnet
@@ -25,7 +25,7 @@ Una sottoscrizione Azure attiva con i permessi per creare:
 
 ### Azure CLI
 
-Installare e autenticarsi con Azure CLI:
+Installare e autenticare Azure CLI:
 
 ```bash
 # Install (if not present)
@@ -63,17 +63,17 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 ### Permessi Azure AD
 
-Il vostro account Azure AD deve avere i permessi `User.Read`. L'identificatore del deployer (utilizzato nella denominazione delle risorse) viene derivato automaticamente dal vostro profilo Azure AD. Per l'autenticazione tramite service principal o managed identity, impostare esplicitamente la variabile Terraform `deployer`.
+Il proprio account Azure AD deve disporre dei permessi `User.Read`. L'identificativo del deployer (utilizzato nella denominazione delle risorse) viene derivato automaticamente dal profilo Azure AD. Per l'autenticazione tramite service principal o managed identity, impostare esplicitamente la variabile Terraform `deployer`.
 
-## Opzionali
+## Facoltativi
 
 ### Dominio personalizzato
 
-Se desiderate certificati TLS reali invece di certificati auto-firmati:
+Se si desidera certificati TLS reali anziché auto-firmati:
 
 - Un nome di dominio con controllo DNS
-- La possibilità di creare record A che puntano all'IP pubblico Azure
+- Possibilità di creare record A che puntino all'IP pubblico Azure
 
-### URL del server di origine
+### URL del Server di origine
 
-L'URL del load balancer HTTP F5 XC a cui questo nodo edge inoltrerà il traffico. Questo può essere configurato dopo il deployment — la configurazione NGINX predefinita utilizza un segnaposto che si aggiorna nella configurazione di NGINX.
+L'URL del load balancer HTTP di F5 XC verso cui questo nodo edge instraderà il traffico. Può essere configurato dopo il deployment — la configurazione NGINX predefinita utilizza un segnaposto che è possibile aggiornare nella configurazione NGINX.

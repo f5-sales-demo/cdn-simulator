@@ -1,8 +1,8 @@
 ---
 title: 驗證
 description: >-
-  使用預期的 HTTP 回應碼、X-Cache-Status 標頭值（HIT/MISS）、健康檢查 JSON
-  回應、快取目錄檢查、來源伺服器連線測試進行煙霧測試命令，以及 cloud-init、NGINX 啟動和 NSG 問題的疑難排解
+  使用預期的 HTTP 回應碼、X-Cache-Status 標頭值（HIT/MISS）、健康檢查 JSON 回應、快取目錄檢查、來源連線檢查，以及針對
+  cloud-init、NGINX 啟動和 NSG 問題的疑難排解進行煙霧測試指令
 sidebar:
   order: 5
 i18n:
@@ -10,11 +10,11 @@ i18n:
   translator: machine
 ---
 
-部署完成後，請執行以下檢查以確認 CDN 邊緣節點運作正常。在 `terraform apply` 之後，請等待 2-3 分鐘讓 cloud-init 完成 NGINX 的安裝。
+部署後，執行以下檢查以確認 CDN 邊緣節點正常運作。在 `terraform apply` 後請等待 2-3 分鐘，讓 cloud-init 完成 NGINX 的安裝。
 
 ## 健康檢查
 
-驗證 NGINX 正在運行並能回應請求：
+確認 NGINX 正在執行並有所回應：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/health" | jq .
@@ -37,21 +37,21 @@ curl -s "http://<PUBLIC_IP>/health" | jq .
 }
 ```
 
-如果使用 Terraform 輸出：
+若使用 Terraform 輸出：
 
 ```bash
 curl -s "$(terraform output -raw health_check_url)" | jq .
 ```
 
-## 快取未命中（首次請求）
+## 快取未命中（第一次請求）
 
-對任何路徑的首次請求將會是快取未命中 — 邊緣節點會從來源伺服器擷取內容：
+對任何路徑的第一次請求將會是快取未命中——邊緣節點會從來源擷取內容：
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-在回應中尋找以下標頭：
+請在回應中尋找以下標頭：
 
 ```
 X-Cache-Status: MISS
@@ -75,55 +75,55 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` 確認回應是從 NGINX 磁碟快取提供的，無需聯繫來源伺服器。
+`HIT` 確認回應是從 NGINX 磁碟快取提供，未聯繫來源。
 
 ## 快取目錄檢查
 
-透過 SSH 連線到虛擬機器，驗證快取內容存在於磁碟上：
+SSH 進入虛擬機器以確認快取內容存在於磁碟上：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# 檢查快取目錄是否有內容
+# Check cache directory has content
 sudo find /var/cache/nginx/cdn -type f | head -20
 
-# 檢查快取大小
+# Check cache size
 sudo du -sh /var/cache/nginx/cdn
 ```
 
 ## NGINX 狀態
 
-驗證 NGINX 正在運行且設定有效：
+確認 NGINX 正在執行且設定有效：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# 檢查服務狀態
+# Check service status
 sudo systemctl status nginx
 
-# 驗證設定
+# Validate configuration
 sudo nginx -t
 
-# 檢視活動連線（如果已啟用 stub_status）
+# View active connections (if stub_status is enabled)
 curl -s http://localhost/health
 ```
 
-## 來源伺服器連線
+## 來源連線檢查
 
-驗證邊緣節點能夠連線到來源伺服器：
+確認邊緣節點能夠連接到來源伺服器：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# 測試與來源伺服器的連線（請替換為您的來源 URL）
+# Test connectivity to origin (replace with your origin URL)
 curl -I "https://your-origin.example.com/"
 ```
 
-如果連線失敗，請檢查：
+若此操作失敗，請檢查：
 
 1. Terraform 設定中的 `origin_server` 變數是否正確
-2. 來源伺服器是否允許來自邊緣節點公用 IP 的入站連線
-3. 虛擬機器上的 DNS 解析是否正常（`nslookup your-origin.example.com`）
+2. 來源伺服器是否允許來自邊緣節點公用 IP 的輸入連線
+3. DNS 解析是否能從虛擬機器正常運作（`nslookup your-origin.example.com`）
 
 ## Cloud-Init 進度
 
@@ -133,9 +133,9 @@ curl -I "https://your-origin.example.com/"
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 ```
 
-預期階段：`[init]`、`[nic]`（動態網路介面偵測）、`[complete]`。
+預期階段：`[init]`、`[nic]`（動態 NIC 偵測）、`[complete]`。
 
-如果 cloud-init 報告錯誤：
+若 cloud-init 回報錯誤：
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
@@ -143,14 +143,14 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 
 ## 端對端測試
 
-執行完整的請求循環並驗證回應鏈：
+執行完整的請求循環並確認回應鏈：
 
 ```bash
-# 首次請求 — MISS（從來源伺服器擷取）
+# First request — MISS (fetches from origin)
 echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
-# 第二次請求 — HIT（從快取提供）
+# Second request — HIT (served from cache)
 echo "=== Request 2 (expect HIT) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 ```
@@ -164,15 +164,15 @@ HTTP 200 | Cache: MISS
 HTTP 200 | Cache: HIT
 ```
 
-## 廠商標頭驗證
+## 供應商標頭驗證
 
-透過請求 `/headers` 路徑來驗證所有 CDN 廠商標頭是否已注入（當使用 httpbin.org 作為來源伺服器時）：
+透過請求 `/headers` 路徑（使用 httpbin.org 作為來源時）確認所有 CDN 供應商標頭均已注入：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 ```
 
-預期回應包含來自所有五個廠商的標頭：
+預期回應包含來自所有五個供應商的標頭：
 
 ```json
 {
@@ -198,7 +198,7 @@ curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 
 ### 裝置偵測測試
 
-使用行動裝置 User-Agent 進行測試，以驗證裝置偵測標頭是否會改變：
+使用行動裝置 User-Agent 進行測試，以確認裝置偵測標頭會發生變化：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
@@ -215,7 +215,7 @@ curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
 
 ## 疑難排解
 
-### NGINX 未運行
+### NGINX 未執行
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -225,7 +225,7 @@ sudo journalctl -u nginx --no-pager -n 50
 
 ### Cloud-init 尚未完成
 
-在 `terraform apply` 之後，cloud-init 需要 2-3 分鐘。檢查進度：
+執行 `terraform apply` 後，cloud-init 需要 2-3 分鐘。請檢查進度：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -233,13 +233,13 @@ sudo cloud-init status
 sudo tail -f /var/log/cloud-init-output.log
 ```
 
-### 快取始終顯示 MISS
+### 快取持續顯示 MISS
 
-- 驗證來源伺服器是否回傳可快取的回應碼（200、301、302）
-- 檢查來源伺服器是否發送了 `Cache-Control: no-cache` 或 `no-store` 標頭
+- 確認來源回傳可快取的回應碼（200、301、302）
+- 確認來源未傳送 `Cache-Control: no-cache` 或 `no-store` 標頭
 - 檢查 NGINX 錯誤日誌：`sudo tail -f /var/log/nginx/error.log`
 
-### 連接埠 80/443 連線被拒絕
+### 連接埠 80/443 拒絕連線
 
-- 驗證 NSG 規則是否已套用：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
-- 驗證 NGINX 是否正在監聽：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`
+- 確認 NSG 規則已套用：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- 確認 NGINX 正在監聽：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

@@ -1,11 +1,9 @@
 ---
 title: CDN 模擬器
 description: >-
-  NGINX-based CDN edge node simulator that injects realistic headers from
-  Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys
-  as an Ubuntu 24.04 Azure VM via Terraform with NGINX caching reverse proxy.
-  Used as a modular lab component in front of F5 Distributed Cloud HTTP load
-  balancers.
+  基於 NGINX 的 CDN 邊緣節點模擬器，可注入來自 Akamai、Cloudflare、Amazon CloudFront、Fastly 和
+  Azure Front Door 的真實標頭。透過 Terraform 以 Ubuntu 24.04 Azure VM 部署，搭配 NGINX
+  快取反向代理。作為模組化實驗室元件，部署於 F5 Distributed Cloud HTTP 負載平衡器前端。
 template: splash
 sidebar:
   hidden: true
@@ -27,42 +25,42 @@ i18n:
   translator: machine
 ---
 
-## 本專案提供的功能
+## 本模擬器提供的功能
 
-- **[單一邊緣節點](01-overview/)** — 一台執行 NGINX 作為快取反向代理的 Ubuntu 24.04 虛擬機，最小可行的 CDN 邊緣節點
-- **[Terraform 部署](03-deploy/)** — 完整的 Azure 基礎架構即程式碼：VNet、PIP、NSG，以及使用 cloud-init 佈建的虛擬機
-- **[67+ CDN 供應商標頭](04-nginx-config/)** — 模擬 Akamai、Cloudflare、CloudFront、Fastly 和 Azure Front Door 的請求標頭，包括 True-Client-IP、CF-Connecting-IP、地理位置、裝置偵測、JA3/JA4 指紋及機器人評分
-- **[來源站整合](06-integrate/)** — 設定邊緣節點將快取未命中的請求轉發至 F5 XC HTTP 負載平衡器作為來源站
-- **[快取驗證](05-verify/)** — 透過 X-Cache-Status 標頭和 NGINX 快取檢查驗證 HIT/MISS 行為
+- **[單一邊緣節點](01-overview/)** — 一台執行 NGINX 作為快取反向代理的 Ubuntu 24.04 VM，為最小可行的 CDN 邊緣配置
+- **[Terraform 部署](03-deploy/)** — 完整的 Azure 基礎架構即程式碼：VNet、PIP、NSG 及搭配 cloud-init 佈建的 VM
+- **[67+ 種 CDN 廠商標頭](04-nginx-config/)** — 模擬 Akamai、Cloudflare、CloudFront、Fastly 及 Azure Front Door 的請求標頭，包含 True-Client-IP、CF-Connecting-IP、地理位置、裝置偵測、JA3/JA4 指紋及機器人評分
+- **[源站整合](06-integrate/)** — 將邊緣節點設定為把快取未命中的請求轉發至 F5 XC HTTP 負載平衡器作為源站
+- **[快取驗證](05-verify/)** — 透過 X-Cache-Status 標頭及 NGINX 快取檢查，驗證 HIT/MISS 行為
 
 ## 快速參考
 
-部署完成後，CDN 邊緣節點公開以下端點：
+部署完成後，CDN 邊緣節點提供以下端點：
 
 | 端點 | 方法 | 用途 |
 |---|---|---|
-| `http://<PUBLIC_IP>/health` | GET | 健康檢查 — 回傳包含元件狀態和供應商設定檔的 JSON |
-| `http://<PUBLIC_IP>/` | GET | CDN 代理 — 快取並轉發請求至來源伺服器 |
-| `http://<PUBLIC_IP>/<any-path>` | GET | CDN 代理 — 所有路徑皆會透過快取和供應商標頭進行代理 |
+| `http://<PUBLIC_IP>/health` | GET | 健康檢查 — 回傳含元件狀態及廠商設定檔的 JSON |
+| `http://<PUBLIC_IP>/` | GET | CDN 代理 — 快取並轉發請求至源站伺服器 |
+| `http://<PUBLIC_IP>/<any-path>` | GET | CDN 代理 — 所有路徑均透過代理處理，並套用快取與廠商標頭 |
 
 每個代理回應中新增的回應標頭：
 
 | 標頭 | 範例 | 用途 |
 |---|---|---|
-| `X-Cache-Status` | `HIT` 或 `MISS` | 回應是否從快取提供 |
+| `X-Cache-Status` | `HIT` 或 `MISS` | 回應是否由快取提供 |
 | `X-CDN-Edge` | `cdn-simulator` | 識別此邊緣節點 |
-| `X-CDN-POP` | `SJC` | 模擬的接入點代碼 |
+| `X-CDN-POP` | `SJC` | 模擬的存在點代碼 |
 | `X-Served-By` | `cache-sjc3120-SJC` | 模擬的快取節點識別碼 |
 | `X-Request-ID` | UUID | 每個請求的唯一識別碼 |
 
 ## 文件指南
 
-| 頁面 | 對象 | 用途 |
+| 頁面 | 目標讀者 | 用途 |
 |---|---|---|
-| [概覽](01-overview/) | 人類 + AI | 架構、多供應商背景、本模擬器的功能說明 |
-| [前置條件](02-prerequisites/) | AI | 必要工具、Azure 訂閱、SSH 金鑰、成本估算 |
-| [部署](03-deploy/) | AI | 完整的 Terraform HCL — 複製並套用即可部署 |
-| [NGINX 設定](04-nginx-config/) | 人類 + AI | 所有 67+ CDN 供應商標頭及其確切值與用途 |
-| [驗證](05-verify/) | AI | 煙霧測試指令及預期的請求/回應行為 |
-| [與 F5 XC 整合](06-integrate/) | 人類 + AI | 將邊緣節點連接至 F5 XC 作為來源站、端到端驗證 |
-| [拆除](07-teardown/) | AI | 銷毀所有資源、清理指令 |
+| [概覽](01-overview/) | 人工 + AI | 架構、多廠商情境及模擬內容說明 |
+| [前置條件](02-prerequisites/) | AI | 所需工具、Azure 訂閱、SSH 金鑰及費用估算 |
+| [部署](03-deploy/) | AI | 完整的 Terraform HCL — 複製並套用以完成部署 |
+| [NGINX 設定](04-nginx-config/) | 人工 + AI | 所有 67+ 種 CDN 廠商標頭，含確切值及用途說明 |
+| [驗證](05-verify/) | AI | 含預期請求／回應行為的煙霧測試指令 |
+| [與 F5 XC 整合](06-integrate/) | 人工 + AI | 將邊緣節點連接至 F5 XC 作為源站，並進行端對端驗證 |
+| [清除資源](07-teardown/) | AI | 銷毀所有資源及清理指令 |

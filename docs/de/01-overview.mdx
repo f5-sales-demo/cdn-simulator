@@ -1,9 +1,9 @@
 ---
-title: Übersicht
+title: Überblick
 description: >-
   Architektur, Endpunkte, Vendor-Header-Simulation und modulares Design des
-  NGINX-basierten CDN-Edge-Node-Simulators, bereitgestellt auf Ubuntu 24.04 in
-  Azure
+  NGINX-basierten CDN-Edge-Node-Simulators, der auf Ubuntu 24.04 in Azure
+  bereitgestellt wird
 sidebar:
   order: 1
 i18n:
@@ -13,15 +13,15 @@ i18n:
 
 ## Zweck
 
-Diese Komponente simuliert einen CDN-Edge-Node für Labor- und Demoumgebungen. Sie repräsentiert die Rolle, die Anbieter wie Akamai, Cloudflare, Amazon CloudFront oder Fastly in der Netzwerkarchitektur eines Kunden spielen — die Caching-Schicht, die den Endbenutzern am nächsten liegt und vor einem Origin-Server sitzt.
+Diese Komponente simuliert einen CDN-Edge-Node für Labor- und Demo-Umgebungen. Sie repräsentiert die Rolle, die Anbieter wie Akamai, Cloudflare, Amazon CloudFront oder Fastly in der Netzwerkarchitektur eines Kunden spielen – die Caching-Schicht, die dem Endbenutzer am nächsten liegt und sich vor einem Ursprungsserver befindet.
 
-In Multi-Vendor-Architekturen in der Produktion kombinieren Kunden üblicherweise ein CDN eines Drittanbieters mit F5 Distributed Cloud:
+In produktiven Multi-Vendor-Architekturen kombinieren Kunden häufig ein CDN eines Drittanbieters mit F5 Distributed Cloud:
 
 ```
 End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
-Dieser Simulator ersetzt das kommerzielle CDN durch einen NGINX-basierten Edge-Node, sodass die Integration ohne Anbieterverträge oder Produktionsinfrastruktur demonstriert und getestet werden kann.
+Dieser Simulator ersetzt das kommerzielle CDN durch einen NGINX-basierten Edge-Node, sodass die Integration demonstriert und getestet werden kann, ohne Anbieterverträge oder Produktionsinfrastruktur zu benötigen.
 
 ## Architektur
 
@@ -38,25 +38,25 @@ Dieser Simulator ersetzt das kommerzielle CDN durch einen NGINX-basierten Edge-N
 Der NGINX-Edge-Node:
 
 - **Terminiert TLS** am Edge (selbstsigniert oder Let's Encrypt)
-- **Cached Antworten** auf der Festplatte mittels `proxy_cache_path`
-- **Leitet Cache-Misses weiter** an einen konfigurierbaren Origin-Server (die F5 XC HTTP Load Balancer VIP)
-- **Meldet den Cache-Status** über den `X-Cache-Status` Response-Header (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
+- **Speichert Antworten** auf dem Datenträger mittels `proxy_cache_path`
+- **Leitet Cache-Misses** an einen konfigurierbaren Ursprungsserver weiter (den F5 XC HTTP Load Balancer VIP)
+- **Meldet den Cache-Status** über den `X-Cache-Status`-Antwortheader (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
 
 ## Was simuliert wird
 
 | CDN-Funktion | NGINX-Implementierung |
 |---|---|
-| Edge-Caching | `proxy_cache` mit festplattenbasiertem Speicher |
+| Edge-Caching | `proxy_cache` mit datenträgerbasiertem Speicher |
 | Cache-Key-Generierung | `proxy_cache_key` basierend auf Schema, Host und URI |
 | Origin-Pull | `proxy_pass` zum F5 XC HTTP Load Balancer |
-| TLS-Terminierung | NGINX `ssl_certificate`-Direktive |
-| Cache-Control-Einhaltung | `proxy_cache_valid` mit Origin-Header-Durchleitung |
-| Cache-Status-Meldung | `add_header X-Cache-Status $upstream_cache_status` |
-| Health-Endpunkt | `/health`-Location gibt 200 OK zurück |
+| TLS-Terminierung | NGINX-Direktive `ssl_certificate` |
+| Cache-Control-Beachtung | `proxy_cache_valid` mit Weitergabe des Origin-Headers |
+| Cache-Status-Reporting | `add_header X-Cache-Status $upstream_cache_status` |
+| Health-Endpunkt | `/health`-Location mit Rückgabe 200 OK |
 
-## Endpunkte und Request/Response-Verhalten
+## Endpunkte und Anfrage-/Antwortverhalten
 
-### Health Check
+### Health-Check
 
 ```
 GET /health
@@ -79,7 +79,7 @@ Antwort (200 OK, `Content-Type: application/json`):
 GET /<any-path>
 ```
 
-Zum Origin injizierte Request-Header (67+ Header von 5 Anbietern):
+In Richtung Origin injizierte Anfrage-Header (67+ Header von 5 Anbietern):
 
 | Kategorie | Hinzugefügte Header |
 |---|---|
@@ -88,27 +88,27 @@ Zum Origin injizierte Request-Header (67+ Header von 5 Anbietern):
 | Geräteerkennung | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
 | TLS/Fingerprint | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
 | Bot-Erkennung | `cf-bot-score` (85 = wahrscheinlich menschlich), `cf-verified-bot` |
-| Request-Tracing | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
+| Anfrage-Tracing | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
 | Edge-Identität | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
 | Standard | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
 
-Zu jeder proxierten Antwort hinzugefügte Response-Header:
+Antwortheader, die jeder weitergereichten Antwort hinzugefügt werden:
 
 | Header | Werte | Zweck |
 |---|---|---|
-| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | Cache-Verhalten für diesen Request |
+| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | Cache-Verhalten für diese Anfrage |
 | `X-CDN-Edge` | `cdn-simulator` | Identifiziert diesen Edge-Node |
 | `X-CDN-POP` | `SJC` | Simulierter Point of Presence IATA-Code |
 | `X-Served-By` | `cache-sjc3120-SJC` | Simulierter Cache-Node im Fastly-Format |
-| `X-Request-ID` | UUID (pro Request) | Eindeutiger Request-Identifikator |
+| `X-Request-ID` | UUID (pro Anfrage) | Eindeutiger Anfrage-Bezeichner |
 
 ### Cache-Verhalten
 
-- Erster Request an einen beliebigen Pfad: `X-Cache-Status: MISS` (vom Origin geholt, jetzt gecacht)
-- Nachfolgende identische Requests: `X-Cache-Status: HIT` (aus dem Disk-Cache bereitgestellt)
+- Erste Anfrage an einen beliebigen Pfad: `X-Cache-Status: MISS` (vom Origin abgerufen, jetzt gecacht)
+- Nachfolgende identische Anfragen: `X-Cache-Status: HIT` (aus dem Datenträger-Cache bedient)
 - Cache-Key: `$scheme$host$request_uri` (Schema + Hostname + vollständiger Pfad + Query-String)
 - Cache-TTL: 10 Minuten für 200/301/302, 1 Minute für 404
-- Stale-Serving: Liefert gecachten Inhalt bei Origin-Fehlern (500/502/503/504)
+- Stale-Bereitstellung: gibt gecachten Inhalt bei Origin-Fehlern zurück (500/502/503/504)
 
 ### VM-Zugriff
 
@@ -118,23 +118,23 @@ Zu jeder proxierten Antwort hinzugefügte Response-Header:
 | NGINX-Konfiguration | `/etc/nginx/conf.d/cdn-edge.conf` |
 | NGINX-Logs | `/var/log/nginx/access.log` und `/var/log/nginx/error.log` |
 | Cache-Verzeichnis | `/var/cache/nginx/cdn/` |
-| Cloud-init-Log | `/var/log/cloud-init-output.log` |
+| Cloud-Init-Log | `/var/log/cloud-init-output.log` |
 
 ## Modulares Komponentendesign
 
-Dies ist ein Bestandteil einer größeren Laborumgebung. Jede Komponente ist eigenständig und wird unabhängig bereitgestellt:
+Dies ist ein Teil einer größeren Laborumgebung. Jede Komponente ist eigenständig und wird unabhängig bereitgestellt:
 
 - **Diese Komponente** stellt den CDN-Edge bereit (NGINX auf Azure VM)
-- **Andere Komponenten** stellen die Origin-Anwendung, F5 XC-Konfiguration, DNS, WAF-Richtlinien usw. bereit
+- **Andere Komponenten** stellen die Origin-Anwendung, die F5 XC-Konfiguration, DNS, WAF-Richtlinien usw. bereit.
 
-Der menschliche Operator fügt Komponenten einzeln hinzu. Die Dokumentation jeder Komponente ist so verfasst, dass ein KI-Assistent sie lesen und die Infrastruktur autonom bereitstellen kann.
+Der menschliche Operator fügt Komponenten einzeln hinzu. Die Dokumentation jeder Komponente ist so verfasst, dass ein KI-Assistent sie lesen und die Infrastruktur eigenständig bereitstellen kann.
 
 ## Warum NGINX
 
-NGINX wurde als CDN-Simulations-Engine aus folgenden Gründen gewählt:
+NGINX wurde als CDN-Simulationsengine ausgewählt, weil:
 
-1. **F5-Produkt** — F5 hat NGINX Inc. 2019 übernommen; es ist Teil des F5-Portfolios
-2. **Branchenerprobt** — Cloudflare betrieb sein gesamtes CDN über ein Jahrzehnt lang auf NGINX, bevor sie zu Pingora migrierten; Netflix nutzt NGINX für sein Open Connect CDN
-3. **Einzelner Prozess** — übernimmt TLS-Terminierung und Caching in einer einzigen Binärdatei, im Gegensatz zu Varnish, das einen separaten TLS-Proxy erfordert
+1. **F5-Produkt** — F5 hat NGINX Inc. im Jahr 2019 übernommen; es ist Teil des F5-Portfolios
+2. **Branchenbewährt** — Cloudflare betrieb sein gesamtes CDN über ein Jahrzehnt lang auf NGINX, bevor es zu Pingora migrierte; Netflix verwendet NGINX für sein Open Connect CDN
+3. **Einzelprozess** — verarbeitet TLS-Terminierung und Caching in einer einzigen Binärdatei, anders als Varnish, das einen separaten TLS-Proxy erfordert
 4. **Einfache Bereitstellung** — `apt install nginx` auf Ubuntu 24.04, zwei Direktiven aktivieren das Caching
 5. **Gut dokumentiert** — umfangreiche offizielle Dokumentation für Content-Caching und Reverse-Proxy-Konfiguration

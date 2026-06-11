@@ -1,20 +1,18 @@
 ---
 title: CDN 模拟器
 description: >-
-  NGINX-based CDN edge node simulator that injects realistic headers from
-  Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys
-  as an Ubuntu 24.04 Azure VM via Terraform with NGINX caching reverse proxy.
-  Used as a modular lab component in front of F5 Distributed Cloud HTTP load
-  balancers.
+  基于 NGINX 的 CDN 边缘节点模拟器，可注入来自 Akamai、Cloudflare、Amazon CloudFront、Fastly 和
+  Azure Front Door 的真实请求头。通过 Terraform 以 Ubuntu 24.04 Azure VM 的形式部署，配备 NGINX
+  缓存反向代理。作为模块化实验组件，部署在 F5 Distributed Cloud HTTP 负载均衡器前端。
 template: splash
 sidebar:
   hidden: true
 hero:
-  tagline: 在 Azure 中部署功能完备的 CDN 边缘节点，用于与 F5 Distributed Cloud 的集成测试。
+  tagline: 在 Azure 中部署功能性 CDN 边缘节点，用于与 F5 Distributed Cloud 进行集成测试。
   image:
     html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
   actions:
-    - text: 开始使用
+    - text: 快速开始
       link: 01-overview/
       icon: right-arrow
       variant: primary
@@ -27,42 +25,42 @@ i18n:
   translator: machine
 ---
 
-## 本项目提供的功能
+## 功能说明
 
-- **[单个边缘节点](01-overview/)** — 一台运行 NGINX 作为缓存反向代理的 Ubuntu 24.04 虚拟机，最小可行的 CDN 边缘节点
-- **[Terraform 部署](03-deploy/)** — 完整的 Azure 基础设施即代码：VNet、PIP、NSG 以及通过 cloud-init 配置的虚拟机
-- **[67+ CDN 厂商请求头](04-nginx-config/)** — 模拟 Akamai、Cloudflare、CloudFront、Fastly 和 Azure Front Door 的请求头，包括 True-Client-IP、CF-Connecting-IP、地理位置、设备检测、JA3/JA4 指纹和 Bot 评分
-- **[源站集成](06-integrate/)** — 配置边缘节点将缓存未命中的请求转发到 F5 XC HTTP 负载均衡器作为源站
-- **[缓存验证](05-verify/)** — 通过 X-Cache-Status 响应头和 NGINX 缓存检查验证 HIT/MISS 行为
+- **[单一边缘节点](01-overview/)** — 一台运行 NGINX 作为缓存反向代理的 Ubuntu 24.04 VM，是最小可行的 CDN 边缘节点
+- **[Terraform 部署](03-deploy/)** — 完整的 Azure 基础设施即代码：VNet、PIP、NSG 以及通过 cloud-init 进行预配置的 VM
+- **[67+ CDN 厂商请求头](04-nginx-config/)** — 模拟 Akamai、Cloudflare、CloudFront、Fastly 和 Azure Front Door 的请求头，包括 True-Client-IP、CF-Connecting-IP、地理位置信息、设备检测、JA3/JA4 指纹以及机器人评分
+- **[源站集成](06-integrate/)** — 将边缘节点配置为把缓存未命中的请求转发至 F5 XC HTTP 负载均衡器作为源站
+- **[缓存验证](05-verify/)** — 通过 X-Cache-Status 响应头和 NGINX 缓存检查来验证 HIT/MISS 行为
 
 ## 快速参考
 
-部署完成后，CDN 边缘节点暴露以下端点：
+部署完成后，CDN 边缘节点将暴露以下端点：
 
 | 端点 | 方法 | 用途 |
 |---|---|---|
 | `http://<PUBLIC_IP>/health` | GET | 健康检查 — 返回包含组件状态和厂商配置文件的 JSON |
-| `http://<PUBLIC_IP>/` | GET | CDN 代理 — 缓存请求并转发到源站服务器 |
-| `http://<PUBLIC_IP>/<any-path>` | GET | CDN 代理 — 所有路径均通过缓存和厂商请求头进行代理 |
+| `http://<PUBLIC_IP>/` | GET | CDN 代理 — 对请求进行缓存并转发至源站服务器 |
+| `http://<PUBLIC_IP>/<any-path>` | GET | CDN 代理 — 所有路径均通过代理进行缓存并添加厂商请求头 |
 
 每个代理响应中添加的响应头：
 
 | 响应头 | 示例 | 用途 |
 |---|---|---|
-| `X-Cache-Status` | `HIT` 或 `MISS` | 响应是否从缓存提供 |
-| `X-CDN-Edge` | `cdn-simulator` | 标识此边缘节点 |
-| `X-CDN-POP` | `SJC` | 模拟的接入点（Point of Presence）代码 |
+| `X-Cache-Status` | `HIT` 或 `MISS` | 标识响应是否来自缓存 |
+| `X-CDN-Edge` | `cdn-simulator` | 标识当前边缘节点 |
+| `X-CDN-POP` | `SJC` | 模拟的接入点代码 |
 | `X-Served-By` | `cache-sjc3120-SJC` | 模拟的缓存节点标识符 |
 | `X-Request-ID` | UUID | 每个请求的唯一标识符 |
 
-## 文档指南
+## 文档指引
 
-| 页面 | 受众 | 用途 |
+| 页面 | 适用对象 | 用途 |
 |---|---|---|
-| [概述](01-overview/) | 人工 + AI | 架构、多厂商背景、本项目模拟的内容 |
-| [前提条件](02-prerequisites/) | AI | 所需工具、Azure 订阅、SSH 密钥、成本估算 |
-| [部署](03-deploy/) | AI | 完整的 Terraform HCL — 复制并应用即可部署 |
-| [NGINX 配置](04-nginx-config/) | 人工 + AI | 所有 67+ CDN 厂商请求头的精确值和用途 |
+| [概述](01-overview/) | 人工 + AI | 架构说明、多厂商背景、模拟内容介绍 |
+| [前置条件](02-prerequisites/) | AI | 所需工具、Azure 订阅、SSH 密钥、费用估算 |
+| [部署](03-deploy/) | AI | 完整的 Terraform HCL — 复制并应用以完成部署 |
+| [NGINX 配置](04-nginx-config/) | 人工 + AI | 全部 67+ 个 CDN 厂商请求头及其精确值与用途说明 |
 | [验证](05-verify/) | AI | 冒烟测试命令及预期的请求/响应行为 |
-| [与 F5 XC 集成](06-integrate/) | 人工 + AI | 将边缘节点连接到 F5 XC 作为源站，端到端验证 |
-| [清理资源](07-teardown/) | AI | 销毁所有资源、清理命令 |
+| [与 F5 XC 集成](06-integrate/) | 人工 + AI | 将边缘节点连接至 F5 XC 作为源站，进行端到端验证 |
+| [销毁环境](07-teardown/) | AI | 销毁所有资源及清理命令 |

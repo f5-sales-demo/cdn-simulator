@@ -1,8 +1,8 @@
 ---
-title: 後片付け
+title: ティアダウン
 description: >-
-  terraform destroy を実行してすべての Azure リソース（リソースグループ、VM、VNet、PIP、NSG）を削除し、ローカルの
-  Terraform ステートをクリーンアップし、DNS またはホストファイルの変更を元に戻します。
+  terraform destroy を実行して Azure リソース（リソースグループ、VM、VNet、PIP、NSG）をすべて削除し、ローカルの
+  Terraform ステートをクリーンアップして、DNS またはホストファイルの変更を元に戻します。
 sidebar:
   order: 7
 i18n:
@@ -10,28 +10,28 @@ i18n:
   translator: machine
 ---
 
-ラボセッションが完了したら、課金を停止するためにすべての Azure リソースを破棄します。
+ラボセッションが完了したら、課金を停止するためにすべての Azure リソースを破棄してください。
 
 ## Terraform Destroy
 
-Terraform 構成ファイルが含まれるディレクトリから実行します：
+Terraform 設定が含まれるディレクトリから実行します：
 
 ```bash
-# 破棄される内容を確認
+# Review what will be destroyed
 terraform plan -destroy
 
-# すべてのリソースを破棄
+# Destroy all resources
 terraform destroy
 ```
 
-Terraform が確認を求めます。続行するには `yes` と入力してください。
+Terraform は確認を求めるプロンプトを表示します。続行するには `yes` と入力してください。
 
 ## クリーンアップの確認
 
 すべてのリソースが削除されたことを確認します：
 
 ```bash
-# リソースグループが削除されたことを確認
+# Check resource group is gone
 az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
   | grep -q "ResourceGroupNotFound" \
   && echo "Resource group deleted" \
@@ -40,7 +40,7 @@ az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
 
 ## ローカルステートのクリーンアップ
 
-Terraform のステートファイルとキャッシュファイルを削除します：
+Terraform ステートおよびキャッシュファイルを削除します：
 
 ```bash
 rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
@@ -48,11 +48,11 @@ rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 
 ## DNS/ホストファイルの変更を元に戻す
 
-[統合](06-integrate/)の手順で DNS やホストファイルを変更した場合は、それらの変更を元に戻してください：
+[インテグレーション](06-integrate/) 中に DNS またはホストファイルを変更した場合は、その変更を元に戻してください：
 
 ```bash
-# ホストファイルのエントリを削除（Linux/macOS）
+# Remove hosts file entry (Linux/macOS)
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-DNS A レコードを作成した場合は、DNS プロバイダーを通じて削除してください。
+DNS の A レコードを作成した場合は、DNS プロバイダーのインターフェースから削除してください。

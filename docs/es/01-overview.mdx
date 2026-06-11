@@ -1,9 +1,9 @@
 ---
 title: Descripción general
 description: >-
-  Arquitectura, endpoints, simulación de encabezados de proveedor y diseño
-  modular del simulador de nodo edge CDN basado en NGINX desplegado en Ubuntu
-  24.04 en Azure
+  Arquitectura, endpoints, simulación de cabeceras de proveedor y diseño modular
+  del simulador de nodo edge CDN basado en NGINX desplegado en Ubuntu 24.04 en
+  Azure
 sidebar:
   order: 1
 i18n:
@@ -13,15 +13,15 @@ i18n:
 
 ## Propósito
 
-Este componente simula un nodo edge CDN para entornos de laboratorio y demostración. Representa el rol que proveedores como Akamai, Cloudflare, Amazon CloudFront o Fastly desempeñan en la arquitectura de red de un cliente — la capa de caché más cercana a los usuarios finales que se sitúa delante de un servidor de origen.
+Este componente simula un nodo edge CDN para entornos de laboratorio y demostración. Representa el papel que desempeñan proveedores como Akamai, Cloudflare, Amazon CloudFront o Fastly en la arquitectura de red de un cliente: la capa de caché más cercana a los usuarios finales que se sitúa frente a un servidor de origen.
 
-En arquitecturas de producción multi-proveedor, los clientes comúnmente combinan un CDN de terceros con F5 Distributed Cloud:
+En arquitecturas de producción multifabricante, los clientes suelen combinar un CDN de terceros con F5 Distributed Cloud:
 
 ```
 End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
-Este simulador reemplaza el CDN comercial con un nodo edge basado en NGINX para que la integración pueda demostrarse y probarse sin contratos de proveedores ni infraestructura de producción.
+Este simulador reemplaza el CDN comercial por un nodo edge basado en NGINX para que la integración pueda demostrarse y probarse sin contratos con proveedores ni infraestructura de producción.
 
 ## Arquitectura
 
@@ -37,24 +37,24 @@ Este simulador reemplaza el CDN comercial con un nodo edge basado en NGINX para 
 
 El nodo edge NGINX:
 
-- **Termina TLS** en el edge (certificado autofirmado o Let's Encrypt)
-- **Almacena respuestas en caché** en disco usando `proxy_cache_path`
-- **Reenvía fallos de caché** a un servidor de origen configurable (el VIP del balanceador de carga HTTP de F5 XC)
-- **Reporta el estado de la caché** mediante el encabezado de respuesta `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
+- **Termina TLS** en el edge (autofirmado o Let's Encrypt)
+- **Almacena respuestas en caché** en disco mediante `proxy_cache_path`
+- **Reenvía los fallos de caché** a un servidor de origen configurable (el VIP del balanceador de carga HTTP de F5 XC)
+- **Reporta el estado de la caché** mediante la cabecera de respuesta `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
 
-## Qué simula esto
+## Qué simula este componente
 
-| Función CDN | Implementación NGINX |
+| Función CDN | Implementación en NGINX |
 |---|---|
-| Caché en el edge | `proxy_cache` con almacenamiento basado en disco |
-| Generación de clave de caché | `proxy_cache_key` basado en esquema, host y URI |
-| Extracción desde origen | `proxy_pass` al balanceador de carga HTTP de F5 XC |
+| Caché en el edge | `proxy_cache` con almacenamiento en disco |
+| Generación de clave de caché | `proxy_cache_key` basada en esquema, host y URI |
+| Extracción desde el origen | `proxy_pass` al balanceador de carga HTTP de F5 XC |
 | Terminación TLS | Directiva `ssl_certificate` de NGINX |
-| Respeto de Cache-Control | `proxy_cache_valid` con paso de encabezados del origen |
-| Reporte de estado de caché | `add_header X-Cache-Status $upstream_cache_status` |
-| Endpoint de salud | Ubicación `/health` que devuelve 200 OK |
+| Respeto a Cache-Control | `proxy_cache_valid` con reenvío de cabeceras del origen |
+| Reporte del estado de caché | `add_header X-Cache-Status $upstream_cache_status` |
+| Endpoint de salud | Localización `/health` que devuelve 200 OK |
 
-## Endpoints y comportamiento de solicitud/respuesta
+## Endpoints y comportamiento de solicitudes/respuestas
 
 ### Verificación de salud
 
@@ -79,36 +79,36 @@ Respuesta (200 OK, `Content-Type: application/json`):
 GET /<any-path>
 ```
 
-Encabezados de solicitud inyectados hacia el origen (más de 67 encabezados de 5 proveedores):
+Cabeceras de solicitud inyectadas hacia el origen (más de 67 cabeceras de 5 proveedores):
 
-| Categoría | Encabezados añadidos |
+| Categoría | Cabeceras añadidas |
 |---|---|
 | IP del cliente | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
-| Geolocalización | `X-Akamai-Edgescape` (compuesto), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
+| Geolocalización | `X-Akamai-Edgescape` (compuesta), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
 | Detección de dispositivo | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
 | TLS/Huella digital | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
 | Detección de bots | `cf-bot-score` (85 = probablemente humano), `cf-verified-bot` |
-| Rastreo de solicitudes | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
+| Trazado de solicitudes | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
 | Identidad del edge | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
 | Estándar | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
 
-Encabezados de respuesta añadidos a cada respuesta proxificada:
+Cabeceras de respuesta añadidas a cada respuesta proxificada:
 
-| Encabezado | Valores | Propósito |
+| Cabecera | Valores | Propósito |
 |---|---|---|
-| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | Comportamiento de caché para esta solicitud |
+| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | Comportamiento de la caché para esta solicitud |
 | `X-CDN-Edge` | `cdn-simulator` | Identifica este nodo edge |
-| `X-CDN-POP` | `SJC` | Código IATA simulado del Punto de Presencia |
+| `X-CDN-POP` | `SJC` | Código IATA del punto de presencia simulado |
 | `X-Served-By` | `cache-sjc3120-SJC` | Nodo de caché simulado en formato Fastly |
 | `X-Request-ID` | UUID (por solicitud) | Identificador único de solicitud |
 
 ### Comportamiento de la caché
 
-- Primera solicitud a cualquier ruta: `X-Cache-Status: MISS` (obtenida del origen, ahora almacenada en caché)
+- Primera solicitud a cualquier ruta: `X-Cache-Status: MISS` (obtenida desde el origen y almacenada en caché)
 - Solicitudes idénticas posteriores: `X-Cache-Status: HIT` (servida desde la caché en disco)
 - Clave de caché: `$scheme$host$request_uri` (esquema + nombre de host + ruta completa + cadena de consulta)
 - TTL de caché: 10 minutos para 200/301/302, 1 minuto para 404
-- Servicio de contenido obsoleto: devuelve contenido en caché ante errores del origen (500/502/503/504)
+- Servicio desde caché obsoleta: devuelve contenido en caché ante errores del origen (500/502/503/504)
 
 ### Acceso a la VM
 
@@ -122,19 +122,19 @@ Encabezados de respuesta añadidos a cada respuesta proxificada:
 
 ## Diseño modular de componentes
 
-Este es una pieza de un entorno de laboratorio más amplio. Cada componente es autónomo y se despliega de forma independiente:
+Este es uno de los elementos de un entorno de laboratorio más amplio. Cada componente es autónomo y se despliega de forma independiente:
 
-- **Este componente** proporciona el edge CDN (NGINX en VM de Azure)
+- **Este componente** proporciona el edge CDN (NGINX en una VM de Azure)
 - **Otros componentes** proporcionan la aplicación de origen, la configuración de F5 XC, DNS, políticas WAF, etc.
 
-El operador humano añade componentes uno a la vez. La documentación de cada componente está escrita para que un asistente de IA pueda leerla y desplegar la infraestructura de forma autónoma.
+El operador humano añade componentes de uno en uno. La documentación de cada componente está redactada para que un asistente de IA pueda leerla y desplegar la infraestructura de forma autónoma.
 
 ## Por qué NGINX
 
-NGINX fue seleccionado como el motor de simulación CDN porque:
+NGINX fue seleccionado como motor de simulación CDN porque:
 
-1. **Producto de F5** — F5 adquirió NGINX Inc. en 2019; forma parte del portafolio de F5
-2. **Probado en la industria** — Cloudflare ejecutó todo su CDN sobre NGINX durante más de una década antes de migrar a Pingora; Netflix utiliza NGINX para su CDN Open Connect
-3. **Proceso único** — gestiona la terminación TLS y el almacenamiento en caché en un solo binario, a diferencia de Varnish que requiere un proxy TLS separado
-4. **Despliegue sencillo** — `apt install nginx` en Ubuntu 24.04, dos directivas habilitan el almacenamiento en caché
-5. **Bien documentado** — documentación oficial extensa para almacenamiento en caché de contenido y configuración de proxy inverso
+1. **Producto F5** — F5 adquirió NGINX Inc. en 2019; forma parte del portafolio de F5
+2. **Probado en la industria** — Cloudflare ejecutó su CDN completo sobre NGINX durante más de una década antes de migrar a Pingora; Netflix utiliza NGINX para su CDN Open Connect
+3. **Proceso único** — gestiona la terminación TLS y el almacenamiento en caché en un único binario, a diferencia de Varnish, que requiere un proxy TLS separado
+4. **Despliegue sencillo** — `apt install nginx` en Ubuntu 24.04; dos directivas habilitan el almacenamiento en caché
+5. **Bien documentado** — extensa documentación oficial sobre caché de contenido y configuración de proxy inverso

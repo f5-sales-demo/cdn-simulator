@@ -1,6 +1,6 @@
 ---
 title: 概述
-description: 在 Azure 上部署的基于 Ubuntu 24.04 的 NGINX CDN 边缘节点模拟器的架构、端点、厂商头部模拟和模块化设计
+description: 部署在 Azure Ubuntu 24.04 上的基于 NGINX 的 CDN 边缘节点模拟器的架构、端点、供应商请求头模拟及模块化设计
 sidebar:
   order: 1
 i18n:
@@ -10,15 +10,15 @@ i18n:
 
 ## 用途
 
-此组件为实验和演示环境模拟 CDN 边缘节点。它代表了 Akamai、Cloudflare、Amazon CloudFront 或 Fastly 等厂商在客户网络架构中所扮演的角色——位于源服务器前面、最靠近终端用户的缓存层。
+本组件为实验室和演示环境模拟 CDN 边缘节点。它代表 Akamai、Cloudflare、Amazon CloudFront 或 Fastly 等供应商在客户网络架构中所扮演的角色——距离终端用户最近、位于源服务器前端的缓存层。
 
-在生产环境的多厂商架构中，客户通常将第三方 CDN 与 F5 Distributed Cloud 配对使用：
+在生产多供应商架构中，客户通常将第三方 CDN 与 F5 分布式云（Distributed Cloud）配合使用：
 
 ```
 End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
-此模拟器用基于 NGINX 的边缘节点替代商业 CDN，使得无需厂商合同或生产基础设施即可进行集成演示和测试。
+本模拟器使用基于 NGINX 的边缘节点替代商业 CDN，从而无需供应商合同或生产基础设施即可进行集成演示和测试。
 
 ## 架构
 
@@ -34,22 +34,22 @@ End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 
 NGINX 边缘节点：
 
-- **在边缘终止 TLS**（自签名证书或 Let's Encrypt）
-- 使用 `proxy_cache_path` **在磁盘上缓存响应**
-- 将**缓存未命中的请求转发**到可配置的源服务器（F5 XC HTTP 负载均衡器 VIP）
-- 通过 `X-Cache-Status` 响应头**报告缓存状态**（`HIT`、`MISS`、`BYPASS`、`EXPIRED`）
+- **终止 TLS**：在边缘节点终止 TLS（自签名证书或 Let's Encrypt）
+- **缓存响应**：使用 `proxy_cache_path` 将响应缓存至磁盘
+- **转发缓存未命中请求**：将缓存未命中的请求转发至可配置的源服务器（F5 XC HTTP 负载均衡器 VIP）
+- **报告缓存状态**：通过 `X-Cache-Status` 响应头报告缓存状态（`HIT`、`MISS`、`BYPASS`、`EXPIRED`）
 
 ## 模拟内容
 
 | CDN 功能 | NGINX 实现方式 |
 |---|---|
-| 边缘缓存 | 基于磁盘存储的 `proxy_cache` |
-| 缓存键生成 | 基于 scheme、host 和 URI 的 `proxy_cache_key` |
-| 回源拉取 | `proxy_pass` 到 F5 XC HTTP 负载均衡器 |
+| 边缘缓存 | 使用基于磁盘存储的 `proxy_cache` |
+| 缓存键生成 | 基于协议、主机和 URI 的 `proxy_cache_key` |
+| 源站拉取 | 通过 `proxy_pass` 转发至 F5 XC HTTP 负载均衡器 |
 | TLS 终止 | NGINX `ssl_certificate` 指令 |
-| Cache-Control 遵循 | `proxy_cache_valid` 配合源站头部透传 |
+| Cache-Control 遵从 | `proxy_cache_valid` 配合源站请求头透传 |
 | 缓存状态报告 | `add_header X-Cache-Status $upstream_cache_status` |
-| 健康检查端点 | `/health` 路径返回 200 OK |
+| 健康检查端点 | 返回 200 OK 的 `/health` location |
 
 ## 端点与请求/响应行为
 
@@ -76,36 +76,36 @@ GET /health
 GET /<any-path>
 ```
 
-向源站注入的请求头（来自 5 个厂商的 67+ 个头部）：
+向源站注入的请求头（来自 5 个供应商的 67 个以上请求头）：
 
-| 类别 | 添加的头部 |
+| 类别 | 添加的请求头 |
 |---|---|
 | 客户端 IP | `True-Client-IP`、`CF-Connecting-IP`、`Fastly-Client-IP`、`X-Azure-ClientIP`、`CloudFront-Viewer-Address`、`X-Forwarded-For`、`X-Real-IP` |
-| 地理位置 | `X-Akamai-Edgescape`（复合值）、`CF-IPCountry`、`cf-ipcity`、`cf-iplatitude/longitude`、`CloudFront-Viewer-Country/City/Latitude/Longitude`、`X-Geo-Country-Code/City/Region` |
+| 地理位置 | `X-Akamai-Edgescape`（复合字段）、`CF-IPCountry`、`cf-ipcity`、`cf-iplatitude/longitude`、`CloudFront-Viewer-Country/City/Latitude/Longitude`、`X-Geo-Country-Code/City/Region` |
 | 设备检测 | `CloudFront-Is-Mobile-Viewer`、`CloudFront-Is-Desktop-Viewer`、`CloudFront-Is-Tablet-Viewer`、`X-Akamai-Device-Characteristics` |
 | TLS/指纹 | `CloudFront-Viewer-TLS`、`cf-ja3-hash`、`cf-ja4`、`CloudFront-Viewer-JA3-Fingerprint` |
-| Bot 检测 | `cf-bot-score`（85 = 可能是人类）、`cf-verified-bot` |
+| 机器人检测 | `cf-bot-score`（85 = 疑似真实用户）、`cf-verified-bot` |
 | 请求追踪 | `Cf-Ray`、`X-Akamai-Request-ID`、`X-Amz-Cf-Id`、`X-Azure-Ref` |
-| 边缘标识 | `X-CDN-Edge`、`X-CDN-POP`、`X-Served-By`、`Fastly-FF`、`X-Azure-FDID` |
-| 标准头部 | `Via`、`Forwarded`、`CDN-Loop`、`X-Forwarded-Proto/Host/Port` |
+| 边缘身份标识 | `X-CDN-Edge`、`X-CDN-POP`、`X-Served-By`、`Fastly-FF`、`X-Azure-FDID` |
+| 标准 | `Via`、`Forwarded`、`CDN-Loop`、`X-Forwarded-Proto/Host/Port` |
 
-添加到每个代理响应的响应头：
+每个代理响应中添加的响应头：
 
-| 头部 | 值 | 用途 |
+| 请求头 | 取值 | 用途 |
 |---|---|---|
-| `X-Cache-Status` | `HIT`、`MISS`、`BYPASS`、`EXPIRED`、`STALE` | 此请求的缓存行为 |
+| `X-Cache-Status` | `HIT`、`MISS`、`BYPASS`、`EXPIRED`、`STALE` | 本次请求的缓存行为 |
 | `X-CDN-Edge` | `cdn-simulator` | 标识此边缘节点 |
-| `X-CDN-POP` | `SJC` | 模拟的接入点 IATA 代码 |
-| `X-Served-By` | `cache-sjc3120-SJC` | Fastly 格式的模拟缓存节点 |
-| `X-Request-ID` | UUID（每请求生成） | 唯一请求标识符 |
+| `X-CDN-POP` | `SJC` | 模拟的存在点（POP）IATA 代码 |
+| `X-Served-By` | `cache-sjc3120-SJC` | 以 Fastly 格式表示的模拟缓存节点 |
+| `X-Request-ID` | UUID（每次请求唯一） | 唯一请求标识符 |
 
 ### 缓存行为
 
-- 对任意路径的首次请求：`X-Cache-Status: MISS`（从源站获取，已缓存）
-- 后续相同请求：`X-Cache-Status: HIT`（从磁盘缓存提供）
-- 缓存键：`$scheme$host$request_uri`（scheme + 主机名 + 完整路径 + 查询字符串）
-- 缓存 TTL：200/301/302 响应为 10 分钟，404 响应为 1 分钟
-- 过期内容服务：源站出错时（500/502/503/504）返回缓存内容
+- 首次请求任意路径：`X-Cache-Status: MISS`（从源站获取，并写入缓存）
+- 后续相同请求：`X-Cache-Status: HIT`（从磁盘缓存中提供）
+- 缓存键：`$scheme$host$request_uri`（协议 + 主机名 + 完整路径 + 查询字符串）
+- 缓存 TTL：200/301/302 响应缓存 10 分钟，404 响应缓存 1 分钟
+- 过期内容提供：源站发生错误（500/502/503/504）时返回已缓存的内容
 
 ### 虚拟机访问
 
@@ -119,19 +119,19 @@ GET /<any-path>
 
 ## 模块化组件设计
 
-这是更大实验环境中的一个组件。每个组件都是自包含的，独立部署：
+本组件是更大规模实验室环境的组成部分之一。每个组件均独立自包含，可单独部署：
 
-- **此组件**提供 CDN 边缘（Azure 虚拟机上的 NGINX）
-- **其他组件**提供源应用程序、F5 XC 配置、DNS、WAF 策略等
+- **本组件**提供 CDN 边缘节点（Azure 虚拟机上的 NGINX）
+- **其他组件**提供源站应用、F5 XC 配置、DNS、WAF 策略等
 
-操作人员逐个添加组件。每个组件的文档编写方式使得 AI 助手能够读取并自主部署基础设施。
+人工操作员每次添加一个组件。每个组件的文档均经过专门编写，以便 AI 助手能够读取并自主部署基础设施。
 
-## 为什么选择 NGINX
+## 选择 NGINX 的原因
 
-选择 NGINX 作为 CDN 模拟引擎的原因：
+选择 NGINX 作为 CDN 模拟引擎的原因如下：
 
-1. **F5 产品** — F5 于 2019 年收购了 NGINX Inc.；它是 F5 产品组合的一部分
-2. **行业验证** — Cloudflare 在迁移到 Pingora 之前，整个 CDN 在 NGINX 上运行了十多年；Netflix 将 NGINX 用于其 Open Connect CDN
-3. **单进程** — 在一个二进制文件中处理 TLS 终止和缓存，不像 Varnish 需要单独的 TLS 代理
-4. **部署简单** — 在 Ubuntu 24.04 上执行 `apt install nginx`，两个指令即可启用缓存
-5. **文档完善** — 内容缓存和反向代理配置有丰富的官方文档
+1. **F5 产品** — F5 于 2019 年收购了 NGINX Inc.，NGINX 是 F5 产品组合的一部分
+2. **行业验证** — Cloudflare 在迁移至 Pingora 之前，其整个 CDN 基于 NGINX 运行超过十年；Netflix 也将 NGINX 用于其 Open Connect CDN
+3. **单一进程** — 在单一二进制文件中同时处理 TLS 终止和缓存，不同于需要独立 TLS 代理的 Varnish
+4. **部署简便** — 在 Ubuntu 24.04 上执行 `apt install nginx`，两条指令即可启用缓存
+5. **文档完善** — 提供关于内容缓存和反向代理配置的详尽官方文档

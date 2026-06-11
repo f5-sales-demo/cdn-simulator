@@ -1,10 +1,11 @@
 ---
-title: Integración con el Servidor de Origen
+title: Integrar con el Servidor de Origen
 description: >-
-  Connect the CDN edge to the origin-server lab component (direct integration),
-  discover applications via the published endpoint manifest, verify end-to-end
-  traffic flow with header inspection and log correlation. Covers both direct
-  origin and future F5 XC insertion architectures.
+  Conecte el borde CDN al componente de laboratorio del servidor de origen
+  (integración directa), descubra aplicaciones mediante el manifiesto de
+  endpoint publicado, verifique el flujo de tráfico de extremo a extremo con
+  inspección de encabezados y correlación de registros. Cubre tanto el origen
+  directo como las futuras arquitecturas de inserción F5 XC.
 sidebar:
   order: 6
 i18n:
@@ -14,10 +15,10 @@ i18n:
 
 Esta página cubre dos etapas de integración:
 
-1. **Integración directa** — El borde CDN reenvía al servidor de origen directamente (pruebas de línea base)
-2. **Inserción de F5 XC** — El balanceador de carga HTTP de F5 XC se inserta entre el CDN y el origen (demostración de seguridad)
+1. **Integración directa** — el borde CDN reenvía directamente al servidor de origen (pruebas de línea base)
+2. **Inserción de F5 XC** — balanceador de carga HTTP de F5 XC insertado entre el CDN y el origen (demo de seguridad)
 
-Comience con la integración directa para establecer la línea base, luego inserte F5 XC cuando esté listo.
+Comience con la integración directa para establecer la línea base y luego inserte F5 XC cuando esté listo.
 
 ## Referencia del Servidor de Origen
 
@@ -28,11 +29,11 @@ El componente de laboratorio [origin-server](https://f5xc-salesdemos.github.io/o
 | Documentación | [f5xc-salesdemos.github.io/origin-server](https://f5xc-salesdemos.github.io/origin-server/) |
 | Repositorio | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
 | Puerto predeterminado | 80 |
-| Verificación de salud | `GET /health` |
+| Verificación de estado | `GET /health` |
 
 ### Aplicaciones Disponibles
 
-Obtenga el catálogo actual de aplicaciones desde el manifiesto publicado del origin-server:
+Obtenga el catálogo de aplicaciones actual desde el manifiesto publicado del servidor de origen:
 
 ```bash
 MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
@@ -40,42 +41,42 @@ MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-serv
 curl -sf "$MANIFEST_URL" | python3 -m json.tool
 ```
 
-Si aún no existe ninguna versión publicada, use directamente la fuente del repositorio:
+Si aún no existe ninguna versión, utilice directamente el código fuente del repositorio:
 
 ```bash
 curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
 ```
 
-El manifiesto lista todas las rutas de aplicación, verificaciones de salud, imágenes de contenedor y mapeos de características de demostración.
+El manifiesto lista todas las rutas de aplicación, verificaciones de estado, imágenes de contenedor y asignaciones de características de demostración.
 
 ### Rutas de Aplicación
 
-| Ruta | Aplicación | Características de Demostración |
+| Ruta | Aplicación | Características de demostración |
 |---|---|---|
 | `/` | Página de inicio | — |
-| `/health` | Verificación de salud | — |
-| `/juice-shop/` | OWASP Juice Shop | WAF, Defensa contra Bots, Seguridad de API |
-| `/dvwa/` | DVWA | WAF, Defensa contra Bots |
+| `/health` | Verificación de estado | — |
+| `/juice-shop/` | OWASP Juice Shop | WAF, Defensa Bot, Seguridad de API |
+| `/dvwa/` | DVWA | WAF, Defensa Bot |
 | `/vampi/` | VAmPI | Seguridad de API |
 | `/httpbin/` | httpbin | Diagnósticos |
 | `/whoami/` | whoami | Verificación de encabezados |
-| `/csd-demo/` | CSD Demo | Defensa del Lado del Cliente |
+| `/csd-demo/` | CSD Demo | Defensa del lado del cliente |
 
 ## Etapa 1: Integración Directa (Línea Base)
 
 ```
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│  Cliente  │────▶│  Borde CDN (NGINX)   │────▶│  Servidor de Origen │
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
 │           │     │  20.65.90.112        │     │  20.12.78.159       │
-└──────────┘     │  67+ encabezados CDN │     │  Juice Shop, DVWA,  │
-                 │  Caché en disco       │     │  VAmPI, httpbin,    │
+└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
+                 │  Disk cache           │     │  VAmPI, httpbin,    │
                  └──────────────────────┘     │  whoami, CSD Demo   │
                                               └─────────────────────┘
 ```
 
 ### Configurar el Origen
 
-Establezca la IP del servidor de origen en la configuración de NGINX del borde CDN:
+Establezca la IP del servidor de origen en la configuración NGINX del borde CDN:
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -84,7 +85,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-O establézcala en el momento del despliegue con Terraform a través de `terraform.tfvars`:
+O configúrelo en el momento del despliegue de Terraform mediante `terraform.tfvars`:
 
 ```hcl
 origin_server = "http://<ORIGIN_IP>"
@@ -122,11 +123,11 @@ curl -sf "http://$CDN/whoami/"
 curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
 ```
 
-Todas las rutas deberían devolver HTTP 200 (DVWA devuelve 302 y luego 200 al seguir la redirección).
+Todas las rutas deben devolver HTTP 200 (DVWA devuelve 302 y luego 200 al seguir la redirección).
 
 ### Verificar los Encabezados CDN en el Origen
 
-El endpoint `/whoami/` muestra cada encabezado que recibe el origen. Cuando se accede a través del CDN, muestra los más de 67 encabezados de proveedores:
+El endpoint `/whoami/` muestra cada encabezado que recibe el origen. Cuando se accede a través del CDN, muestra los 67+ encabezados de proveedor:
 
 ```bash
 curl -sf "http://$CDN/whoami/"
@@ -134,16 +135,16 @@ curl -sf "http://$CDN/whoami/"
 
 Verifique que estos encabezados clave estén presentes:
 
-| Proveedor | Encabezado | Valor Esperado |
+| Proveedor | Encabezado | Valor esperado |
 |---|---|---|
-| Estándar | `X-Forwarded-For` | `<su_ip>, <ip_borde_cdn>` |
-| Akamai | `True-Client-Ip` | `<su_ip>` |
-| Cloudflare | `Cf-Connecting-Ip` | `<su_ip>` |
+| Estándar | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
+| Akamai | `True-Client-Ip` | `<your_ip>` |
+| Cloudflare | `Cf-Connecting-Ip` | `<your_ip>` |
 | CloudFront | `Cloudfront-Viewer-Country` | `US` |
-| Fastly | `Fastly-Client-Ip` | `<su_ip>` |
-| Azure FD | `X-Azure-Clientip` | `<su_ip>` |
+| Fastly | `Fastly-Client-Ip` | `<your_ip>` |
+| Azure FD | `X-Azure-Clientip` | `<your_ip>` |
 
-### Correlación Cruzada de Registros
+### Correlación de Registros
 
 Compare los registros de acceso en ambos servidores para verificar el flujo de tráfico:
 
@@ -155,7 +156,7 @@ ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
 ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
 ```
 
-El registro del origen debería mostrar la IP del borde CDN como el cliente que se conecta, mientras que la IP real del cliente se transporta en `X-Forwarded-For` y en los encabezados específicos de cada proveedor.
+El registro del origen debe mostrar la IP del borde CDN como cliente conectado, mientras que la IP real del cliente se transporta en `X-Forwarded-For` y en los encabezados específicos de cada proveedor.
 
 ### Comportamiento de Caché
 
@@ -167,19 +168,19 @@ curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 ```
 
-## Etapa 2: Inserción de F5 XC (Demostración de Seguridad)
+## Etapa 2: Inserción de F5 XC (Demo de Seguridad)
 
 Después de las pruebas de línea base, inserte un balanceador de carga HTTP de F5 XC entre el CDN y el origen:
 
 ```
 ┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Cliente  │────▶│  Borde CDN     │────▶│  F5 XC HTTP LB   │────▶│ Servidor Origen │
+│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
 │           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
 └──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-1. **Cree el balanceador de carga HTTP de F5 XC** con el servidor de origen en su pool de orígenes
-2. **Actualice el borde CDN** para apuntar al VIP de F5 XC en lugar del origen directamente:
+1. **Cree el balanceador de carga HTTP de F5 XC** con el servidor de origen en su pool de origen
+2. **Actualice el borde CDN** para que apunte al VIP de F5 XC en lugar de al origen directamente:
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -198,14 +199,14 @@ curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
 curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 ```
 
-4. **Configure el encabezado de IP de cliente de confianza** en F5 XC para leer la IP real del cliente desde los encabezados del CDN (por ejemplo, `True-Client-IP` para la simulación de Akamai, `CF-Connecting-IP` para la simulación de Cloudflare)
+4. **Configure el Encabezado de IP de Cliente de Confianza** en F5 XC para leer la IP real del cliente desde los encabezados CDN (por ejemplo, `True-Client-IP` para la simulación de Akamai, `CF-Connecting-IP` para la simulación de Cloudflare)
 
-## Arquitectura Multi-Componente
+## Arquitectura de Múltiples Componentes
 
 | Componente | Repositorio | Propósito |
 |---|---|---|
-| **Borde CDN** (este) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | Caché, encabezados de proveedores |
+| **CDN Edge** (este) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | Caché, encabezados de proveedor |
 | **Servidor de Origen** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | Aplicaciones web vulnerables |
 | **Configuración F5 XC** | Varios (waf, api-protection, bot-*, etc.) | Políticas de seguridad |
 
-Cada componente publica documentación que los asistentes de IA leen para desplegar la infraestructura. El origin-server publica un [manifiesto de endpoints](https://github.com/f5xc-salesdemos/origin-server/releases/latest) como artefacto de versión de GitHub que lista todas las rutas de aplicación y verificaciones de salud.
+Cada componente publica documentación que los asistentes de IA leen para desplegar la infraestructura. El servidor de origen publica un [manifiesto de endpoints](https://github.com/f5xc-salesdemos/origin-server/releases/latest) como artefacto de GitHub Release que lista todas las rutas de aplicación y verificaciones de estado.

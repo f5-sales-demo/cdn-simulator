@@ -1,9 +1,9 @@
 ---
 title: ภาพรวม
 description: >-
-  สถาปัตยกรรม, endpoints, การจำลอง vendor header
-  และการออกแบบแบบโมดูลของตัวจำลองโหนดขอบ CDN ที่ใช้ NGINX ซึ่งติดตั้งบน Ubuntu
-  24.04 ใน Azure
+  สถาปัตยกรรม, จุดปลายทาง, การจำลองส่วนหัวของผู้ให้บริการ,
+  และการออกแบบแบบโมดูลาร์ของโหนดขอบ CDN ที่ใช้ NGINX ซึ่งปรับใช้บน Ubuntu 24.04
+  ใน Azure
 sidebar:
   order: 1
 i18n:
@@ -13,15 +13,15 @@ i18n:
 
 ## วัตถุประสงค์
 
-คอมโพเนนต์นี้จำลองโหนดขอบ CDN สำหรับสภาพแวดล้อมแล็บและสาธิต โดยแสดงบทบาทที่ผู้ให้บริการอย่าง Akamai, Cloudflare, Amazon CloudFront หรือ Fastly มีในสถาปัตยกรรมเครือข่ายของลูกค้า ซึ่งเป็นชั้นแคชที่อยู่ใกล้ผู้ใช้ปลายทางมากที่สุดและตั้งอยู่หน้าเซิร์ฟเวอร์ต้นทาง
+ส่วนประกอบนี้จำลองโหนดขอบ CDN สำหรับสภาพแวดล้อมแล็บและการสาธิต โดยแสดงบทบาทที่ผู้ให้บริการอย่าง Akamai, Cloudflare, Amazon CloudFront หรือ Fastly มีในสถาปัตยกรรมเครือข่ายของลูกค้า ซึ่งก็คือเลเยอร์แคชที่ใกล้ผู้ใช้ปลายทางมากที่สุดและอยู่หน้า เซิร์ฟเวอร์ต้นทาง
 
-ในสถาปัตยกรรมหลายผู้ให้บริการแบบ production ลูกค้ามักจะจับคู่ CDN ของบุคคลที่สามกับ F5 Distributed Cloud:
+ในสถาปัตยกรรมหลายผู้ให้บริการในการผลิตจริง ลูกค้ามักจับคู่ CDN ของบุคคลที่สามกับ F5 Distributed Cloud:
 
 ```
 End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
-ตัวจำลองนี้แทนที่ CDN เชิงพาณิชย์ด้วยโหนดขอบที่ใช้ NGINX เพื่อให้สามารถสาธิตและทดสอบการผสานรวมได้โดยไม่ต้องมีสัญญาผู้ให้บริการหรือโครงสร้างพื้นฐาน production
+ตัวจำลองนี้แทนที่ CDN เชิงพาณิชย์ด้วยโหนดขอบที่ใช้ NGINX เพื่อให้สามารถสาธิตและทดสอบการผสานรวมได้โดยไม่ต้องมีสัญญากับผู้ให้บริการหรือโครงสร้างพื้นฐานในการผลิตจริง
 
 ## สถาปัตยกรรม
 
@@ -37,32 +37,32 @@ End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 
 โหนดขอบ NGINX:
 
-- **สิ้นสุดการเชื่อมต่อ TLS** ที่ขอบ (self-signed หรือ Let's Encrypt)
-- **แคชการตอบกลับ** บนดิสก์โดยใช้ `proxy_cache_path`
-- **ส่งต่อ cache miss** ไปยังเซิร์ฟเวอร์ต้นทางที่กำหนดค่าได้ (VIP ของ F5 XC HTTP load balancer)
-- **รายงานสถานะแคช** ผ่าน response header `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
+- **ยุติ TLS** ที่ขอบ (self-signed หรือ Let's Encrypt)
+- **แคชการตอบสนอง** บนดิสก์โดยใช้ `proxy_cache_path`
+- **ส่งต่อ cache miss** ไปยัง เซิร์ฟเวอร์ต้นทาง ที่กำหนดค่าได้ (VIP ของตัวกระจายโหลด HTTP ของ F5 XC)
+- **รายงานสถานะแคช** ผ่านส่วนหัวการตอบสนอง `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
 
 ## สิ่งที่จำลอง
 
 | ฟังก์ชัน CDN | การนำไปใช้งานด้วย NGINX |
 |---|---|
-| Edge caching | `proxy_cache` พร้อมการจัดเก็บบนดิสก์ |
-| การสร้าง Cache key | `proxy_cache_key` อิงจาก scheme, host และ URI |
-| Origin pull | `proxy_pass` ไปยัง F5 XC HTTP load balancer |
-| การสิ้นสุด TLS | NGINX directive `ssl_certificate` |
-| การเคารพ Cache-Control | `proxy_cache_valid` พร้อม origin header passthrough |
+| การแคชที่ขอบ | `proxy_cache` พร้อมพื้นที่จัดเก็บบนดิสก์ |
+| การสร้าง cache key | `proxy_cache_key` อ้างอิงจากรูปแบบ, โฮสต์ และ URI |
+| การดึงจาก Origin | `proxy_pass` ไปยังตัวกระจายโหลด HTTP ของ F5 XC |
+| การยุติ TLS | คำสั่ง `ssl_certificate` ของ NGINX |
+| การเคารพ Cache-Control | `proxy_cache_valid` พร้อมการส่งผ่านส่วนหัวจาก Origin |
 | การรายงานสถานะแคช | `add_header X-Cache-Status $upstream_cache_status` |
-| Health endpoint | location `/health` ส่งกลับ 200 OK |
+| จุดปลายทางสุขภาพ | ตำแหน่ง `/health` ที่ส่งคืน 200 OK |
 
-## Endpoints และพฤติกรรม Request/Response
+## จุดปลายทางและพฤติกรรมคำขอ/การตอบสนอง
 
-### Health Check
+### การตรวจสอบสุขภาพ
 
 ```
 GET /health
 ```
 
-Response (200 OK, `Content-Type: application/json`):
+การตอบสนอง (200 OK, `Content-Type: application/json`):
 
 ```json
 {
@@ -73,42 +73,42 @@ Response (200 OK, `Content-Type: application/json`):
 }
 ```
 
-### CDN Proxy (เส้นทางอื่นทั้งหมด)
+### CDN Proxy (ทุกเส้นทางอื่นๆ)
 
 ```
 GET /<any-path>
 ```
 
-Request headers ที่ถูกแทรกไปยังต้นทาง (67+ headers จาก 5 ผู้ให้บริการ):
+ส่วนหัวคำขอที่แทรกไปยัง Origin (67+ ส่วนหัวจาก 5 ผู้ให้บริการ):
 
-| หมวดหมู่ | Headers ที่เพิ่ม |
+| หมวดหมู่ | ส่วนหัวที่เพิ่ม |
 |---|---|
-| Client IP | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
-| ตำแหน่งทางภูมิศาสตร์ | `X-Akamai-Edgescape` (compound), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
+| IP ไคลเอนต์ | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
+| ข้อมูลตำแหน่งทางภูมิศาสตร์ | `X-Akamai-Edgescape` (แบบรวม), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
 | การตรวจจับอุปกรณ์ | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
 | TLS/Fingerprint | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
-| การตรวจจับบอท | `cf-bot-score` (85 = น่าจะเป็นมนุษย์), `cf-verified-bot` |
-| การติดตาม Request | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
-| Edge Identity | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
+| การตรวจจับบอต | `cf-bot-score` (85 = น่าจะเป็นมนุษย์), `cf-verified-bot` |
+| การติดตามคำขอ | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
+| ตัวตนของขอบ | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
 | มาตรฐาน | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
 
-Response headers ที่เพิ่มให้กับทุกการตอบกลับที่ผ่านพร็อกซี:
+ส่วนหัวการตอบสนองที่เพิ่มในทุกการตอบสนองที่ผ่านพรอกซี:
 
-| Header | ค่า | วัตถุประสงค์ |
+| ส่วนหัว | ค่า | วัตถุประสงค์ |
 |---|---|---|
-| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | พฤติกรรมแคชสำหรับ request นี้ |
+| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | พฤติกรรมแคชสำหรับคำขอนี้ |
 | `X-CDN-Edge` | `cdn-simulator` | ระบุโหนดขอบนี้ |
 | `X-CDN-POP` | `SJC` | รหัส IATA ของ Point of Presence ที่จำลอง |
-| `X-Served-By` | `cache-sjc3120-SJC` | โหนดแคชจำลองในรูปแบบ Fastly |
-| `X-Request-ID` | UUID (ต่อ request) | ตัวระบุ request ที่ไม่ซ้ำกัน |
+| `X-Served-By` | `cache-sjc3120-SJC` | โหนดแคชที่จำลองในรูปแบบ Fastly |
+| `X-Request-ID` | UUID (ต่อคำขอ) | ตัวระบุคำขอที่ไม่ซ้ำกัน |
 
 ### พฤติกรรมแคช
 
-- Request แรกไปยังเส้นทางใดก็ตาม: `X-Cache-Status: MISS` (ดึงจากต้นทาง และถูกแคชแล้ว)
-- Request ที่เหมือนกันครั้งถัดไป: `X-Cache-Status: HIT` (ให้บริการจากแคชบนดิสก์)
-- Cache key: `$scheme$host$request_uri` (scheme + hostname + เส้นทางเต็ม + query string)
-- Cache TTL: 10 นาทีสำหรับ 200/301/302, 1 นาทีสำหรับ 404
-- การให้บริการแบบ stale: ส่งกลับเนื้อหาที่แคชไว้เมื่อต้นทางมีข้อผิดพลาด (500/502/503/504)
+- คำขอแรกไปยังเส้นทางใดๆ: `X-Cache-Status: MISS` (ดึงจาก Origin แล้วแคชไว้)
+- คำขอที่เหมือนกันในครั้งต่อมา: `X-Cache-Status: HIT` (ให้บริการจากแคชบนดิสก์)
+- Cache key: `$scheme$host$request_uri` (รูปแบบ + ชื่อโฮสต์ + เส้นทางเต็ม + query string)
+- อายุแคช: 10 นาที สำหรับ 200/301/302 และ 1 นาที สำหรับ 404
+- การให้บริการเนื้อหาเก่า: ส่งคืนเนื้อหาที่แคชไว้เมื่อ Origin เกิดข้อผิดพลาด (500/502/503/504)
 
 ### การเข้าถึง VM
 
@@ -116,25 +116,25 @@ Response headers ที่เพิ่มให้กับทุกการต
 |---|---|
 | SSH | `ssh azureuser@<PUBLIC_IP>` |
 | การกำหนดค่า NGINX | `/etc/nginx/conf.d/cdn-edge.conf` |
-| NGINX logs | `/var/log/nginx/access.log` และ `/var/log/nginx/error.log` |
+| บันทึก NGINX | `/var/log/nginx/access.log` และ `/var/log/nginx/error.log` |
 | ไดเรกทอรีแคช | `/var/cache/nginx/cdn/` |
-| Cloud-init log | `/var/log/cloud-init-output.log` |
+| บันทึก Cloud-init | `/var/log/cloud-init-output.log` |
 
-## การออกแบบคอมโพเนนต์แบบโมดูล
+## การออกแบบส่วนประกอบแบบโมดูลาร์
 
-นี่เป็นส่วนหนึ่งของสภาพแวดล้อมแล็บที่ใหญ่กว่า แต่ละคอมโพเนนต์เป็นอิสระในตัวเองและถูกติดตั้งแยกกัน:
+นี่คือชิ้นส่วนหนึ่งของสภาพแวดล้อมแล็บขนาดใหญ่ แต่ละส่วนประกอบเป็นแบบ self-contained และปรับใช้อย่างอิสระ:
 
-- **คอมโพเนนต์นี้** ให้บริการขอบ CDN (NGINX บน Azure VM)
-- **คอมโพเนนต์อื่นๆ** ให้บริการแอปพลิเคชันต้นทาง, การกำหนดค่า F5 XC, DNS, นโยบาย WAF เป็นต้น
+- **ส่วนประกอบนี้** ให้บริการขอบ CDN (NGINX บน Azure VM)
+- **ส่วนประกอบอื่นๆ** ให้บริการแอปพลิเคชัน Origin, การกำหนดค่า F5 XC, DNS, นโยบาย WAF ฯลฯ
 
-ผู้ปฏิบัติงานจะเพิ่มคอมโพเนนต์ทีละตัว เอกสารของแต่ละคอมโพเนนต์ถูกเขียนขึ้นเพื่อให้ผู้ช่วย AI สามารถอ่านและติดตั้งโครงสร้างพื้นฐานได้อย่างอัตโนมัติ
+ผู้ดำเนินการที่เป็นมนุษย์เพิ่มส่วนประกอบทีละชิ้น เอกสารของแต่ละส่วนประกอบเขียนขึ้นเพื่อให้ผู้ช่วย AI อ่านและปรับใช้โครงสร้างพื้นฐานได้อย่างอิสระ
 
-## ทำไมจึงเลือก NGINX
+## เหตุผลที่เลือก NGINX
 
-NGINX ถูกเลือกเป็นเอนจินจำลอง CDN เนื่องจาก:
+NGINX ถูกเลือกเป็นเอนจิ้นจำลอง CDN เพราะ:
 
-1. **ผลิตภัณฑ์ของ F5** — F5 เข้าซื้อกิจการ NGINX Inc. ในปี 2019 ซึ่งเป็นส่วนหนึ่งของกลุ่มผลิตภัณฑ์ F5
-2. **ได้รับการพิสูจน์ในอุตสาหกรรม** — Cloudflare ใช้ NGINX รัน CDN ทั้งหมดมากว่าทศวรรษก่อนจะย้ายไป Pingora; Netflix ใช้ NGINX สำหรับ CDN Open Connect ของพวกเขา
-3. **กระบวนการเดียว** — จัดการการสิ้นสุด TLS และการแคชในไบนารีเดียว ไม่เหมือน Varnish ที่ต้องใช้ TLS proxy แยกต่างหาก
-4. **ติดตั้งง่าย** — `apt install nginx` บน Ubuntu 24.04 เพียงสอง directive ก็เปิดใช้งานการแคชได้
+1. **ผลิตภัณฑ์ F5** — F5 เข้าซื้อกิจการ NGINX Inc. ในปี 2019 และเป็นส่วนหนึ่งของพอร์ตโฟลิโอ F5
+2. **พิสูจน์แล้วในอุตสาหกรรม** — Cloudflare รัน CDN ทั้งหมดบน NGINX มานานกว่าหนึ่งทศวรรษก่อนจะย้ายไปใช้ Pingora; Netflix ใช้ NGINX สำหรับ CDN Open Connect ของตน
+3. **กระบวนการเดียว** — จัดการการยุติ TLS และการแคชในไบนารีเดียว ต่างจาก Varnish ที่ต้องใช้พรอกซี TLS แยกต่างหาก
+4. **ปรับใช้ได้ง่าย** — `apt install nginx` บน Ubuntu 24.04 สองคำสั่งเปิดใช้งานการแคช
 5. **มีเอกสารครบถ้วน** — เอกสารอย่างเป็นทางการที่ครอบคลุมสำหรับการแคชเนื้อหาและการกำหนดค่า reverse proxy

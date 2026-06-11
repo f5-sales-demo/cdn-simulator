@@ -1,10 +1,10 @@
 ---
-title: Überprüfen
+title: Überprüfung
 description: >-
   Smoke-Test-Befehle mit erwarteten HTTP-Antwortcodes,
   X-Cache-Status-Header-Werten (HIT/MISS), Health-Check-JSON-Antwort,
-  Cache-Verzeichnisinspektion, Origin-Konnektivitätsprüfungen und Fehlerbehebung
-  für cloud-init, NGINX-Start und NSG-Probleme
+  Cache-Verzeichnisinspektion, Ursprungsserver-Konnektivitätsprüfungen und
+  Fehlerbehebung für Cloud-Init-, NGINX-Start- und NSG-Probleme
 sidebar:
   order: 5
 i18n:
@@ -12,7 +12,7 @@ i18n:
   translator: machine
 ---
 
-Führen Sie nach dem Deployment diese Prüfungen durch, um zu bestätigen, dass der CDN-Edge-Knoten korrekt funktioniert. Warten Sie nach `terraform apply` 2-3 Minuten, bis cloud-init die Installation von NGINX abgeschlossen hat.
+Führen Sie nach der Bereitstellung diese Prüfungen durch, um zu bestätigen, dass der CDN-Edge-Knoten ordnungsgemäß funktioniert. Warten Sie nach `terraform apply` 2–3 Minuten, bis Cloud-Init die NGINX-Installation abgeschlossen hat.
 
 ## Health-Check
 
@@ -39,7 +39,7 @@ Erwartete Ausgabe:
 }
 ```
 
-Bei Verwendung von Terraform-Outputs:
+Bei Verwendung von Terraform-Ausgaben:
 
 ```bash
 curl -s "$(terraform output -raw health_check_url)" | jq .
@@ -47,7 +47,7 @@ curl -s "$(terraform output -raw health_check_url)" | jq .
 
 ## Cache-Miss (Erste Anfrage)
 
-Die erste Anfrage an einen beliebigen Pfad wird ein Cache-Miss sein — der Edge-Knoten holt die Daten vom Origin:
+Die erste Anfrage an einen beliebigen Pfad ist ein Cache-Miss — der Edge-Knoten ruft den Inhalt vom Ursprungsserver ab:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -60,9 +60,9 @@ X-Cache-Status: MISS
 X-CDN-Edge: cdn-simulator
 ```
 
-`MISS` bedeutet, dass der Inhalt nicht im Cache war und vom Origin-Server abgerufen wurde.
+`MISS` bedeutet, dass der Inhalt nicht im Cache vorhanden war und vom Ursprungsserver abgerufen wurde.
 
-## Cache-Hit (Folgende Anfrage)
+## Cache-Hit (Nachfolgende Anfrage)
 
 Wiederholen Sie dieselbe Anfrage sofort:
 
@@ -77,19 +77,19 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` bestätigt, dass die Antwort aus dem NGINX-Disk-Cache bereitgestellt wurde, ohne den Origin zu kontaktieren.
+`HIT` bestätigt, dass die Antwort aus dem NGINX-Datenträgercache bereitgestellt wurde, ohne den Ursprungsserver zu kontaktieren.
 
 ## Cache-Verzeichnisinspektion
 
-Verbinden Sie sich per SSH mit der VM, um zu überprüfen, ob zwischengespeicherte Inhalte auf der Festplatte vorhanden sind:
+Melden Sie sich per SSH bei der VM an, um zu überprüfen, ob zwischengespeicherte Inhalte auf dem Datenträger vorhanden sind:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Prüfen, ob das Cache-Verzeichnis Inhalte enthält
+# Check cache directory has content
 sudo find /var/cache/nginx/cdn -type f | head -20
 
-# Cache-Größe prüfen
+# Check cache size
 sudo du -sh /var/cache/nginx/cdn
 ```
 
@@ -100,36 +100,36 @@ sudo du -sh /var/cache/nginx/cdn
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Service-Status prüfen
+# Check service status
 sudo systemctl status nginx
 
-# Konfiguration validieren
+# Validate configuration
 sudo nginx -t
 
-# Aktive Verbindungen anzeigen (wenn stub_status aktiviert ist)
+# View active connections (if stub_status is enabled)
 curl -s http://localhost/health
 ```
 
-## Origin-Konnektivität
+## Konnektivität zum Ursprungsserver
 
-Überprüfen Sie, ob der Edge-Knoten den Origin-Server erreichen kann:
+Überprüfen Sie, ob der Edge-Knoten den Ursprungsserver erreichen kann:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Konnektivität zum Origin testen (ersetzen Sie durch Ihre Origin-URL)
+# Test connectivity to origin (replace with your origin URL)
 curl -I "https://your-origin.example.com/"
 ```
 
 Falls dies fehlschlägt, prüfen Sie:
 
-1. Ob die Variable `origin_server` in der Terraform-Konfiguration korrekt ist
-2. Ob der Origin-Server eingehende Verbindungen von der öffentlichen IP des Edge-Knotens erlaubt
-3. Ob die DNS-Auflösung von der VM aus funktioniert (`nslookup your-origin.example.com`)
+1. Die Variable `origin_server` ist in der Terraform-Konfiguration korrekt angegeben
+2. Der Ursprungsserver erlaubt eingehende Verbindungen von der öffentlichen IP des Edge-Knotens
+3. Die DNS-Auflösung funktioniert von der VM aus (`nslookup your-origin.example.com`)
 
 ## Cloud-Init-Fortschritt
 
-Überwachen Sie den Bereitstellungsfortschritt über das Cloud-Init-Log:
+Überwachen Sie den Bereitstellungsfortschritt über das Cloud-Init-Protokoll:
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
@@ -137,7 +137,7 @@ ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 
 Erwartete Phasen: `[init]`, `[nic]` (dynamische NIC-Erkennung), `[complete]`.
 
-Falls cloud-init Fehler meldet:
+Falls Cloud-Init Fehler meldet:
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
@@ -148,27 +148,27 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 Führen Sie einen vollständigen Anfragezyklus durch und überprüfen Sie die Antwortkette:
 
 ```bash
-# Erste Anfrage — MISS (holt vom Origin)
-echo "=== Anfrage 1 (erwarte MISS) ==="
+# First request — MISS (fetches from origin)
+echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
-# Zweite Anfrage — HIT (aus Cache bereitgestellt)
-echo "=== Anfrage 2 (erwarte HIT) ==="
+# Second request — HIT (served from cache)
+echo "=== Request 2 (expect HIT) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 ```
 
 Erwartete Ausgabe:
 
 ```
-=== Anfrage 1 (erwarte MISS) ===
+=== Request 1 (expect MISS) ===
 HTTP 200 | Cache: MISS
-=== Anfrage 2 (erwarte HIT) ===
+=== Request 2 (expect HIT) ===
 HTTP 200 | Cache: HIT
 ```
 
-## Vendor-Header-Überprüfung
+## Überprüfung der Anbieter-Header
 
-Überprüfen Sie, ob alle CDN-Vendor-Header eingefügt werden, indem Sie den Pfad `/headers` anfragen (bei Verwendung von httpbin.org als Origin):
+Überprüfen Sie, ob alle CDN-Anbieter-Header eingefügt werden, indem Sie den Pfad `/headers` aufrufen (bei Verwendung von httpbin.org als Ursprungsserver):
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
@@ -198,7 +198,7 @@ Die erwartete Antwort enthält Header von allen fünf Anbietern:
 }
 ```
 
-### Geräteerkennungstest
+### Geräteerkennung-Test
 
 Testen Sie mit einem mobilen User-Agent, um zu überprüfen, ob sich die Geräteerkennungs-Header ändern:
 
@@ -225,9 +225,9 @@ sudo systemctl status nginx
 sudo journalctl -u nginx --no-pager -n 50
 ```
 
-### Cloud-init nicht abgeschlossen
+### Cloud-Init nicht abgeschlossen
 
-Nach `terraform apply` benötigt cloud-init 2-3 Minuten. Fortschritt prüfen:
+Nach `terraform apply` benötigt Cloud-Init 2–3 Minuten. Fortschritt prüfen:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -237,11 +237,11 @@ sudo tail -f /var/log/cloud-init-output.log
 
 ### Cache zeigt immer MISS an
 
-- Überprüfen Sie, ob der Origin cachefähige Antwortcodes zurückgibt (200, 301, 302)
-- Prüfen Sie, ob der Origin keine `Cache-Control: no-cache`- oder `no-store`-Header sendet
+- Überprüfen Sie, ob der Ursprungsserver cachefähige Antwortcodes zurückgibt (200, 301, 302)
+- Prüfen Sie, ob der Ursprungsserver keine `Cache-Control: no-cache`- oder `no-store`-Header sendet
 - Prüfen Sie die NGINX-Fehlerprotokolle: `sudo tail -f /var/log/nginx/error.log`
 
-### Verbindung auf Port 80/443 abgelehnt
+### Verbindung verweigert auf Port 80/443
 
-- Überprüfen Sie, ob die NSG-Regeln angewendet werden: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- Überprüfen Sie, ob die NSG-Regeln angewendet wurden: `az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
 - Überprüfen Sie, ob NGINX lauscht: `ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

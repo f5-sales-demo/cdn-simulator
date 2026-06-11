@@ -1,18 +1,18 @@
 ---
-title: Simulador de CDN
+title: Simulador CDN
 description: >-
-  NGINX-based CDN edge node simulator that injects realistic headers from
-  Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys
-  as an Ubuntu 24.04 Azure VM via Terraform with NGINX caching reverse proxy.
-  Used as a modular lab component in front of F5 Distributed Cloud HTTP load
-  balancers.
+  Simulador de nodo de borde CDN basado en NGINX que inyecta encabezados
+  realistas de Akamai, Cloudflare, Amazon CloudFront, Fastly y Azure Front Door.
+  Se despliega como una VM de Azure Ubuntu 24.04 mediante Terraform con proxy
+  inverso de caché NGINX. Se utiliza como componente de laboratorio modular
+  frente a balanceadores de carga HTTP de F5 Distributed Cloud.
 template: splash
 sidebar:
   hidden: true
 hero:
   tagline: >-
-    Despliegue un nodo edge CDN funcional en Azure para pruebas de integración
-    con F5 Distributed Cloud.
+    Despliegue un nodo de borde CDN funcional en Azure para pruebas de
+    integración con F5 Distributed Cloud.
   image:
     html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
   actions:
@@ -20,7 +20,7 @@ hero:
       link: 01-overview/
       icon: right-arrow
       variant: primary
-    - text: Desplegar Ahora
+    - text: Desplegar ahora
       link: 03-deploy/
       icon: rocket
       variant: minimal
@@ -29,42 +29,42 @@ i18n:
   translator: machine
 ---
 
-## Qué Proporciona
+## Qué proporciona esto
 
-- **[Nodo Edge Único](01-overview/)** — Una VM Ubuntu 24.04 ejecutando NGINX como proxy reverso con caché, el edge CDN mínimo viable
-- **[Despliegue con Terraform](03-deploy/)** — Infraestructura como código completa en Azure: VNet, PIP, NSG y VM con aprovisionamiento cloud-init
-- **[67+ Encabezados de Proveedores CDN](04-nginx-config/)** — Simula encabezados de solicitud de Akamai, Cloudflare, CloudFront, Fastly y Azure Front Door incluyendo True-Client-IP, CF-Connecting-IP, geolocalización, detección de dispositivos, huellas digitales JA3/JA4 y puntuaciones de bots
-- **[Integración con Origen](06-integrate/)** — Configure el edge para reenviar fallos de caché a un balanceador de carga HTTP de F5 XC como origen
-- **[Verificación de Caché](05-verify/)** — Valide el comportamiento HIT/MISS con encabezados X-Cache-Status e inspección de caché de NGINX
+- **[Nodo de borde único](01-overview/)** — Una VM Ubuntu 24.04 que ejecuta NGINX como proxy inverso de caché, el mínimo viable de borde CDN
+- **[Despliegue con Terraform](03-deploy/)** — Infraestructura completa de Azure como código: VNet, PIP, NSG y VM con aprovisionamiento cloud-init
+- **[Más de 67 encabezados de proveedores CDN](04-nginx-config/)** — Simula encabezados de solicitud de Akamai, Cloudflare, CloudFront, Fastly y Azure Front Door, incluidos True-Client-IP, CF-Connecting-IP, geolocalización, detección de dispositivos, huellas digitales JA3/JA4 y puntuaciones de bots
+- **[Integración con el Servidor de origen](06-integrate/)** — Configure el borde para reenviar los errores de caché a un balanceador de carga HTTP de F5 XC como origen
+- **[Verificación de caché](05-verify/)** — Valide el comportamiento HIT/MISS con encabezados X-Cache-Status e inspección de caché NGINX
 
-## Referencia Rápida
+## Referencia rápida
 
-Después del despliegue, el nodo edge CDN expone:
+Tras el despliegue, el nodo de borde CDN expone:
 
 | Endpoint | Método | Propósito |
 |---|---|---|
-| `http://<PUBLIC_IP>/health` | GET | Verificación de salud — devuelve JSON con estado de componentes y perfiles de proveedores |
+| `http://<PUBLIC_IP>/health` | GET | Comprobación de estado — devuelve JSON con el estado de los componentes y perfiles de proveedor |
 | `http://<PUBLIC_IP>/` | GET | Proxy CDN — almacena en caché y reenvía solicitudes al servidor de origen |
-| `http://<PUBLIC_IP>/<any-path>` | GET | Proxy CDN — todas las rutas se envían a través del proxy con caché y encabezados de proveedores |
+| `http://<PUBLIC_IP>/<any-path>` | GET | Proxy CDN — todas las rutas se envían mediante proxy con caché y encabezados de proveedor |
 
-Encabezados de respuesta añadidos a cada respuesta proxiada:
+Encabezados de respuesta añadidos a cada respuesta enviada mediante proxy:
 
 | Encabezado | Ejemplo | Propósito |
 |---|---|---|
-| `X-Cache-Status` | `HIT` o `MISS` | Si la respuesta fue servida desde caché |
-| `X-CDN-Edge` | `cdn-simulator` | Identifica este nodo edge |
-| `X-CDN-POP` | `SJC` | Código simulado de Punto de Presencia |
-| `X-Served-By` | `cache-sjc3120-SJC` | Identificador simulado del nodo de caché |
+| `X-Cache-Status` | `HIT` o `MISS` | Indica si la respuesta se sirvió desde la caché |
+| `X-CDN-Edge` | `cdn-simulator` | Identifica este nodo de borde |
+| `X-CDN-POP` | `SJC` | Código de punto de presencia simulado |
+| `X-Served-By` | `cache-sjc3120-SJC` | Identificador de nodo de caché simulado |
 | `X-Request-ID` | UUID | Identificador único por solicitud |
 
-## Guía de Documentación
+## Guía de documentación
 
 | Página | Audiencia | Propósito |
 |---|---|---|
-| [Descripción General](01-overview/) | Humano + IA | Arquitectura, contexto multi-proveedor, qué simula |
-| [Prerrequisitos](02-prerequisites/) | IA | Herramientas requeridas, suscripción de Azure, claves SSH, estimación de costos |
-| [Desplegar](03-deploy/) | IA | HCL de Terraform completo — copiar y aplicar para desplegar |
-| [Configuración de NGINX](04-nginx-config/) | Humano + IA | Los 67+ encabezados de proveedores CDN con valores exactos y propósitos |
-| [Verificar](05-verify/) | IA | Comandos de prueba de humo con comportamiento esperado de solicitud/respuesta |
-| [Integrar con F5 XC](06-integrate/) | Humano + IA | Conectar el edge a F5 XC como origen, verificación de extremo a extremo |
-| [Eliminación](07-teardown/) | IA | Destruir todos los recursos, comandos de limpieza |
+| [Descripción general](01-overview/) | Humano + IA | Arquitectura, contexto multifabricante, qué simula esto |
+| [Requisitos previos](02-prerequisites/) | IA | Herramientas requeridas, suscripción de Azure, claves SSH, estimación de costos |
+| [Despliegue](03-deploy/) | IA | HCL de Terraform completo — copiar y aplicar para desplegar |
+| [Configuración de NGINX](04-nginx-config/) | Humano + IA | Los más de 67 encabezados de proveedor CDN con valores exactos y propósitos |
+| [Verificar](05-verify/) | IA | Comandos de prueba básica con el comportamiento esperado de solicitud/respuesta |
+| [Integrar con F5 XC](06-integrate/) | Humano + IA | Conectar el borde a F5 XC como origen, verificación de extremo a extremo |
+| [Eliminar recursos](07-teardown/) | IA | Destruir todos los recursos, comandos de limpieza |

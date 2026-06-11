@@ -2,8 +2,8 @@
 title: Abbau
 description: >-
   Führen Sie terraform destroy aus, um alle Azure-Ressourcen (Ressourcengruppe,
-  VM, VNet, PIP, NSG) zu entfernen, den lokalen Terraform-Zustand zu bereinigen
-  und DNS- oder Hosts-Datei-Änderungen rückgängig zu machen.
+  VM, VNet, PIP, NSG) zu entfernen, den lokalen Terraform-Status zu bereinigen
+  und DNS- oder Hosts-Dateiänderungen rückgängig zu machen.
 sidebar:
   order: 7
 i18n:
@@ -25,7 +25,7 @@ terraform plan -destroy
 terraform destroy
 ```
 
-Terraform wird zur Bestätigung auffordern. Geben Sie `yes` ein, um fortzufahren.
+Terraform fordert zur Bestätigung auf. Geben Sie `yes` ein, um fortzufahren.
 
 ## Bereinigung überprüfen
 
@@ -39,15 +39,15 @@ az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
   || echo "Resource group still exists"
 ```
 
-## Lokalen Zustand bereinigen
+## Lokalen Status bereinigen
 
-Entfernen Sie Terraform-Zustandsdateien und zwischengespeicherte Dateien:
+Entfernen Sie den Terraform-Status und zwischengespeicherte Dateien:
 
 ```bash
 rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 ```
 
-## DNS-/Hosts-Änderungen rückgängig machen
+## DNS/Hosts-Änderungen rückgängig machen
 
 Wenn Sie während der [Integration](06-integrate/) DNS- oder Hosts-Dateien geändert haben, machen Sie diese Änderungen rückgängig:
 
@@ -56,4 +56,4 @@ Wenn Sie während der [Integration](06-integrate/) DNS- oder Hosts-Dateien geän
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-Wenn Sie einen DNS-A-Eintrag erstellt haben, löschen Sie diesen über Ihren DNS-Anbieter.
+Wenn Sie einen DNS-A-Eintrag erstellt haben, löschen Sie ihn über Ihren DNS-Anbieter.

@@ -1,16 +1,15 @@
 ---
 title: CDN シミュレーター
 description: >-
-  NGINX-based CDN edge node simulator that injects realistic headers from
-  Akamai, Cloudflare, Amazon CloudFront, Fastly, and Azure Front Door. Deploys
-  as an Ubuntu 24.04 Azure VM via Terraform with NGINX caching reverse proxy.
-  Used as a modular lab component in front of F5 Distributed Cloud HTTP load
-  balancers.
+  Akamai、Cloudflare、Amazon CloudFront、Fastly、Azure Front Door からのリアルなヘッダーを注入する
+  NGINX ベースの CDN エッジノードシミュレーター。Terraform を使用して Ubuntu 24.04 Azure VM として NGINX
+  キャッシングリバースプロキシとともにデプロイされます。F5 Distributed Cloud HTTP
+  ロードバランサーの前段でモジュール式ラボコンポーネントとして使用されます。
 template: splash
 sidebar:
   hidden: true
 hero:
-  tagline: F5 Distributed Cloud との統合テスト用に、機能的な CDN エッジノードを Azure にデプロイします。
+  tagline: F5 Distributed Cloud との統合テスト向けに、Azure で機能的な CDN エッジノードをデプロイします。
   image:
     html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
   actions:
@@ -27,31 +26,31 @@ i18n:
   translator: machine
 ---
 
-## 提供する機能
+## 提供される機能
 
-- **[単一エッジノード](01-overview/)** — NGINX をキャッシング リバースプロキシとして実行する Ubuntu 24.04 VM 1台、最小構成の CDN エッジ
-- **[Terraform デプロイメント](03-deploy/)** — 完全な Azure Infrastructure as Code: VNet、PIP、NSG、cloud-init プロビジョニング付き VM
-- **[67 以上の CDN ベンダーヘッダー](04-nginx-config/)** — Akamai、Cloudflare、CloudFront、Fastly、Azure Front Door のリクエストヘッダーをシミュレーション（True-Client-IP、CF-Connecting-IP、ジオロケーション、デバイス検出、JA3/JA4 フィンガープリント、ボットスコアを含む）
-- **[オリジン統合](06-integrate/)** — キャッシュミスを F5 XC HTTP ロードバランサーにオリジンとして転送するようエッジを設定
-- **[キャッシュ検証](05-verify/)** — X-Cache-Status ヘッダーと NGINX キャッシュ検査による HIT/MISS 動作の検証
+- **[シングルエッジノード](01-overview/)** — キャッシングリバースプロキシとして NGINX を実行する Ubuntu 24.04 VM 1台、最小構成の CDN エッジ
+- **[Terraform デプロイメント](03-deploy/)** — 完全な Azure インフラストラクチャのコード化：VNet、PIP、NSG、および cloud-init プロビジョニングを備えた VM
+- **[67 以上の CDN ベンダーヘッダー](04-nginx-config/)** — True-Client-IP、CF-Connecting-IP、ジオロケーション、デバイス検出、JA3/JA4 フィンガープリント、ボットスコアを含む Akamai、Cloudflare、CloudFront、Fastly、Azure Front Door のリクエストヘッダーをシミュレート
+- **[オリジンサーバー統合](06-integrate/)** — キャッシュミスをオリジンサーバーとして F5 XC HTTP ロードバランサーに転送するようエッジを設定
+- **[キャッシュ検証](05-verify/)** — X-Cache-Status ヘッダーと NGINX キャッシュ検査による HIT/MISS の動作を確認
 
 ## クイックリファレンス
 
-デプロイ後、CDN エッジノードは以下のエンドポイントを公開します:
+デプロイ後、CDN エッジノードは以下のエンドポイントを公開します：
 
 | エンドポイント | メソッド | 目的 |
 |---|---|---|
-| `http://<PUBLIC_IP>/health` | GET | ヘルスチェック — コンポーネントステータスとベンダープロファイルを含む JSON を返す |
-| `http://<PUBLIC_IP>/` | GET | CDN プロキシ — リクエストをキャッシュしてオリジンサーバーに転送 |
-| `http://<PUBLIC_IP>/<any-path>` | GET | CDN プロキシ — すべてのパスがキャッシングとベンダーヘッダー付きでプロキシされる |
+| `http://<PUBLIC_IP>/health` | GET | ヘルスチェック — コンポーネントのステータスとベンダープロファイルを含む JSON を返す |
+| `http://<PUBLIC_IP>/` | GET | CDN プロキシ — リクエストをオリジンサーバーにキャッシュして転送 |
+| `http://<PUBLIC_IP>/<any-path>` | GET | CDN プロキシ — すべてのパスをキャッシュおよびベンダーヘッダー付きでプロキシ |
 
-すべてのプロキシレスポンスに追加されるレスポンスヘッダー:
+プロキシされたすべてのレスポンスに追加されるレスポンスヘッダー：
 
 | ヘッダー | 例 | 目的 |
 |---|---|---|
-| `X-Cache-Status` | `HIT` または `MISS` | レスポンスがキャッシュから配信されたかどうか |
-| `X-CDN-Edge` | `cdn-simulator` | このエッジノードを識別 |
-| `X-CDN-POP` | `SJC` | シミュレートされた Point of Presence コード |
+| `X-Cache-Status` | `HIT` または `MISS` | レスポンスがキャッシュから提供されたかどうか |
+| `X-CDN-Edge` | `cdn-simulator` | このエッジノードを識別する |
+| `X-CDN-POP` | `SJC` | シミュレートされたプレゼンスポイントコード |
 | `X-Served-By` | `cache-sjc3120-SJC` | シミュレートされたキャッシュノード識別子 |
 | `X-Request-ID` | UUID | リクエストごとの一意の識別子 |
 
@@ -59,10 +58,10 @@ i18n:
 
 | ページ | 対象者 | 目的 |
 |---|---|---|
-| [概要](01-overview/) | 人間 + AI | アーキテクチャ、マルチベンダーのコンテキスト、シミュレーション内容 |
+| [概要](01-overview/) | 人間 + AI | アーキテクチャ、マルチベンダーのコンテキスト、シミュレート内容 |
 | [前提条件](02-prerequisites/) | AI | 必要なツール、Azure サブスクリプション、SSH キー、コスト見積もり |
-| [デプロイ](03-deploy/) | AI | 完全な Terraform HCL — コピーして apply でデプロイ |
-| [NGINX 設定](04-nginx-config/) | 人間 + AI | 67 以上の CDN ベンダーヘッダーの正確な値と目的 |
-| [検証](05-verify/) | AI | 期待されるリクエスト/レスポンス動作を含むスモークテストコマンド |
-| [F5 XC との統合](06-integrate/) | 人間 + AI | エッジを F5 XC にオリジンとして接続、エンドツーエンドの検証 |
-| [削除](07-teardown/) | AI | すべてのリソースの破棄、クリーンアップコマンド |
+| [デプロイ](03-deploy/) | AI | 完全な Terraform HCL — コピーして適用するだけでデプロイ可能 |
+| [NGINX 設定](04-nginx-config/) | 人間 + AI | 正確な値と目的を含む 67 以上のすべての CDN ベンダーヘッダー |
+| [検証](05-verify/) | AI | 期待されるリクエスト/レスポンスの動作を含むスモークテストコマンド |
+| [F5 XC との統合](06-integrate/) | 人間 + AI | エッジをオリジンサーバーとして F5 XC に接続し、エンドツーエンドで検証 |
+| [削除](07-teardown/) | AI | すべてのリソースを破棄し、クリーンアップコマンドを実行 |

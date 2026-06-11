@@ -1,9 +1,9 @@
 ---
 title: ข้อกำหนดเบื้องต้น
 description: >-
-  Required tools (Azure CLI, Terraform >= 1.5, SSH key pair), Azure subscription
-  permissions, and Azure AD requirements for deploying the performance-optimized
-  CDN edge node VM
+  เครื่องมือที่จำเป็น (Azure CLI, Terraform >= 1.5, คู่คีย์ SSH),
+  สิทธิ์การสมัครใช้งาน Azure และข้อกำหนด Azure AD สำหรับการติดตั้งใช้งาน VM โหนด
+  CDN edge ที่ปรับแต่งประสิทธิภาพ
 sidebar:
   order: 2
 i18n:
@@ -11,21 +11,21 @@ i18n:
   translator: machine
 ---
 
-## สิ่งที่จำเป็น
+## ที่จำเป็น
 
-### Azure Subscription
+### การสมัครใช้งาน Azure
 
-Azure subscription ที่ใช้งานอยู่พร้อมสิทธิ์ในการสร้าง:
+การสมัครใช้งาน Azure ที่ใช้งานอยู่ พร้อมสิทธิ์ในการสร้าง:
 
-- Resource groups
-- Virtual networks และ subnets
-- Network security groups
-- Public IP addresses
-- Virtual machines
+- กลุ่มทรัพยากร
+- เครือข่ายเสมือนและซับเน็ต
+- กลุ่มความปลอดภัยเครือข่าย
+- ที่อยู่ IP สาธารณะ
+- เครื่องเสมือน
 
 ### Azure CLI
 
-ติดตั้งและยืนยันตัวตนกับ Azure CLI:
+ติดตั้งและยืนยันตัวตนด้วย Azure CLI:
 
 ```bash
 # Install (if not present)
@@ -40,7 +40,7 @@ az account show --query '{name:name, id:id}' -o table
 
 ### Terraform
 
-ต้องใช้ Terraform >= 1.5:
+จำเป็นต้องใช้ Terraform >= 1.5:
 
 ```bash
 # Verify installation
@@ -52,9 +52,9 @@ echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://
 sudo apt update && sudo apt install terraform
 ```
 
-### คู่กุญแจ SSH
+### คู่คีย์ SSH
 
-คู่กุญแจ SSH สำหรับการเข้าถึง VM:
+คู่คีย์ SSH สำหรับการเข้าถึง VM:
 
 ```bash
 # Generate if you don't have one
@@ -63,17 +63,17 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 ### สิทธิ์ Azure AD
 
-บัญชี Azure AD ของคุณต้องมีสิทธิ์ `User.Read` ตัวระบุผู้ปรับใช้ (ใช้ในการตั้งชื่อทรัพยากร) จะถูกดึงมาจากโปรไฟล์ Azure AD ของคุณโดยอัตโนมัติ สำหรับการยืนยันตัวตนด้วย service principal หรือ managed identity ให้ตั้งค่าตัวแปร Terraform `deployer` อย่างชัดเจน
+บัญชี Azure AD ของคุณต้องมีสิทธิ์ `User.Read` ตัวระบุผู้ติดตั้ง (ที่ใช้ในการตั้งชื่อทรัพยากร) จะถูกดึงมาโดยอัตโนมัติจากโปรไฟล์ Azure AD ของคุณ สำหรับการยืนยันตัวตนด้วย service principal หรือ managed identity ให้ตั้งค่าตัวแปร Terraform `deployer` อย่างชัดเจน
 
-## ทางเลือกเพิ่มเติม
+## ที่ไม่จำเป็น
 
-### โดเมนที่กำหนดเอง
+### โดเมนแบบกำหนดเอง
 
-หากคุณต้องการใบรับรอง TLS จริงแทนที่จะใช้แบบ self-signed:
+หากต้องการใบรับรอง TLS จริงแทนการใช้ self-signed:
 
-- ชื่อโดเมนที่สามารถควบคุม DNS ได้
-- ความสามารถในการสร้าง A records ที่ชี้ไปยัง Azure Public IP
+- ชื่อโดเมนพร้อมการควบคุม DNS
+- ความสามารถในการสร้าง A record ที่ชี้ไปยัง Azure Public IP
 
-### URL ของ Origin Server
+### URL ของ เซิร์ฟเวอร์ต้นทาง
 
-URL ของ F5 XC HTTP load balancer ที่ edge node นี้จะส่งต่อทราฟฟิกไป สามารถกำหนดค่าได้หลังจากการปรับใช้ — การตั้งค่า NGINX เริ่มต้นจะใช้ placeholder ที่คุณต้องอัปเดตในการกำหนดค่า NGINX
+URL ของ F5 XC HTTP load balancer ที่โหนด edge นี้จะส่งต่อทราฟฟิกไป สามารถกำหนดค่าได้หลังการติดตั้งใช้งาน — การกำหนดค่า NGINX เริ่มต้นใช้ตัวแทนที่คุณอัปเดตในการกำหนดค่า NGINX

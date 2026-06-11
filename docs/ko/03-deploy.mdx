@@ -1,9 +1,9 @@
 ---
 title: 배포
 description: >-
-  성능 최적화된 CDN 엣지 노드의 Terraform IaC 배포 — Ubuntu 24.04 기반 Azure F-series 컴퓨팅 최적화
-  VM, 커널 튜닝, NGINX 프록시 캐시, 업스트림 keepalive, gzip 압축, cloud-init을 통한 67개 이상의 CDN
-  벤더 헤더 프로비저닝. 모든 구성 파일은 terraform/ 디렉토리에 있습니다.
+  성능 최적화된 CDN 엣지 노드의 Terraform IaC 배포 — Azure F-시리즈 컴퓨팅 최적화 VM(Ubuntu 24.04), 커널
+  튜닝, NGINX 프록시 캐시, 업스트림 keepalive, gzip 압축, cloud-init을 통해 프로비저닝된 67개 이상의 CDN
+  벤더 헤더. 모든 구성 파일은 terraform/ 디렉터리에 있습니다.
 sidebar:
   order: 3
 i18n:
@@ -11,32 +11,32 @@ i18n:
   translator: machine
 ---
 
-모든 Terraform 파일은 [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) 디렉토리에 있습니다. 리포지토리를 클론하여 직접 배포하세요:
+모든 Terraform 파일은 [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) 디렉터리에 있습니다. 저장소를 클론하여 직접 배포하세요:
 
 ```bash
 git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
 cd cdn-simulator/terraform
 cp terraform.tfvars.example terraform.tfvars
-# terraform.tfvars를 편집하여 Azure 구독 ID와 오리진 서버를 입력하세요
+# Edit terraform.tfvars with your Azure subscription ID and origin server
 ```
 
 ## Terraform 구성
 
 ### Terraform 파일 구조
 
-terraform 디렉토리에는 데모 리소스 표준을 따르는 9개의 파일이 포함되어 있습니다:
+terraform 디렉터리에는 데모 리소스 표준을 따르는 9개의 파일이 포함되어 있습니다:
 
 - `versions.tf` — Terraform 및 프로바이더 버전 제약 조건 (azurerm ~> 4.0, azuread ~> 3.0)
 - `providers.tf` — Azure RM 및 Azure AD 프로바이더 구성
 - `data.tf` — 배포자 자동 해석을 위한 Azure AD 데이터 소스
-- `locals.tf` — 배포자 해석, Azure 클라우드 채택 프레임워크 리소스 명명, 표준 태그
+- `locals.tf` — 배포자 해석, Azure Cloud Adoption Framework 리소스 명명, 표준 태그
 - `main.tf` — 리소스 그룹 (이름: `rg-cdn-simulator-{environment}-{deployer}`)
 - `variables.tf` — 모든 입력 변수 (필수 3개, 선택 8개)
 - `network.tf` — VNet (10.100.0.0/16), 서브넷, 공용 IP, NSG (포트 22/80/443), NIC
-- `vm.tf` — templatefile()을 통한 cloud-init이 포함된 Ubuntu 24.04 VM
-- `outputs.tf` — 17개 출력 (표준 15개 + 컴포넌트별 2개)
+- `vm.tf` — templatefile()을 통한 cloud-init이 적용된 Ubuntu 24.04 VM
+- `outputs.tf` — 17개의 출력 (표준 15개 + 구성 요소별 2개)
 
-`variables.tf`는 일반(General), 컴퓨팅(Compute), 컴포넌트별(Component-Specific) 섹션으로 구성된 11개의 입력 변수를 정의합니다. `deployer` 식별자는 Azure AD 계정에서 자동으로 해석됩니다 — `subscription_id`, `origin_server`, `origin_host`만 설정하면 됩니다:
+`variables.tf`는 일반, 컴퓨팅, 구성 요소별 섹션으로 구성된 11개의 입력 변수를 정의합니다. `deployer` 식별자는 Azure AD 계정에서 자동으로 해석됩니다 — `subscription_id`, `origin_server`, `origin_host`만 설정하면 됩니다:
 
 ```hcl file=./_data/variables.tf
 ```
@@ -48,32 +48,32 @@ terraform 디렉토리에는 데모 리소스 표준을 따르는 9개의 파일
 ```hcl file=./_data/network.tf
 ```
 
-### Cloud-Init이 포함된 가상 머신
+### Cloud-Init을 적용한 가상 머신
 
-`vm.tf`는 Ubuntu 24.04 VM을 생성합니다. SSH 공개 키 경로는 `~`를 처리하기 위해 `pathexpand()`를 통해 확장됩니다. Cloud-init 템플릿은 `origin_server`와 `origin_host` 변수를 전달받습니다:
+`vm.tf`는 Ubuntu 24.04 VM을 생성합니다. SSH 공개 키 경로는 `~`를 처리하기 위해 `pathexpand()`를 통해 확장됩니다. Cloud-init 템플릿은 `origin_server` 및 `origin_host` 변수를 수신합니다:
 
 ```hcl file=./_data/vm.tf
 ```
 
 ### Cloud-Init 프로비저닝
 
-`cloud-init.yaml`은 커널 튜닝, systemd 제한, 성능 최적화된 구성의 NGINX, 128 MB 캐시 키 존, 업스트림 keepalive 풀, gzip 압축, 67개 이상의 CDN 벤더 헤더로 VM을 프로비저닝합니다. 공유 헬퍼 라이브러리(`/usr/local/lib/cloud-init-helpers.sh`)는 재시도 로직과 `/var/log/cloud-init-progress.log`에 대한 진행 상황 로깅을 제공합니다.
+`cloud-init.yaml`은 커널 튜닝, systemd 제한, 성능 최적화 구성이 적용된 NGINX, 128MB 캐시 키 영역, 업스트림 keepalive 풀, gzip 압축, 67개 이상의 CDN 벤더 헤더로 VM을 프로비저닝합니다. 공유 헬퍼 라이브러리(`/usr/local/lib/cloud-init-helpers.sh`)는 재시도 로직과 `/var/log/cloud-init-progress.log`에 대한 진행 상황 로깅을 제공합니다.
 
-cloud-init은 업스트림 구성을 위해 Terraform 템플릿 변수 `${origin_server}`와 `${origin_host}`를 사용합니다. `${request_id}`와 같은 NGINX 변수는 Terraform templatefile에서 `$${request_id}`로 이스케이프됩니다.
+cloud-init은 업스트림 구성을 위해 Terraform 템플릿 변수 `${origin_server}` 및 `${origin_host}`를 사용합니다. `${request_id}`와 같은 NGINX 변수는 Terraform templatefile에서 `$${request_id}`로 이스케이프됩니다.
 
 ```yaml file=./_data/cloud-init.yaml
 ```
 
 ### 출력
 
-`outputs.tf`는 데모 리소스 표준을 따르는 17개의 출력을 노출합니다 — 모든 데모 리소스가 공유하는 15개의 표준 출력(`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`)과 2개의 컴포넌트별 출력(`edge_url`, `health_check_url`):
+`outputs.tf`는 데모 리소스 표준을 따르는 17개의 출력을 노출합니다 — 모든 데모 리소스에서 공유되는 표준 출력 15개(`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`)와 구성 요소별 출력 2개(`edge_url`, `health_check_url`):
 
 ```hcl file=./_data/outputs.tf
 ```
 
 ### 변수 파일 예시
 
-`terraform.tfvars.example`을 `terraform.tfvars`로 복사하고 값을 입력하세요. `.gitignore`는 자격 증명의 커밋을 방지하기 위해 `terraform.tfvars`를 제외합니다:
+`terraform.tfvars.example`을 `terraform.tfvars`로 복사하고 값을 입력하세요. `.gitignore`는 자격 증명 커밋을 방지하기 위해 `terraform.tfvars`를 제외합니다:
 
 ```hcl file=./_data/terraform.tfvars.example
 ```
@@ -81,25 +81,25 @@ cloud-init은 업스트림 구성을 위해 Terraform 템플릿 변수 `${origin
 ## 배포
 
 ```bash
-# Terraform 초기화
+# Initialize Terraform
 terraform init
 
-# 계획 검토
+# Review the plan
 terraform plan
 
-# 적용
+# Apply
 terraform apply
 ```
 
-배포가 성공하면 Terraform이 공용 IP, SSH 명령어, 엣지 URL을 출력합니다.
+Terraform은 배포 성공 후 공용 IP, SSH 명령어, 엣지 URL을 출력합니다.
 
-## VM 크기 조정
+## VM 사이징
 
-F-series 컴퓨팅 최적화 VM은 이 CPU 바운드 NGINX 프록시 워크로드에 권장됩니다. 기본값인 `Standard_F4s_v2` (4 vCPU, 8 GiB)는 실습 및 데모 용도에 적합합니다. 부하 테스트 또는 프로덕션 벤치마킹 시나리오에서는 `vm_size` 변수를 재정의하세요. Cloud-init 커널 튜닝과 NGINX 구성은 vCPU 수에 따라 자동으로 확장됩니다 (`worker_processes auto`).
+F-시리즈 컴퓨팅 최적화 VM은 이 CPU 바운드 NGINX 프록시 워크로드에 권장됩니다. 기본값인 `Standard_F4s_v2` (4 vCPU, 8 GiB)는 랩 및 데모 사용에 적합합니다. 부하 테스트 또는 프로덕션 벤치마킹 시나리오에는 `vm_size` 변수를 재정의하세요. Cloud-init 커널 튜닝 및 NGINX 구성은 vCPU 수에 따라 자동으로 확장됩니다 (`worker_processes auto`).
 
 ## 배포 후 작업
 
-`terraform apply`가 완료된 후 cloud-init이 NGINX 설치 및 구성을 마칠 때까지 2-3분 정도 기다리세요. 헬스 엔드포인트를 확인합니다:
+`terraform apply`가 완료된 후, cloud-init이 NGINX 설치 및 구성을 완료할 때까지 2~3분 기다리세요. 헬스 엔드포인트를 확인하세요:
 
 ```bash
 curl -s "http://$(terraform output -raw public_ip)/health" | jq .
@@ -122,9 +122,9 @@ curl -s "http://$(terraform output -raw public_ip)/health" | jq .
 }
 ```
 
-## 업스트림 컴포넌트와의 연결
+## 업스트림 구성 요소 연결
 
-CDN 시뮬레이터는 배포된 오리진 서버가 필요합니다. 오리진 서버의 terraform 출력을 사용하여 필수 변수를 설정하세요:
+CDN 시뮬레이터는 배포된 오리진 서버가 필요합니다. 오리진 서버의 Terraform 출력을 사용하여 필수 변수를 채우세요:
 
 ```bash
 cd ../origin-server/terraform
@@ -141,6 +141,6 @@ EOF
 | 필수 변수 | 소스 | 형식 |
 |---|---|---|
 | `origin_server` | 오리진 서버 `public_ip` 출력 | `http://<ip>` (스킴 포함) |
-| `origin_host` | 오리진 서버 `public_ip` 출력 | `<ip>:80` (스킴 없이, 포트 포함) |
+| `origin_host` | 오리진 서버 `public_ip` 출력 | `<ip>:80` (스킴 제외, 포트 포함) |
 
-커스터마이징 옵션은 [NGINX 구성](../04-nginx-config/)을, 캐시 테스트는 [검증](../05-verify/)을 참조하세요.
+사용자 정의 옵션은 [NGINX 구성](../04-nginx-config/)으로, 캐시 테스트는 [검증](../05-verify/)으로 진행하세요.

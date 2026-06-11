@@ -1,7 +1,7 @@
 ---
-title: 検証
+title: 確認
 description: >-
-  期待されるHTTPレスポンスコード、X-Cache-Statusヘッダー値（HIT/MISS）、ヘルスチェックJSONレスポンス、キャッシュディレクトリの検査、オリジン接続確認、およびcloud-init、NGINX起動、NSG問題のトラブルシューティングによるスモークテストコマンド
+  予期されるHTTPレスポンスコード、X-Cache-Statusヘッダー値（HIT/MISS）、ヘルスチェックJSONレスポンス、キャッシュディレクトリの検査、オリジン接続確認、cloud-init・NGINXスタートアップ・NSG問題のトラブルシューティングを含むスモークテストコマンド
 sidebar:
   order: 5
 i18n:
@@ -9,11 +9,11 @@ i18n:
   translator: machine
 ---
 
-デプロイ後、CDNエッジノードが正しく機能していることを確認するために、以下のチェックを実行してください。`terraform apply` 後、cloud-initがNGINXのインストールを完了するまで2〜3分お待ちください。
+デプロイ後、以下のチェックを実行してCDNエッジノードが正常に機能していることを確認してください。`terraform apply` 後、cloud-initがNGINXのインストールを完了するまで2〜3分お待ちください。
 
 ## ヘルスチェック
 
-NGINXが稼働しレスポンスを返していることを確認します：
+NGINXが起動し、応答していることを確認します：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/health" | jq .
@@ -42,24 +42,24 @@ Terraformの出力を使用する場合：
 curl -s "$(terraform output -raw health_check_url)" | jq .
 ```
 
-## キャッシュミス（最初のリクエスト）
+## キャッシュミス（初回リクエスト）
 
-任意のパスへの最初のリクエストはキャッシュミスとなり、エッジがオリジンからコンテンツを取得します：
+任意のパスへの初回リクエストはキャッシュミスとなり、エッジがオリジンサーバーからコンテンツを取得します：
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-レスポンスで以下のヘッダーを確認してください：
+レスポンス内の以下のヘッダーを確認してください：
 
 ```
 X-Cache-Status: MISS
 X-CDN-Edge: cdn-simulator
 ```
 
-`MISS` はコンテンツがキャッシュになく、オリジンサーバーから取得されたことを意味します。
+`MISS` はコンテンツがキャッシュに存在せず、オリジンサーバーから取得されたことを意味します。
 
-## キャッシュヒット（後続のリクエスト）
+## キャッシュヒット（以降のリクエスト）
 
 同じリクエストをすぐに繰り返します：
 
@@ -74,11 +74,11 @@ X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` はオリジンに接続せずにNGINXのディスクキャッシュからレスポンスが提供されたことを確認します。
+`HIT` はオリジンサーバーに接触せず、NGINXのディスクキャッシュからレスポンスが提供されたことを確認します。
 
 ## キャッシュディレクトリの検査
 
-VMにSSH接続して、キャッシュされたコンテンツがディスク上に存在することを確認します：
+VMにSSH接続して、ディスク上にキャッシュされたコンテンツが存在することを確認します：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -90,9 +90,9 @@ sudo find /var/cache/nginx/cdn -type f | head -20
 sudo du -sh /var/cache/nginx/cdn
 ```
 
-## NGINXステータス
+## NGINXのステータス
 
-NGINXが稼働しており、設定が有効であることを確認します：
+NGINXが起動しており、設定が有効であることを確認します：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -107,26 +107,26 @@ sudo nginx -t
 curl -s http://localhost/health
 ```
 
-## オリジン接続性
+## オリジン接続確認
 
 エッジノードがオリジンサーバーに到達できることを確認します：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# オリジンへの接続をテスト（オリジンURLに置き換えてください）
+# オリジンへの接続をテスト（ご使用のオリジンURLに置き換えてください）
 curl -I "https://your-origin.example.com/"
 ```
 
-失敗した場合は以下を確認してください：
+これが失敗する場合は、以下を確認してください：
 
-1. Terraform設定の `origin_server` 変数が正しいこと
+1. Terraform設定で `origin_server` 変数が正しく設定されていること
 2. オリジンサーバーがエッジノードのパブリックIPからのインバウンド接続を許可していること
-3. VMからDNS解決が機能すること（`nslookup your-origin.example.com`）
+3. VM内でDNS解決が機能していること（`nslookup your-origin.example.com`）
 
-## Cloud-Initの進捗
+## cloud-initの進行状況
 
-cloud-initのログでプロビジョニングの進捗を監視します：
+cloud-initログでプロビジョニングの進行状況を監視します：
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
@@ -134,7 +134,7 @@ ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
 
 期待されるフェーズ：`[init]`、`[nic]`（動的NIC検出）、`[complete]`。
 
-cloud-initがエラーを報告する場合：
+cloud-initがエラーを報告した場合：
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
@@ -142,10 +142,10 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 
 ## エンドツーエンドテスト
 
-完全なリクエストサイクルを実行し、レスポンスチェーンを検証します：
+完全なリクエストサイクルを実行し、レスポンスチェーンを確認します：
 
 ```bash
-# 最初のリクエスト — MISS（オリジンから取得）
+# 初回リクエスト — MISS（オリジンから取得）
 echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
@@ -163,15 +163,15 @@ HTTP 200 | Cache: MISS
 HTTP 200 | Cache: HIT
 ```
 
-## ベンダーヘッダーの検証
+## ベンダーヘッダーの確認
 
-`/headers` パスをリクエストして、すべてのCDNベンダーヘッダーが注入されていることを確認します（httpbin.orgをオリジンとして使用している場合）：
+`/headers` パスをリクエストして、すべてのCDNベンダーヘッダーが注入されていることを確認します（オリジンとしてhttpbin.orgを使用している場合）：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 ```
 
-期待されるレスポンスには5つのベンダーすべてからのヘッダーが含まれます：
+期待されるレスポンスには、5つのベンダー全てのヘッダーが含まれます：
 
 ```json
 {
@@ -214,7 +214,7 @@ curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
 
 ## トラブルシューティング
 
-### NGINXが稼働していない
+### NGINXが起動していない場合
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -222,9 +222,9 @@ sudo systemctl status nginx
 sudo journalctl -u nginx --no-pager -n 50
 ```
 
-### Cloud-initが完了していない
+### cloud-initが完了していない場合
 
-`terraform apply` 後、cloud-initには2〜3分かかります。進捗を確認してください：
+`terraform apply` 後、cloud-initには2〜3分かかります。進行状況を確認します：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -232,13 +232,13 @@ sudo cloud-init status
 sudo tail -f /var/log/cloud-init-output.log
 ```
 
-### キャッシュが常にMISSを表示する
+### キャッシュが常にMISSを示す場合
 
 - オリジンがキャッシュ可能なレスポンスコード（200、301、302）を返していることを確認してください
-- オリジンが `Cache-Control: no-cache` や `no-store` ヘッダーを送信していないことを確認してください
-- NGINXのエラーログを確認してください：`sudo tail -f /var/log/nginx/error.log`
+- オリジンが `Cache-Control: no-cache` または `no-store` ヘッダーを送信していないことを確認してください
+- NGINXエラーログを確認してください：`sudo tail -f /var/log/nginx/error.log`
 
-### ポート80/443で接続が拒否される
+### ポート80/443で接続が拒否される場合
 
 - NSGルールが適用されていることを確認してください：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
 - NGINXがリッスンしていることを確認してください：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

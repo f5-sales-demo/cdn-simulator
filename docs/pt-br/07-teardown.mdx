@@ -1,9 +1,9 @@
 ---
-title: Desmontagem
+title: Encerramento
 description: >-
   Execute terraform destroy para remover todos os recursos do Azure (grupo de
-  recursos, VM, VNet, PIP, NSG), limpe o estado local do Terraform e reverta as
-  alterações de DNS ou arquivo hosts.
+  recursos, VM, VNet, PIP, NSG), limpe o estado local do Terraform e reverta
+  alterações de DNS ou no arquivo hosts.
 sidebar:
   order: 7
 i18n:
@@ -13,9 +13,9 @@ i18n:
 
 Quando a sessão de laboratório estiver concluída, destrua todos os recursos do Azure para interromper a cobrança.
 
-## Terraform Destroy
+## Destruição com Terraform
 
-A partir do diretório que contém a configuração do Terraform:
+No diretório que contém a configuração do Terraform:
 
 ```bash
 # Review what will be destroyed
@@ -56,4 +56,4 @@ Se você modificou o DNS ou os arquivos hosts durante a [integração](06-integr
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-Se você criou um registro DNS do tipo A, exclua-o através do seu provedor de DNS.
+Se você criou um registro DNS do tipo A, exclua-o por meio do seu provedor de DNS.

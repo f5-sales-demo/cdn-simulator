@@ -1,11 +1,11 @@
 ---
 title: Verificar
 description: >-
-  Comandos de teste de validação com códigos de resposta HTTP esperados, valores
-  do cabeçalho X-Cache-Status (HIT/MISS), resposta JSON de health check,
-  inspeção do diretório de cache, verificações de conectividade com a origem e
-  solução de problemas para cloud-init, inicialização do NGINX e problemas de
-  NSG
+  Comandos de smoke test com códigos de resposta HTTP esperados, valores do
+  cabeçalho X-Cache-Status (HIT/MISS), resposta JSON de verificação de
+  integridade, inspeção do diretório de cache, verificações de conectividade com
+  a origem e solução de problemas para cloud-init, inicialização do NGINX e
+  problemas de NSG
 sidebar:
   order: 5
 i18n:
@@ -13,9 +13,9 @@ i18n:
   translator: machine
 ---
 
-Após a implantação, execute estas verificações para confirmar que o nó de borda CDN está funcionando corretamente. Aguarde 2-3 minutos após o `terraform apply` para que o cloud-init termine a instalação do NGINX.
+Após a implantação, execute estas verificações para confirmar que o nó de borda CDN está funcionando corretamente. Aguarde 2 a 3 minutos após o `terraform apply` para que o cloud-init conclua a instalação do NGINX.
 
-## Health Check
+## Verificação de Integridade
 
 Verifique se o NGINX está em execução e respondendo:
 
@@ -48,7 +48,7 @@ curl -s "$(terraform output -raw health_check_url)" | jq .
 
 ## Cache Miss (Primeira Requisição)
 
-A primeira requisição para qualquer caminho será um cache miss — o nó de borda busca o conteúdo na origem:
+A primeira requisição para qualquer caminho será um cache miss — o nó de borda busca da origem:
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
@@ -87,7 +87,7 @@ Acesse a VM via SSH para verificar se o conteúdo em cache existe no disco:
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Verificar se o diretório de cache tem conteúdo
+# Verificar se o diretório de cache possui conteúdo
 sudo find /var/cache/nginx/cdn -type f | head -20
 
 # Verificar o tamanho do cache
@@ -118,19 +118,19 @@ Verifique se o nó de borda consegue alcançar o servidor de origem:
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Testar conectividade com a origem (substitua pela URL da sua origem)
+# Testar conectividade com a origem (substitua pela sua URL de origem)
 curl -I "https://your-origin.example.com/"
 ```
 
-Se isto falhar, verifique:
+Se isso falhar, verifique:
 
-1. A variável `origin_server` está correta na configuração do Terraform
-2. O servidor de origem permite conexões de entrada a partir do IP público do nó de borda
-3. A resolução DNS funciona a partir da VM (`nslookup your-origin.example.com`)
+1. Se a variável `origin_server` está correta na configuração do Terraform
+2. Se o servidor de origem permite conexões de entrada a partir do IP público do nó de borda
+3. Se a resolução de DNS funciona a partir da VM (`nslookup your-origin.example.com`)
 
 ## Progresso do Cloud-Init
 
-Monitore o progresso do provisionamento através do log do cloud-init:
+Monitore o progresso do provisionamento por meio do log do cloud-init:
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
@@ -144,12 +144,12 @@ Se o cloud-init reportar erros:
 ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 ```
 
-## Teste Ponta a Ponta
+## Teste de Ponta a Ponta
 
 Execute um ciclo completo de requisição e verifique a cadeia de resposta:
 
 ```bash
-# Primeira requisição — MISS (busca na origem)
+# Primeira requisição — MISS (busca da origem)
 echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
@@ -167,9 +167,9 @@ HTTP 200 | Cache: MISS
 HTTP 200 | Cache: HIT
 ```
 
-## Verificação de Cabeçalhos de Fornecedor
+## Verificação de Cabeçalhos de Fornecedores
 
-Verifique se todos os cabeçalhos de fornecedores CDN estão sendo injetados requisitando o caminho `/headers` (quando estiver usando httpbin.org como origem):
+Verifique se todos os cabeçalhos de fornecedores CDN estão sendo injetados ao requisitar o caminho `/headers` (quando se usa httpbin.org como origem):
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
@@ -201,7 +201,7 @@ A resposta esperada inclui cabeçalhos de todos os cinco fornecedores:
 
 ### Teste de Detecção de Dispositivo
 
-Teste com um User-Agent móvel para verificar se os cabeçalhos de detecção de dispositivo mudam:
+Teste com um User-Agent de dispositivo móvel para verificar se os cabeçalhos de detecção de dispositivo são alterados:
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
@@ -226,9 +226,9 @@ sudo systemctl status nginx
 sudo journalctl -u nginx --no-pager -n 50
 ```
 
-### Cloud-init não finalizado
+### Cloud-init não foi concluído
 
-Após o `terraform apply`, o cloud-init leva 2-3 minutos. Verifique o progresso:
+Após o `terraform apply`, o cloud-init leva de 2 a 3 minutos. Verifique o progresso:
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -236,7 +236,7 @@ sudo cloud-init status
 sudo tail -f /var/log/cloud-init-output.log
 ```
 
-### Cache sempre mostrando MISS
+### Cache sempre exibindo MISS
 
 - Verifique se a origem retorna códigos de resposta cacheáveis (200, 301, 302)
 - Verifique se a origem não envia cabeçalhos `Cache-Control: no-cache` ou `no-store`

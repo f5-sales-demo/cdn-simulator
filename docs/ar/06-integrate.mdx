@@ -1,10 +1,10 @@
 ---
-title: التكامل مع خادم الأصل
+title: التكامل مع خادم المصدر
 description: >-
-  Connect the CDN edge to the origin-server lab component (direct integration),
-  discover applications via the published endpoint manifest, verify end-to-end
-  traffic flow with header inspection and log correlation. Covers both direct
-  origin and future F5 XC insertion architectures.
+  ربط حافة CDN بمكوّن مختبر خادم المصدر (تكامل مباشر)، واكتشاف التطبيقات عبر
+  بيان نقطة النهاية المنشور، والتحقق من تدفق حركة المرور الشاملة باستخدام فحص
+  الترويسات وربط السجلات. يغطي بنى التكامل المباشر مع خادم المصدر وبنى إدراج F5
+  XC المستقبلية.
 sidebar:
   order: 6
 i18n:
@@ -12,27 +12,27 @@ i18n:
   translator: machine
 ---
 
-تغطي هذه الصفحة مرحلتين من التكامل:
+تغطي هذه الصفحة مرحلتين من مراحل التكامل:
 
-1. **التكامل المباشر** — حافة CDN تُوجّه الطلبات إلى خادم الأصل مباشرة (اختبار خط الأساس)
-2. **إدراج F5 XC** — يتم إدراج موازن حمل HTTP الخاص بـ F5 XC بين CDN وخادم الأصل (عرض الأمان)
+1. **التكامل المباشر** — تقوم حافة CDN بإعادة التوجيه إلى خادم المصدر مباشرةً (اختبار خط الأساس)
+2. **إدراج F5 XC** — يُدرج موازن تحميل F5 XC HTTP بين CDN وخادم المصدر (عرض توضيحي للأمان)
 
-ابدأ بالتكامل المباشر لإنشاء خط الأساس، ثم أدرج F5 XC عندما تكون جاهزًا.
+ابدأ بالتكامل المباشر لإرساء خط الأساس، ثم أدرج F5 XC عند الاستعداد.
 
-## مرجع خادم الأصل
+## مرجع خادم المصدر
 
-يوفر مكوّن المختبر [origin-server](https://f5xc-salesdemos.github.io/origin-server/) تطبيقات ويب معرّضة للثغرات لاختبار الأمان.
+يوفر مكوّن المختبر [origin-server](https://f5xc-salesdemos.github.io/origin-server/) تطبيقات ويب تحتوي على ثغرات مخصصة لاختبار الأمان.
 
 | الخاصية | القيمة |
 |---|---|
 | التوثيق | [f5xc-salesdemos.github.io/origin-server](https://f5xc-salesdemos.github.io/origin-server/) |
 | المستودع | [github.com/f5xc-salesdemos/origin-server](https://github.com/f5xc-salesdemos/origin-server) |
 | المنفذ الافتراضي | 80 |
-| فحص الحالة | `GET /health` |
+| فحص الصحة | `GET /health` |
 
 ### التطبيقات المتاحة
 
-احصل على كتالوج التطبيقات الحالي من بيان نقاط النهاية المنشور لخادم الأصل:
+استرجع كتالوج التطبيقات الحالي من بيان خادم المصدر المنشور:
 
 ```bash
 MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-server/releases/latest \
@@ -40,42 +40,42 @@ MANIFEST_URL=$(curl -sf https://api.github.com/repos/f5xc-salesdemos/origin-serv
 curl -sf "$MANIFEST_URL" | python3 -m json.tool
 ```
 
-إذا لم يوجد إصدار بعد، استخدم مصدر المستودع مباشرة:
+إذا لم يكن هناك إصدار موجود بعد، استخدم مصدر المستودع مباشرةً:
 
 ```bash
 curl -sf https://raw.githubusercontent.com/f5xc-salesdemos/origin-server/main/manifest.json | python3 -m json.tool
 ```
 
-يسرد البيان جميع مسارات التطبيقات وفحوصات الحالة وصور الحاويات وربط ميزات العرض التوضيحي.
+يسرد البيان جميع مسارات التطبيقات وفحوصات الصحة وصور الحاويات وتعيينات ميزات العرض التوضيحي.
 
 ### مسارات التطبيقات
 
 | المسار | التطبيق | ميزات العرض التوضيحي |
 |---|---|---|
 | `/` | صفحة الهبوط | — |
-| `/health` | فحص الحالة | — |
-| `/juice-shop/` | OWASP Juice Shop | WAF، الحماية من الروبوتات، أمان API |
-| `/dvwa/` | DVWA | WAF، الحماية من الروبوتات |
+| `/health` | فحص الصحة | — |
+| `/juice-shop/` | OWASP Juice Shop | جدار حماية تطبيقات الويب (WAF)، دفاع Bot، أمان API |
+| `/dvwa/` | DVWA | جدار حماية تطبيقات الويب (WAF)، دفاع Bot |
 | `/vampi/` | VAmPI | أمان API |
 | `/httpbin/` | httpbin | التشخيصات |
 | `/whoami/` | whoami | التحقق من الترويسات |
-| `/csd-demo/` | CSD Demo | الدفاع من جانب العميل |
+| `/csd-demo/` | CSD Demo | الدفاع من جهة العميل |
 
-## المرحلة 1: التكامل المباشر (خط الأساس)
+## المرحلة الأولى: التكامل المباشر (خط الأساس)
 
 ```
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│  العميل   │────▶│  حافة CDN (NGINX)    │────▶│  خادم الأصل         │
+│  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
 │           │     │  20.65.90.112        │     │  20.12.78.159       │
-└──────────┘     │  67+ ترويسة CDN      │     │  Juice Shop, DVWA,  │
-                 │  ذاكرة تخزين مؤقت    │     │  VAmPI, httpbin,    │
+└──────────┘     │  67+ CDN headers     │     │  Juice Shop, DVWA,  │
+                 │  Disk cache           │     │  VAmPI, httpbin,    │
                  └──────────────────────┘     │  whoami, CSD Demo   │
                                               └─────────────────────┘
 ```
 
-### تهيئة خادم الأصل
+### تهيئة خادم المصدر
 
-عيّن عنوان IP لخادم الأصل في تهيئة NGINX الخاصة بحافة CDN:
+عيّن عنوان IP لخادم المصدر في إعدادات NGINX لحافة CDN:
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -84,7 +84,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-أو عيّنه في وقت نشر Terraform عبر `terraform.tfvars`:
+أو عيّنه عند وقت النشر عبر Terraform من خلال `terraform.tfvars`:
 
 ```hcl
 origin_server = "http://<ORIGIN_IP>"
@@ -92,41 +92,41 @@ origin_server = "http://<ORIGIN_IP>"
 
 ### التحقق من جميع التطبيقات
 
-اختبر كل تطبيق أصل عبر CDN:
+اختبر كل تطبيق من تطبيقات خادم المصدر عبر CDN:
 
 ```bash
 CDN=<CDN_EDGE_IP>
 
-# Health check (CDN local)
+# فحص الصحة (محلي على CDN)
 curl -sf "http://$CDN/health" | python3 -m json.tool
 
-# Landing page
+# صفحة الهبوط
 curl -sf -o /dev/null -w "/ : HTTP %{http_code}\n" "http://$CDN/"
 
 # Juice Shop
 curl -sf -o /dev/null -w "/juice-shop/ : HTTP %{http_code}\n" "http://$CDN/juice-shop/"
 
-# DVWA (follows redirect to login)
+# DVWA (يتبع إعادة التوجيه إلى صفحة تسجيل الدخول)
 curl -sf -o /dev/null -w "/dvwa/ : HTTP %{http_code}\n" -L "http://$CDN/dvwa/"
 
 # VAmPI API
 curl -sf "http://$CDN/vampi/users/v1" | python3 -m json.tool | head -5
 
-# httpbin headers (shows CDN headers in JSON)
+# ترويسات httpbin (تعرض ترويسات CDN بصيغة JSON)
 curl -sf "http://$CDN/httpbin/headers" | python3 -m json.tool | head -10
 
-# whoami (shows ALL headers the origin receives)
+# whoami (يعرض جميع الترويسات التي يستقبلها خادم المصدر)
 curl -sf "http://$CDN/whoami/"
 
 # CSD Demo
 curl -sf -o /dev/null -w "/csd-demo/ : HTTP %{http_code}\n" "http://$CDN/csd-demo/"
 ```
 
-يجب أن تُرجع جميع المسارات HTTP 200 (DVWA يُرجع 302 ثم 200 عند المتابعة).
+يجب أن تُعيد جميع المسارات HTTP 200 (تُعيد DVWA الاستجابة 302 ثم 200 عند المتابعة).
 
-### التحقق من ترويسات CDN عند خادم الأصل
+### التحقق من ترويسات CDN عند خادم المصدر
 
-تعرض نقطة النهاية `/whoami/` كل ترويسة يتلقاها خادم الأصل. عند الوصول إليها عبر CDN، تعرض جميع الترويسات الـ 67+ الخاصة بالمزودين:
+تعرض نقطة النهاية `/whoami/` كل ترويسة يستقبلها خادم المصدر. عند الوصول إليها عبر CDN، تعرض جميع ترويسات البائع البالغة 67 أو أكثر:
 
 ```bash
 curl -sf "http://$CDN/whoami/"
@@ -134,7 +134,7 @@ curl -sf "http://$CDN/whoami/"
 
 تحقق من وجود هذه الترويسات الرئيسية:
 
-| المزوّد | الترويسة | القيمة المتوقعة |
+| البائع | الترويسة | القيمة المتوقعة |
 |---|---|---|
 | قياسي | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
 | Akamai | `True-Client-Ip` | `<your_ip>` |
@@ -143,43 +143,43 @@ curl -sf "http://$CDN/whoami/"
 | Fastly | `Fastly-Client-Ip` | `<your_ip>` |
 | Azure FD | `X-Azure-Clientip` | `<your_ip>` |
 
-### مطابقة السجلات
+### الربط التبادلي للسجلات
 
 قارن سجلات الوصول على كلا الخادمين للتحقق من تدفق حركة المرور:
 
 ```bash
-# CDN edge log — shows your client IP as source
+# سجل حافة CDN — يعرض عنوان IP الخاص بعميلك كمصدر
 ssh azureuser@<CDN_EDGE_IP> "sudo tail -5 /var/log/nginx/access.log"
 
-# Origin log — shows CDN edge IP as source
+# سجل خادم المصدر — يعرض عنوان IP لحافة CDN كمصدر
 ssh azureuser@<ORIGIN_IP> "sudo tail -5 /var/log/nginx/access.log"
 ```
 
-يجب أن يُظهر سجل خادم الأصل عنوان IP الخاص بحافة CDN كعميل متصل، بينما يُحمل عنوان IP الحقيقي للعميل في `X-Forwarded-For` والترويسات الخاصة بالمزود.
+يجب أن يعرض سجل خادم المصدر عنوان IP لحافة CDN باعتباره العميل المتصل، بينما يُنقل عنوان IP الفعلي للعميل عبر `X-Forwarded-For` والترويسات الخاصة بكل بائع.
 
-### سلوك التخزين المؤقت
+### سلوك ذاكرة التخزين المؤقت
 
 ```bash
-# First request — MISS (fetched from origin)
+# الطلب الأول — MISS (مُسترجع من خادم المصدر)
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 
-# Second request — HIT (served from CDN cache)
+# الطلب الثاني — HIT (مُقدَّم من ذاكرة تخزين CDN المؤقتة)
 curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 ```
 
-## المرحلة 2: إدراج F5 XC (عرض الأمان)
+## المرحلة الثانية: إدراج F5 XC (العرض التوضيحي للأمان)
 
-بعد اختبار خط الأساس، أدرج موازن حمل HTTP الخاص بـ F5 XC بين CDN وخادم الأصل:
+بعد اختبار خط الأساس، أدرج موازن تحميل F5 XC HTTP بين CDN وخادم المصدر:
 
 ```
 ┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  العميل   │────▶│  حافة CDN      │────▶│  F5 XC HTTP LB   │────▶│  خادم الأصل     │
+│  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
 │           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
 └──────────┘     └────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-1. **أنشئ موازن حمل HTTP الخاص بـ F5 XC** مع خادم الأصل في مجموعة الأصول الخاصة به
-2. **حدّث حافة CDN** لتوجيه الطلبات إلى VIP الخاص بـ F5 XC بدلاً من خادم الأصل مباشرة:
+1. **أنشئ موازن تحميل F5 XC HTTP** مع إضافة خادم المصدر في مجموعة المصادر الخاصة به
+2. **حدّث حافة CDN** لتشير إلى VIP الخاص بـ F5 XC بدلاً من الإشارة المباشرة إلى خادم المصدر:
 
 ```bash
 ssh azureuser@<CDN_EDGE_IP>
@@ -191,21 +191,21 @@ sudo nginx -t && sudo systemctl reload nginx
 3. **تحقق من تطبيق WAF** عبر السلسلة الكاملة:
 
 ```bash
-# SQL injection through CDN → F5 XC WAF should block
+# حقن SQL عبر CDN ← يجب أن يحجب جدار حماية تطبيقات الويب (WAF) الخاص بـ F5 XC هذا الطلب
 curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
 
-# Normal request should pass
+# يجب أن يمر الطلب العادي
 curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 ```
 
-4. **هيّئ ترويسة عنوان IP الموثوق للعميل** في F5 XC لقراءة عنوان IP الحقيقي للعميل من ترويسات CDN (مثل `True-Client-IP` لمحاكاة Akamai، أو `CF-Connecting-IP` لمحاكاة Cloudflare)
+4. **هيّئ ترويسة IP العميل الموثوق** في F5 XC لقراءة عنوان IP الفعلي للعميل من ترويسات CDN (مثلاً: `True-Client-IP` لمحاكاة Akamai، و`CF-Connecting-IP` لمحاكاة Cloudflare)
 
-## بنية المكونات المتعددة
+## بنية متعددة المكونات
 
 | المكوّن | المستودع | الغرض |
 |---|---|---|
-| **حافة CDN** (هذا) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | التخزين المؤقت، ترويسات المزودين |
-| **خادم الأصل** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | تطبيقات ويب معرّضة للثغرات |
-| **تهيئة F5 XC** | متنوعة (waf، api-protection، bot-*، إلخ) | سياسات الأمان |
+| **حافة CDN** (هذا) | [cdn-simulator](https://github.com/f5xc-salesdemos/cdn-simulator) | التخزين المؤقت وترويسات البائع |
+| **خادم المصدر** | [origin-server](https://github.com/f5xc-salesdemos/origin-server) | تطبيقات الويب المكشوفة |
+| **إعدادات F5 XC** | متنوعة (waf, api-protection, bot-*, إلخ) | سياسات الأمان |
 
-ينشر كل مكوّن توثيقًا تقرأه مساعدات الذكاء الاصطناعي لنشر البنية التحتية. ينشر خادم الأصل [بيان نقاط النهاية](https://github.com/f5xc-salesdemos/origin-server/releases/latest) كعنصر إصدار على GitHub يسرد جميع مسارات التطبيقات وفحوصات الحالة.
+ينشر كل مكوّن وثائق تقرأها مساعدات الذكاء الاصطناعي لنشر البنية التحتية. يُصدر خادم المصدر [بيان نقطة النهاية](https://github.com/f5xc-salesdemos/origin-server/releases/latest) كأداة إصدار على GitHub تسرد جميع مسارات التطبيقات وفحوصات الصحة.

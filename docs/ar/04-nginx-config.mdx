@@ -1,0 +1,396 @@
+---
+title: تكوين NGINX
+description: >-
+  مرجع تكوين NGINX المحسّن للإنتاج — ضبط الأداء (kernel، المخازن المؤقتة،
+  keepalive، gzip، open_file_cache)، ذاكرة تخزين مؤقت على القرص بسعة 25 جيجابايت
+  مع منع thundering herd، مجموعة upstream keepalive، أكثر من 67 رأس من موردي CDN
+  من Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door، واكتشاف الجهاز. تم
+  التحقق منه تحت اختبار تحميل مستمر لمدة 48 ساعة بذروة 170 ألف طلب/ثانية.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: 0a5211740122
+  translator: machine
+---
+
+يُنشئ التوفير عبر cloud-init تكوين حافة CDN لـ NGINX محسّنًا بالكامل للأداء. توثّق هذه الصفحة كل طبقة من طبقات التكوين، بدءًا من ضبط kernel وصولًا إلى سلوك الذاكرة المؤقتة وحقن رؤوس الموردين. تم التحقق من جميع الإعدادات تحت اختبار تحميل مستمر لمدة 48 ساعة بذروة 172,540 طلب/ثانية.
+
+## ملفات التكوين
+
+| الملف | الغرض |
+|---|---|
+| `/etc/sysctl.d/99-cdn-tuning.conf` | ضبط شبكة Linux kernel |
+| `/etc/systemd/system/nginx.service.d/override.conf` | حدود واصفات الملفات لـ NGINX |
+| `/etc/security/limits.d/99-nginx.conf` | الحدود على مستوى نظام التشغيل لمستخدم www-data |
+| `/etc/nginx/nginx.conf` | التكوين الرئيسي لـ NGINX (العمال، المخازن المؤقتة، gzip، التسجيل) |
+| `/etc/nginx/conf.d/cdn-edge.conf` | تكوين وكيل CDN (الذاكرة المؤقتة، upstream، الرؤوس) |
+
+## ضبط Kernel
+
+يُطبَّق عبر `/etc/sysctl.d/99-cdn-tuning.conf` عند التمهيد.
+
+| المعامل | القيمة | الافتراضي | الغرض |
+|---|---|---|---|
+| `net.core.somaxconn` | 65535 | 4096 | حجم قائمة انتظار الاستماع |
+| `net.core.netdev_max_backlog` | 65535 | 1000 | قائمة انتظار الحزم الواردة لكل CPU |
+| `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | قائمة انتظار طلبات SYN (تمنع الإسقاط عند الذروة) |
+| `net.ipv4.tcp_tw_reuse` | 1 | 2 | إعادة استخدام مقابس TIME_WAIT للاتصالات الصادرة |
+| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | نطاق المنافذ المؤقتة (64K مقابل 28K) |
+| `net.core.rmem_max` | 16 MB | 212 KB | الحد الأقصى لمخزن مقبس الاستقبال |
+| `net.core.wmem_max` | 16 MB | 212 KB | الحد الأقصى لمخزن مقبس الإرسال |
+| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | مخزن استقبال لكل مقبس (الحد الأدنى/الافتراضي/الأقصى) |
+| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | مخزن إرسال لكل مقبس (الحد الأدنى/الافتراضي/الأقصى) |
+| `net.ipv4.tcp_fin_timeout` | 15 | 60 | مهلة FIN_WAIT_2 (تنظيف أسرع للمقابس) |
+| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | بدء مجسّات keepalive بعد 5 دقائق خمول |
+| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | إبقاء نافذة الازدحام دافئة على الاتصالات الخاملة |
+| `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | الحد الأقصى لمقابس TIME_WAIT |
+| `fs.file-max` | 2097152 | يتفاوت | حد واصفات الملفات على مستوى النظام |
+| `vm.swappiness` | 10 | 60 | تفضيل RAM على swap لبيانات الذاكرة المؤقتة |
+
+## التكوين الرئيسي لـ NGINX
+
+### العمال والاتصالات
+
+```nginx
+worker_processes auto;           # 4 workers on D4s_v5 (1 per vCPU)
+worker_rlimit_nofile 65535;      # Per-worker file descriptor limit
+
+events {
+    use epoll;                   # Linux-optimized event model
+    worker_connections 8192;     # 4 workers x 8192 = 32,768 max concurrent
+    multi_accept on;             # Accept all pending connections per event loop
+    accept_mutex off;            # Not needed with epoll + reuseport
+}
+```
+
+يُعيّن تجاوز Systemd في `/etc/systemd/system/nginx.service.d/override.conf` القيمة `LimitNOFILE=65535` لتتطابق.
+
+### المخازن المؤقتة للوكيل
+
+```nginx
+proxy_buffering on;
+proxy_buffer_size 16k;           # Header buffer (handles large CDN headers)
+proxy_buffers 64 16k;            # 1 MB per connection (64 x 16k)
+proxy_busy_buffers_size 256k;    # Can send 256k to client while still reading
+```
+
+حجم المخزن المؤقت للانشغال البالغ 256k بالغ الأهمية — يجب أن يتجاوز أكبر استجابة مخزّنة (Juice Shop هي 75 KB). كان الإعداد الأصلي 64k يُسبّب تسلسلًا تحت الحمل.
+
+### ضغط Gzip
+
+```nginx
+gzip on;
+gzip_comp_level 4;               # Balance: ~85% of max compression at ~40% CPU
+gzip_min_length 256;             # Skip tiny responses (gzip header overhead)
+gzip_vary on;                    # Vary: Accept-Encoding for correct caching
+gzip_proxied any;                # Compress all proxied responses
+gzip_types text/plain text/css text/javascript text/xml
+           application/json application/javascript application/xml
+           application/xml+rss application/atom+xml
+           application/ld+json application/manifest+json
+           image/svg+xml;
+```
+
+### ذاكرة التخزين المؤقت للملفات المفتوحة
+
+```nginx
+open_file_cache max=200000 inactive=20s;
+open_file_cache_valid 30s;
+open_file_cache_min_uses 2;
+open_file_cache_errors on;
+```
+
+تُخزّن واصفات الملفات والبيانات الوصفية للكائنات المخزّنة مؤقتًا، مما يُلغي استدعاءات النظام `stat()` و`open()` على الملفات الساخنة.
+
+### Keepalive للعميل
+
+```nginx
+keepalive_timeout 65;
+keepalive_requests 100000;       # Was 1000 — caused connection recycling at 90K req/s
+```
+
+عند 90 ألف طلب/ثانية مع `keepalive_requests 1000`، كانت الاتصالات تُعاد كل 11 ثانية، مما يُولّد مقابس TIME_WAIT. أدى رفع القيمة إلى 100,000 إلى القضاء على هذه المشكلة كليًا.
+
+### تسجيل الوصول
+
+```nginx
+log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $upstream_cache_status $request_time';
+access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
+```
+
+يتضمّن تنسيق السجل `cdn` القيمة `$upstream_cache_status` (HIT/MISS) و`$request_time` لتحليل زمن الاستجابة. يُقلّل التسجيل المؤقت (256k/flush كل 5 ثوانٍ) من تكلفة الإدخال/الإخراج تحت الحمل العالي.
+
+## Keepalive لـ Upstream
+
+```nginx
+upstream origin_backend {
+    server 20.12.78.159:80;
+    keepalive 256;               # Persistent connections per worker to origin
+    keepalive_timeout 60s;
+    keepalive_requests 1000;
+}
+```
+
+مع 4 عمال × 256 keepalive = 1,024 اتصالًا دافئًا بخادم المصدر. بالاقتران مع `proxy_http_version 1.1` و`proxy_set_header Connection ""`, يُلغي هذا تكلفة مصافحة TCP على كل خطأ في الذاكرة المؤقتة.
+
+## تكوين الذاكرة المؤقتة
+
+### مسار الذاكرة المؤقتة
+
+```nginx
+proxy_cache_path /var/cache/nginx/cdn
+                 levels=1:2
+                 keys_zone=cdn_cache:32m
+                 max_size=25g
+                 inactive=24h
+                 use_temp_path=off;
+```
+
+| المعامل | القيمة | الغرض |
+|---|---|---|
+| `keys_zone=cdn_cache:32m` | ذاكرة مشتركة 32 MB | تخزّن ما يقارب 256,000 مفتاح ذاكرة مؤقتة وبيانات وصفية |
+| `max_size=25g` | حد القرص 25 GB | يستخدم معظم قرص نظام التشغيل البالغ 30 GB؛ إخلاء LRU عند الحد |
+| `inactive=24h` | مهلة عدم نشاط 24 ساعة | يُخلى المحتوى غير المُوصَل إليه لمدة 24 ساعة (ليس نفس TTL) |
+| `use_temp_path=off` | الكتابة مباشرةً إلى دليل الذاكرة المؤقتة | تجنّب نقل الملفات عبر أنظمة ملفات مختلفة |
+
+### سلوك الذاكرة المؤقتة
+
+```nginx
+proxy_cache cdn_cache;
+proxy_cache_valid 200 301 302 4h;
+proxy_cache_valid 404 1m;
+proxy_cache_key "$scheme$host$request_uri";
+proxy_cache_lock on;
+proxy_cache_lock_age 3s;
+proxy_cache_lock_timeout 3s;
+proxy_cache_background_update on;
+proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
+proxy_ignore_headers Set-Cookie Cache-Control Expires Vary;
+
+proxy_hide_header X-Cache-Status;
+proxy_hide_header Vary;
+```
+
+| التوجيه | القيمة | الغرض |
+|---|---|---|
+| `proxy_cache_valid 200 301 302 4h` | TTL مدته 4 ساعات | المحتوى المخزّن صالح لمدة 4 ساعات (زِيد لتقليل انخفاضات الإنتاجية عند موجة التحديث) |
+| `proxy_cache_lock on` | منع thundering herd | طلب واحد فقط يصل إلى خادم المصدر لكل URL غير مخزّن؛ الآخرون ينتظرون ملء الذاكرة المؤقتة |
+| `proxy_cache_lock_age 3s` | مهلة القفل | إذا لم يكتمل الطلب الأول خلال 3 ثوانٍ، يُسمح لطلب آخر بالمرور |
+| `proxy_cache_background_update on` | تحديث بدون زمن استجابة | يُقدّم المحتوى القديم فورًا بينما يُحدَّث في الخلفية |
+| `proxy_cache_use_stale` | المرونة | يُقدّم المحتوى القديم أثناء أخطاء خادم المصدر (500/502/503/504) أو أثناء التحديث |
+| `proxy_ignore_headers` | فرض التخزين المؤقت | يتجاهل Set-Cookie وCache-Control وExpires وVary من خادم المصدر — يقرر CDN قيم TTL وسلوك Vary (تُرسل Juice Shop القيمة `max-age=0` وثلاثة رؤوس `Vary` التي تمنع التخزين المؤقت الفعّال) |
+| `proxy_hide_header X-Cache-Status` | إزالة رأس خادم المصدر | يُضيف NGINX الخاص بخادم المصدر رأسه الخاص X-Cache-Status — يُزال ليظهر فقط حالة الذاكرة المؤقتة لـ CDN |
+| `proxy_hide_header Vary` | منع تجزئة الذاكرة المؤقتة | يُرسل خادم المصدر رؤوس `Vary: Accept-Encoding` متعددة. يمنع إزالتها تجزئة مفتاح الذاكرة المؤقتة عبر تباديل `Accept-Encoding`. يُضيف `gzip_vary on` في NGINX رأس `Vary` الصحيح الفردي تلقائيًا |
+
+### مهل الوكيل
+
+```nginx
+proxy_read_timeout 30s;
+proxy_connect_timeout 10s;
+proxy_send_timeout 15s;
+```
+
+يمنح خادم المصدر وقتًا أطول للاستجابة تحت الحمل مع الإخفاق السريع في مشكلات الاتصال.
+
+### كتلة الخادم
+
+```nginx
+server {
+    listen 80 reuseport;        # Kernel distributes connections across all 4 workers
+    server_name _;
+}
+```
+
+يُفعّل `reuseport` الخيار `SO_REUSEPORT` — يوزّع kernel الاتصالات الواردة مباشرةً على عمليات العمال، مما يُلغي تنافس accept mutex.
+
+## رؤوس موردي CDN
+
+يحقن المحاكي رؤوسًا من جميع موردي CDN الخمسة الرئيسيين في وقت واحد. يتيح هذا تكوين F5 XC بـ "Trusted Client IP Header" الخاص بأي مورد ورؤية حمولات الرؤوس الواقعية بصرف النظر عن CDN الذي يُحاكَى.
+
+### الرؤوس القياسية للصناعة (جميع CDNs)
+
+| الرأس | القيمة | الغرض |
+|---|---|---|
+| `X-Forwarded-For` | سلسلة IP العميل | IP المُحوَّل القياسي |
+| `X-Forwarded-Proto` | `http` أو `https` | بروتوكول العميل الأصلي |
+| `X-Forwarded-Host` | اسم المضيف الأصلي | رأس Host الأصلي |
+| `X-Forwarded-Port` | منفذ الخادم | المنفذ الأصلي |
+| `X-Real-IP` | IP العميل | IP عميل واحد (اصطلاح nginx) |
+| `Via` | `1.1 cdn-simulator` | تعريف الوكيل |
+| `Forwarded` | تنسيق RFC 7239 | رأس إعادة التوجيه الموحّد |
+| `CDN-Loop` | `cdn-simulator` | اكتشاف الحلقات |
+
+### رؤوس Akamai
+
+| الرأس | القيمة | الغرض |
+|---|---|---|
+| `True-Client-IP` | IP العميل | عنوان IP الأصلي للمستخدم النهائي |
+| `X-Akamai-Edgescape` | سلسلة جغرافية مركّبة | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
+| `X-Akamai-Device-Characteristics` | خصائص الجهاز | brand_name, model_name, is_mobile, is_tablet, is_wireless_device, device_os, device_os_version, resolution_width, resolution_height |
+| `X-Akamai-Request-ID` | UUID الطلب | معرّف الطلب الفريد |
+
+### رؤوس Cloudflare
+
+| الرأس | القيمة | الغرض |
+|---|---|---|
+| `CF-Connecting-IP` | IP العميل | IP العميل الحقيقي (موجود دائمًا) |
+| `CF-IPCountry` | `US` | رمز البلد المكوّن من حرفين |
+| `cf-ipcity` | `San Jose` | مدينة العميل |
+| `cf-ipcontinent` | `NA` | رمز القارة |
+| `cf-iplatitude` / `cf-iplongitude` | الإحداثيات | الموقع الجغرافي |
+| `cf-region` / `cf-region-code` | `California` / `CA` | معلومات المنطقة |
+| `cf-metro-code` | `807` | رمز المنطقة الحضرية الأمريكية |
+| `cf-postal-code` | `95113` | الرمز البريدي |
+| `cf-timezone` | `America/Los_Angeles` | منطقة زمنية IANA |
+| `Cf-Ray` | `{request_id}-SJC` | معرّف ray فريد مع رمز IATA لنقطة التواجد |
+| `CF-Visitor` | `{"scheme":"https"}` | معلومات بروتوكول الزائر |
+| `cf-bot-score` | `85` | درجة البوت (1=بوت، 99=إنسان) |
+| `cf-verified-bot` | `false` | علامة البوت الجيد المعروف |
+| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | بصمة JA3 لـ TLS |
+| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | بصمة JA4 لـ TLS |
+
+### رؤوس Amazon CloudFront
+
+| الرأس | القيمة | الغرض |
+|---|---|---|
+| `CloudFront-Viewer-Address` | `IP:port` | IP العميل ومنفذ المصدر |
+| `CloudFront-Viewer-Country` | `US` | رمز البلد |
+| `CloudFront-Viewer-Country-Name` | `United States` | الاسم الكامل للبلد |
+| `CloudFront-Viewer-Country-Region` | `CA` | رمز المنطقة |
+| `CloudFront-Viewer-Country-Region-Name` | `California` | الاسم الكامل للمنطقة |
+| `CloudFront-Viewer-City` | `San Jose` | مدينة العميل |
+| `CloudFront-Viewer-Postal-Code` | `95113` | الرمز البريدي |
+| `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | الموقع الجغرافي |
+| `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | منطقة زمنية IANA |
+| `CloudFront-Viewer-Metro-Code` | `807` | رمز المنطقة الحضرية الأمريكية |
+| `CloudFront-Viewer-ASN` | `7018` | رقم النظام المستقل |
+| `CloudFront-Viewer-Http-Version` | `2.0` | إصدار HTTP للعميل |
+| `CloudFront-Forwarded-Proto` | `https` | البروتوكول الأصلي |
+| `CloudFront-Viewer-TLS` | `TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed` | تفاصيل TLS |
+| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | بصمة JA3 لـ TLS |
+| `CloudFront-Is-Desktop-Viewer` | `true`/`false` | اكتشاف الجهاز |
+| `CloudFront-Is-Mobile-Viewer` | `true`/`false` | اكتشاف الجهاز |
+| `CloudFront-Is-Tablet-Viewer` | `true`/`false` | اكتشاف الجهاز |
+| `CloudFront-Is-SmartTV-Viewer` | `false` | اكتشاف الجهاز |
+| `X-Amz-Cf-Id` | معرّف مشفّر | معرّف طلب CloudFront |
+
+### رؤوس Fastly
+
+| الرأس | القيمة | الغرض |
+|---|---|---|
+| `Fastly-Client-IP` | IP العميل | IP العميل الحقيقي |
+| `Fastly-SSL` | `1` | الاتصال كان عبر TLS |
+| `Fastly-Client` | `1` | طلب مواجه للعميل (وليس shield) |
+| `Fastly-FF` | `cache-sjc3120-SJC` | تعريف عقدة الذاكرة المؤقتة |
+| `X-Geo-Country-Code` | `US` | البلد (اصطلاح متغيّر VCL) |
+| `X-Geo-Country-Code3` | `USA` | رمز البلد المكوّن من ثلاثة أحرف |
+| `X-Geo-Country-Name` | `United States` | الاسم الكامل للبلد |
+| `X-Geo-City` | `San Jose` | مدينة العميل |
+| `X-Geo-Region` | `CA` | رمز المنطقة |
+| `X-Geo-Continent-Code` | `NA` | القارة |
+| `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | الموقع الجغرافي |
+| `X-Geo-Postal-Code` | `95113` | الرمز البريدي |
+| `X-Geo-Metro-Code` | `807` | رمز المنطقة الحضرية الأمريكية |
+| `X-Geo-ASN` | `7018` | رقم النظام المستقل |
+| `X-Geo-Conn-Speed` | `broadband` | فئة سرعة الاتصال |
+| `X-Geo-Conn-Type` | `wired` | نوع الاتصال |
+
+### رؤوس Azure Front Door
+
+| الرأس | القيمة | الغرض |
+|---|---|---|
+| `X-Azure-ClientIP` | IP العميل | عنوان IP العميل |
+| `X-Azure-SocketIP` | IP العميل | عنوان IP المصدر لمقبس TCP |
+| `X-Azure-Ref` | سلسلة مرجعية مشفّرة | مرجع طلب فريد لاستكشاف الأخطاء |
+| `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | معرّف مورد Front Door |
+| `X-Azure-RequestChain` | `hops=1` | عدد قفزات اكتشاف الحلقات |
+
+### رؤوس الاستجابة (تُضاف إلى استجابات العميل)
+
+| الرأس | القيم | الغرض |
+|---|---|---|
+| `X-Cache-Status` | `HIT`, `MISS`, `EXPIRED`, `STALE`, `UPDATING` | سلوك الذاكرة المؤقتة لهذا الطلب |
+| `X-CDN-Edge` | `cdn-simulator` | يُعرّف عقدة الحافة هذه |
+| `X-CDN-POP` | `SJC` | رمز IATA لنقطة التواجد المحاكاة |
+| `X-Served-By` | `cache-sjc3120-SJC` | عقدة الذاكرة المؤقتة المحاكاة بتنسيق Fastly |
+| `X-Request-ID` | UUID (لكل طلب) | معرّف الطلب الفريد |
+
+## اكتشاف الجهاز
+
+يكتشف المحاكي نوع الجهاز من رأس `User-Agent` باستخدام توجيهات NGINX `map`:
+
+- **محمول**: يطابق iPhone، Android (غير اللوحي)، iPod، BlackBerry، Opera Mini، IEMobile
+- **لوحي**: يطابق iPad، لوحي Android، Kindle، PlayBook
+- **سطح مكتب**: الافتراضي عند عدم تطابق المحمول أو اللوحي
+
+ينعكس نوع الجهاز في:
+- `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
+- `X-Akamai-Device-Characteristics` (حقول `is_mobile` و`is_tablet` و`is_wireless_device`)
+
+## العمليات
+
+### تغيير خادم المصدر
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+
+# Update upstream server
+sudo sed -i 's|server .*;|server NEW_HOST:80;|' /etc/nginx/conf.d/cdn-edge.conf
+
+# Clear cache and reload
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+أو حدّث `origin_host` في `terraform.tfvars` وشغّل `terraform apply` لإعادة التوفير.
+
+### مسح الذاكرة المؤقتة
+
+```bash
+ssh azureuser@<PUBLIC_IP>
+sudo rm -rf /var/cache/nginx/cdn/*
+sudo systemctl reload nginx
+```
+
+### التحقق من إحصائيات الذاكرة المؤقتة
+
+```bash
+# Object count and disk usage
+sudo find /var/cache/nginx/cdn -type f | wc -l
+sudo du -sh /var/cache/nginx/cdn
+
+# Recent access log with cache status
+tail -20 /var/log/nginx/access.log
+```
+
+### المراقبة تحت الحمل
+
+```bash
+# Real-time connections and socket states
+ss -s
+
+# NGINX worker CPU usage
+top -bn1 | grep nginx
+
+# Upstream keepalive connections
+ss -tn state established dst <ORIGIN_IP> | wc -l
+
+# TIME_WAIT socket count
+ss -tn state time-wait | wc -l
+```
+
+## نتائج اختبار الأداء
+
+تم التحقق منها تحت اختبار تحميل مستمر لمدة 48 ساعة:
+
+| المقياس | القيمة |
+|---|---|
+| ذروة الإنتاجية (مخزّنة) | 172,540 طلب/ثانية |
+| الإنتاجية المستدامة (مخزّنة) | 85,000-103,000 طلب/ثانية |
+| ذروة الاتصالات | 15,000 متزامن |
+| نسبة إصابة الذاكرة المؤقتة | 100% (عند الإحماء) |
+| الذاكرة تحت الحمل | 1.2 GB مستقرة (8% من 16 GB) |
+| CPU عند الذروة | 100% (4 أنوية - CPU هو السقف) |
+| الأخطاء خلال اختبار 48 ساعة | 0 |
+| تسريبات الذاكرة | لم تُكتشف |
+| تسريبات الاتصالات | لم تُكتشف |

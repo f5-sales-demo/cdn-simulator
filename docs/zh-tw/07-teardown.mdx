@@ -1,8 +1,8 @@
 ---
-title: 清除環境
+title: 拆除環境
 description: >-
-  執行 terraform destroy 移除所有 Azure 資源（資源群組、VM、VNet、PIP、NSG），清理本機 Terraform 狀態，並還原
-  DNS 或 hosts 檔案變更。
+  執行 terraform destroy 以移除所有 Azure 資源（資源群組、VM、VNet、PIP、NSG），清理本機 Terraform
+  狀態，並還原 DNS 或 hosts 檔案變更。
 sidebar:
   order: 7
 i18n:
@@ -14,7 +14,7 @@ i18n:
 
 ## Terraform 銷毀
 
-從包含 Terraform 組態的目錄中執行：
+在包含 Terraform 設定的目錄中執行：
 
 ```bash
 # Review what will be destroyed
@@ -24,7 +24,7 @@ terraform plan -destroy
 terraform destroy
 ```
 
-Terraform 會提示確認。輸入 `yes` 以繼續。
+Terraform 將提示確認。輸入 `yes` 以繼續。
 
 ## 驗證清理結果
 
@@ -40,7 +40,7 @@ az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
 
 ## 清理本機狀態
 
-移除 Terraform 狀態和快取檔案：
+移除 Terraform 狀態與快取檔案：
 
 ```bash
 rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
@@ -48,11 +48,11 @@ rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 
 ## 還原 DNS/Hosts 變更
 
-如果您在[整合](06-integrate/)期間修改了 DNS 或 hosts 檔案，請還原這些變更：
+若您在[整合](06-integrate/)過程中修改了 DNS 或 hosts 檔案，請還原這些變更：
 
 ```bash
 # Remove hosts file entry (Linux/macOS)
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-如果您建立了 DNS A 記錄，請透過您的 DNS 供應商將其刪除。
+若您建立了 DNS A 記錄，請透過您的 DNS 供應商將其刪除。

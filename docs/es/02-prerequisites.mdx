@@ -1,5 +1,5 @@
 ---
-title: Prerrequisitos
+title: Requisitos previos
 description: >-
   Herramientas necesarias (Azure CLI, Terraform >= 1.5, par de claves SSH),
   permisos de suscripción de Azure y requisitos de Azure AD para desplegar la VM
@@ -25,7 +25,7 @@ Una suscripción de Azure activa con permisos para crear:
 
 ### Azure CLI
 
-Instale y autentíquese en Azure CLI:
+Instale y autentique el Azure CLI:
 
 ```bash
 # Install (if not present)
@@ -63,7 +63,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 ### Permisos de Azure AD
 
-Su cuenta de Azure AD debe tener permisos `User.Read`. El identificador del desplegador (utilizado en la nomenclatura de recursos) se deriva automáticamente de su perfil de Azure AD. Para la autenticación mediante service principal o identidad administrada, establezca la variable de Terraform `deployer` de forma explícita.
+Su cuenta de Azure AD debe tener permisos `User.Read`. El identificador del desplegador (utilizado en la nomenclatura de recursos) se deriva automáticamente de su perfil de Azure AD. Para la autenticación mediante entidad de servicio o identidad administrada, establezca explícitamente la variable de Terraform `deployer`.
 
 ## Opcionales
 
@@ -74,6 +74,6 @@ Si desea certificados TLS reales en lugar de autofirmados:
 - Un nombre de dominio con control de DNS
 - Capacidad para crear registros A que apunten a la IP pública de Azure
 
-### URL del servidor de origen
+### URL del Servidor de origen
 
-La URL del balanceador de carga HTTP de F5 XC al que este nodo edge reenviará el tráfico. Esto se puede configurar después del despliegue — la configuración predeterminada de NGINX utiliza un marcador de posición que usted actualiza en la configuración de NGINX.
+La URL del balanceador de carga HTTP de F5 XC al que este nodo edge enviará el tráfico. Esto puede configurarse tras el despliegue — la configuración predeterminada de NGINX utiliza un marcador de posición que se actualiza en la configuración de NGINX.

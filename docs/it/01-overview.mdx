@@ -13,15 +13,15 @@ i18n:
 
 ## Scopo
 
-Questo componente simula un nodo edge CDN per ambienti di laboratorio e dimostrativi. Rappresenta il ruolo che vendor come Akamai, Cloudflare, Amazon CloudFront o Fastly ricoprono nell'architettura di rete di un cliente — il livello di caching più vicino agli utenti finali, posizionato davanti a un server di origine.
+Questo componente simula un nodo edge CDN per ambienti di laboratorio e demo. Rappresenta il ruolo che i vendor come Akamai, Cloudflare, Amazon CloudFront o Fastly svolgono nell'architettura di rete di un cliente — il livello di caching più vicino agli utenti finali, posizionato davanti a un server di origine.
 
-Nelle architetture multi-vendor in produzione, i clienti comunemente abbinano un CDN di terze parti con F5 Distributed Cloud:
+Nelle architetture multi-vendor di produzione, i clienti affiancano comunemente una CDN di terze parti a F5 Distributed Cloud:
 
 ```
 End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
-Questo simulatore sostituisce il CDN commerciale con un nodo edge basato su NGINX, così che l'integrazione possa essere dimostrata e testata senza contratti con i vendor o infrastruttura di produzione.
+Questo simulatore sostituisce la CDN commerciale con un nodo edge basato su NGINX, in modo che l'integrazione possa essere dimostrata e testata senza contratti con i vendor o infrastruttura di produzione.
 
 ## Architettura
 
@@ -37,24 +37,24 @@ Questo simulatore sostituisce il CDN commerciale con un nodo edge basato su NGIN
 
 Il nodo edge NGINX:
 
-- **Termina il TLS** all'edge (certificato auto-firmato o Let's Encrypt)
-- **Memorizza le risposte nella cache** su disco utilizzando `proxy_cache_path`
-- **Inoltra i cache miss** a un server di origine configurabile (il VIP dell'HTTP load balancer F5 XC)
+- **Termina TLS** al livello edge (autofirmato o Let's Encrypt)
+- **Memorizza nella cache le risposte** su disco tramite `proxy_cache_path`
+- **Inoltra i cache miss** a un server di origine configurabile (il VIP del load balancer HTTP F5 XC)
 - **Riporta lo stato della cache** tramite l'header di risposta `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
 
-## Cosa simula
+## Cosa Simula
 
 | Funzione CDN | Implementazione NGINX |
 |---|---|
-| Caching all'edge | `proxy_cache` con storage su disco |
-| Generazione della cache key | `proxy_cache_key` basata su scheme, host e URI |
-| Origin pull | `proxy_pass` verso l'HTTP load balancer F5 XC |
+| Caching al livello edge | `proxy_cache` con storage su disco |
+| Generazione della chiave di cache | `proxy_cache_key` basata su schema, host e URI |
+| Origin pull | `proxy_pass` verso il load balancer HTTP F5 XC |
 | Terminazione TLS | Direttiva NGINX `ssl_certificate` |
 | Rispetto del Cache-Control | `proxy_cache_valid` con passthrough degli header di origine |
-| Reportistica dello stato della cache | `add_header X-Cache-Status $upstream_cache_status` |
+| Reporting dello stato della cache | `add_header X-Cache-Status $upstream_cache_status` |
 | Endpoint di health | Location `/health` che restituisce 200 OK |
 
-## Endpoint e comportamento richiesta/risposta
+## Endpoint e Comportamento Request/Response
 
 ### Health Check
 
@@ -73,68 +73,68 @@ Risposta (200 OK, `Content-Type: application/json`):
 }
 ```
 
-### Proxy CDN (tutti gli altri percorsi)
+### Proxy CDN (Tutti gli Altri Path)
 
 ```
 GET /<any-path>
 ```
 
-Header della richiesta iniettati verso l'origine (67+ header da 5 vendor):
+Header di richiesta iniettati verso l'origine (67+ header da 5 vendor):
 
-| Categoria | Header aggiunti |
+| Categoria | Header Aggiunti |
 |---|---|
-| IP del client | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
+| IP Client | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
 | Geolocalizzazione | `X-Akamai-Edgescape` (composto), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
 | Rilevamento dispositivo | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
 | TLS/Fingerprint | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
-| Rilevamento bot | `cf-bot-score` (85 = probabilmente umano), `cf-verified-bot` |
-| Tracciamento richieste | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
-| Identità dell'edge | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
+| Rilevamento Bot | `cf-bot-score` (85 = probabilmente umano), `cf-verified-bot` |
+| Tracciamento Richieste | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
+| Identità Edge | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
 | Standard | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
 
-Header di risposta aggiunti a ogni risposta proxy:
+Header di risposta aggiunti a ogni risposta proxiata:
 
 | Header | Valori | Scopo |
 |---|---|---|
 | `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | Comportamento della cache per questa richiesta |
 | `X-CDN-Edge` | `cdn-simulator` | Identifica questo nodo edge |
-| `X-CDN-POP` | `SJC` | Codice IATA simulato del Point of Presence |
+| `X-CDN-POP` | `SJC` | Codice IATA del Point of Presence simulato |
 | `X-Served-By` | `cache-sjc3120-SJC` | Nodo cache simulato in formato Fastly |
 | `X-Request-ID` | UUID (per richiesta) | Identificatore univoco della richiesta |
 
-### Comportamento della cache
+### Comportamento della Cache
 
-- Prima richiesta a qualsiasi percorso: `X-Cache-Status: MISS` (recuperata dall'origine, ora in cache)
-- Richieste identiche successive: `X-Cache-Status: HIT` (servita dalla cache su disco)
-- Cache key: `$scheme$host$request_uri` (scheme + hostname + percorso completo + query string)
-- TTL della cache: 10 minuti per 200/301/302, 1 minuto per 404
-- Servizio stale: restituisce contenuto in cache in caso di errori dell'origine (500/502/503/504)
+- Prima richiesta verso qualsiasi path: `X-Cache-Status: MISS` (recuperato dall'origine, ora in cache)
+- Richieste identiche successive: `X-Cache-Status: HIT` (servito dalla cache su disco)
+- Chiave di cache: `$scheme$host$request_uri` (schema + hostname + path completo + query string)
+- TTL della cache: 10 minuti per risposte 200/301/302, 1 minuto per 404
+- Servizio stale: restituisce il contenuto in cache in caso di errori dell'origine (500/502/503/504)
 
 ### Accesso alla VM
 
-| Metodo di accesso | Comando/Percorso |
+| Metodo di Accesso | Comando/Path |
 |---|---|
 | SSH | `ssh azureuser@<PUBLIC_IP>` |
 | Configurazione NGINX | `/etc/nginx/conf.d/cdn-edge.conf` |
 | Log NGINX | `/var/log/nginx/access.log` e `/var/log/nginx/error.log` |
-| Directory della cache | `/var/cache/nginx/cdn/` |
+| Directory cache | `/var/cache/nginx/cdn/` |
 | Log cloud-init | `/var/log/cloud-init-output.log` |
 
-## Design modulare dei componenti
+## Design Modulare dei Componenti
 
-Questo è un elemento di un ambiente di laboratorio più ampio. Ogni componente è autonomo e distribuito indipendentemente:
+Questo è un elemento di un ambiente di laboratorio più ampio. Ogni componente è autonomo e distribuito in modo indipendente:
 
-- **Questo componente** fornisce l'edge CDN (NGINX su VM Azure)
+- **Questo componente** fornisce il CDN edge (NGINX su Azure VM)
 - **Altri componenti** forniscono l'applicazione di origine, la configurazione F5 XC, il DNS, le policy WAF, ecc.
 
-L'operatore umano aggiunge i componenti uno alla volta. La documentazione di ogni componente è scritta in modo che un assistente AI possa leggerla e distribuire l'infrastruttura in modo autonomo.
+L'operatore umano aggiunge i componenti uno alla volta. La documentazione di ciascun componente è scritta in modo che un assistente IA possa leggerla e distribuire l'infrastruttura in modo autonomo.
 
 ## Perché NGINX
 
-NGINX è stato selezionato come motore di simulazione CDN perché:
+NGINX è stato selezionato come motore di simulazione CDN per i seguenti motivi:
 
-1. **Prodotto F5** — F5 ha acquisito NGINX Inc. nel 2019; fa parte del portfolio F5
-2. **Comprovato nel settore** — Cloudflare ha gestito l'intero CDN su NGINX per oltre un decennio prima di migrare a Pingora; Netflix utilizza NGINX per il proprio CDN Open Connect
-3. **Processo singolo** — gestisce terminazione TLS e caching in un unico binario, a differenza di Varnish che richiede un proxy TLS separato
+1. **Prodotto F5** — F5 ha acquisito NGINX Inc. nel 2019; fa parte del portafoglio F5
+2. **Comprovato dal settore** — Cloudflare ha gestito l'intera propria CDN su NGINX per oltre un decennio prima di migrare a Pingora; Netflix utilizza NGINX per la propria CDN Open Connect
+3. **Processo singolo** — gestisce la terminazione TLS e il caching in un unico binario, a differenza di Varnish che richiede un proxy TLS separato
 4. **Distribuzione semplice** — `apt install nginx` su Ubuntu 24.04, due direttive abilitano il caching
-5. **Ben documentato** — documentazione ufficiale estesa per il content caching e la configurazione del reverse proxy
+5. **Ben documentato** — documentazione ufficiale estesa per il caching dei contenuti e la configurazione del reverse proxy

@@ -1,11 +1,10 @@
 ---
 title: النشر
 description: >-
-  Terraform IaC deployment of the performance-optimized CDN edge node — Azure
-  F-series compute-optimized VM with Ubuntu 24.04, kernel tuning, NGINX proxy
-  cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers
-  provisioned via cloud-init. All configuration files are in the terraform/
-  directory.
+  نشر Terraform IaC لعقدة حافة CDN المحسّنة للأداء — جهاز VM من سلسلة F
+  المُحسَّن للحوسبة في Azure مع Ubuntu 24.04، وضبط النواة، وذاكرة التخزين المؤقت
+  لـ NGINX، واتصالات keepalive للخادم الأصلي، وضغط gzip، وأكثر من 67 رأس لموردي
+  CDN يتم توفيرها عبر cloud-init. جميع ملفات التكوين موجودة في مجلد terraform/.
 sidebar:
   order: 3
 i18n:
@@ -13,7 +12,7 @@ i18n:
   translator: machine
 ---
 
-جميع ملفات Terraform موجودة في دليل [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform). قم باستنساخ المستودع والنشر مباشرة:
+جميع ملفات Terraform موجودة في مجلد [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform). انسخ المستودع وانشر مباشرةً:
 
 ```bash
 git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
@@ -26,56 +25,56 @@ cp terraform.tfvars.example terraform.tfvars
 
 ### هيكل ملفات Terraform
 
-يحتوي دليل terraform على 9 ملفات تتبع معيار موارد العرض التوضيحي:
+يحتوي مجلد terraform على 9 ملفات تتبع معيار موارد العرض التوضيحي:
 
-- `versions.tf` — قيود إصدارات Terraform والمزودين (azurerm ~> 4.0, azuread ~> 3.0)
-- `providers.tf` — تكوين مزودي Azure RM و Azure AD
-- `data.tf` — مصادر بيانات Azure AD للحل التلقائي للناشر
-- `locals.tf` — حل الناشر، تسمية الموارد وفق إطار اعتماد السحابة من Azure، العلامات القياسية
+- `versions.tf` — قيود إصدار Terraform والموفر (azurerm ~> 4.0, azuread ~> 3.0)
+- `providers.tf` — تكوين موفر Azure RM وAzure AD
+- `data.tf` — مصادر بيانات Azure AD لحل المُنشِر تلقائياً
+- `locals.tf` — حل المُنشِر، وتسمية الموارد وفق إطار Azure Cloud Adoption Framework، والعلامات القياسية
 - `main.tf` — مجموعة الموارد (المسماة `rg-cdn-simulator-{environment}-{deployer}`)
 - `variables.tf` — جميع متغيرات الإدخال (3 مطلوبة، 8 اختيارية)
-- `network.tf` — الشبكة الافتراضية (10.100.0.0/16)، الشبكة الفرعية، عنوان IP العام، مجموعة أمان الشبكة (المنافذ 22/80/443)، واجهة الشبكة
-- `vm.tf` — جهاز افتراضي بنظام Ubuntu 24.04 مع cloud-init عبر templatefile()
-- `outputs.tf` — 17 مخرجاً (15 قياسي + 2 خاص بالمكون)
+- `network.tf` — الشبكة الافتراضية (10.100.0.0/16)، والشبكة الفرعية، والـ IP العام، ومجموعة أمان الشبكة (المنافذ 22/80/443)، وبطاقة الشبكة
+- `vm.tf` — جهاز VM بنظام Ubuntu 24.04 مع cloud-init عبر templatefile()
+- `outputs.tf` — 17 مخرجاً (15 قياسياً + 2 خاصاً بالمكوّن)
 
-يعرّف `variables.tf` 11 متغير إدخال منظمة في أقسام عام وحوسبة وخاص بالمكون. يتم حل معرّف `deployer` تلقائياً من حساب Azure AD الخاص بك — تحتاج فقط إلى تعيين `subscription_id` و `origin_server` و `origin_host`:
+يُعرِّف `variables.tf` ما مجموعه 11 متغير إدخال مُنظَّمة في أقسام: عام، وحوسبة، وخاص بالمكوّن. يتم حل معرّف `deployer` تلقائياً من حسابك على Azure AD — تحتاج فقط إلى تعيين `subscription_id` و`origin_server` و`origin_host`:
 
 ```hcl file=./_data/variables.tf
 ```
 
-### البنية التحتية للشبكة
+### البنية التحتية للشبكات
 
-ينشئ `network.tf` الشبكة الافتراضية والشبكة الفرعية وعنوان IP العام ومجموعة أمان الشبكة (المنافذ 22/80/443) وواجهة الشبكة:
+يُنشئ `network.tf` الشبكة الافتراضية، والشبكة الفرعية، والـ IP العام، ومجموعة أمان الشبكة (المنافذ 22/80/443)، وبطاقة الشبكة:
 
 ```hcl file=./_data/network.tf
 ```
 
 ### الجهاز الافتراضي مع Cloud-Init
 
-ينشئ `vm.tf` جهازاً افتراضياً بنظام Ubuntu 24.04. يتم توسيع مسار المفتاح العام لـ SSH عبر `pathexpand()` للتعامل مع `~`. يتلقى قالب cloud-init متغيرات `origin_server` و `origin_host`:
+يُنشئ `vm.tf` جهاز VM بنظام Ubuntu 24.04. يتم توسيع مسار مفتاح SSH العام عبر `pathexpand()` للتعامل مع `~`. يتلقى قالب cloud-init متغيري `origin_server` و`origin_host`:
 
 ```hcl file=./_data/vm.tf
 ```
 
-### التجهيز عبر Cloud-Init
+### توفير Cloud-Init
 
-يقوم `cloud-init.yaml` بتجهيز الجهاز الافتراضي مع ضبط النواة وحدود systemd وتكوين NGINX المحسّن للأداء ومنطقة مفاتيح التخزين المؤقت بحجم 128 ميجابايت ومجمع اتصالات upstream المستمرة وضغط gzip وأكثر من 67 ترويسة من مزودي CDN. توفر مكتبة مساعدة مشتركة (`/usr/local/lib/cloud-init-helpers.sh`) منطق إعادة المحاولة وتسجيل التقدم في `/var/log/cloud-init-progress.log`.
+يُوفِّر `cloud-init.yaml` الجهاز الافتراضي بضبط النواة، وحدود systemd، وNGINX بتكوين مُحسَّن للأداء، ومنطقة مفاتيح ذاكرة التخزين المؤقت بسعة 128 ميغابايت، ومجموعة اتصالات keepalive للخادم الأصلي، وضغط gzip، وأكثر من 67 رأس لموردي CDN. توفر مكتبة المساعد المشتركة (`/usr/local/lib/cloud-init-helpers.sh`) منطق إعادة المحاولة وتسجيل التقدم إلى `/var/log/cloud-init-progress.log`.
 
-يستخدم cloud-init متغيرات قالب Terraform: `${origin_server}` و `${origin_host}` لتكوين upstream. يتم تهريب متغيرات NGINX مثل `${request_id}` كـ `$${request_id}` في templatefile الخاص بـ Terraform.
+يستخدم cloud-init متغيرات قالب Terraform: `${origin_server}` و`${origin_host}` لتكوين الخادم الأصلي. يتم تخطي متغيرات NGINX مثل `${request_id}` كـ `$${request_id}` في templatefile الخاص بـ Terraform.
 
 ```yaml file=./_data/cloud-init.yaml
 ```
 
 ### المخرجات
 
-يعرض `outputs.tf` 17 مخرجاً وفق معيار موارد العرض التوضيحي — 15 مخرجاً قياسياً مشتركاً بين جميع موارد العرض التوضيحي (`deployer`، `public_ip`، `private_ip`، `ssh_command`، `resource_group_name`، `vm_name`، `nsg_name`، `vnet_name`، `subnet_id`، `component`، `environment`، `resource_group_id`، `vm_id`، `nsg_id`، `location`) بالإضافة إلى مخرجين خاصين بالمكون (`edge_url`، `health_check_url`):
+يعرض `outputs.tf` 17 مخرجاً وفق معيار موارد العرض التوضيحي — 15 مخرجاً قياسياً مشتركاً بين جميع موارد العرض التوضيحي (`deployer`، و`public_ip`، و`private_ip`، و`ssh_command`، و`resource_group_name`، و`vm_name`، و`nsg_name`، و`vnet_name`، و`subnet_id`، و`component`، و`environment`، و`resource_group_id`، و`vm_id`، و`nsg_id`، و`location`) بالإضافة إلى مخرجَين خاصَّين بالمكوّن (`edge_url`، و`health_check_url`):
 
 ```hcl file=./_data/outputs.tf
 ```
 
-### ملف المتغيرات النموذجي
+### مثال على ملف المتغيرات
 
-انسخ `terraform.tfvars.example` إلى `terraform.tfvars` واملأ القيم الخاصة بك. يستثني `.gitignore` ملف `terraform.tfvars` لمنع رفع بيانات الاعتماد:
+انسخ `terraform.tfvars.example` إلى `terraform.tfvars` واملأ قيمك. يستثني `.gitignore` ملف `terraform.tfvars` لمنع إيداع بيانات الاعتماد:
 
 ```hcl file=./_data/terraform.tfvars.example
 ```
@@ -93,15 +92,15 @@ terraform plan
 terraform apply
 ```
 
-يعرض Terraform عنوان IP العام وأمر SSH وعنوان URL الطرفي بعد النشر الناجح.
+يعرض Terraform الـ IP العام وأمر SSH وعنوان URL للحافة بعد اكتمال النشر بنجاح.
 
 ## حجم الجهاز الافتراضي
 
-يُوصى باستخدام الأجهزة الافتراضية من فئة F المحسّنة للحوسبة لهذا الحمل العملي لوكيل NGINX المعتمد على المعالج. الحجم الافتراضي `Standard_F4s_v2` (4 معالجات افتراضية، 8 جيبي بايت) مناسب للاستخدام المختبري والعروض التوضيحية. قم بتجاوز متغير `vm_size` لسيناريوهات اختبار الحمل أو قياس أداء الإنتاج. يتكيف ضبط النواة عبر cloud-init وتكوين NGINX تلقائياً مع عدد المعالجات الافتراضية (`worker_processes auto`).
+يُوصى بأجهزة VM من سلسلة F المُحسَّنة للحوسبة لأعباء عمل NGINX الوكيلة المُكثِّفة لوحدة المعالجة المركزية. الحجم الافتراضي `Standard_F4s_v2` (4 vCPU، 8 جيجابايت) مناسب للاستخدام في المختبر والعرض التوضيحي. تجاوز متغير `vm_size` لسيناريوهات اختبار التحميل أو قياس أداء الإنتاج. يتوسع ضبط نواة cloud-init وتكوين NGINX تلقائياً مع عدد وحدات vCPU (`worker_processes auto`).
 
 ## ما بعد النشر
 
-بعد اكتمال `terraform apply`، انتظر 2-3 دقائق حتى ينتهي cloud-init من تثبيت وتكوين NGINX. تحقق من نقطة نهاية الصحة:
+بعد اكتمال `terraform apply`، اسمح بمرور 2-3 دقائق حتى ينتهي cloud-init من تثبيت NGINX وتكوينه. تحقق من نقطة نهاية الفحص الصحي:
 
 ```bash
 curl -s "http://$(terraform output -raw public_ip)/health" | jq .
@@ -124,9 +123,9 @@ curl -s "http://$(terraform output -raw public_ip)/health" | jq .
 }
 ```
 
-## الربط من المكونات العلوية
+## الربط من المكونات الأعلى في السلسلة
 
-يتطلب محاكي CDN خادم أصل منشوراً. استخدم مخرجات terraform لخادم الأصل لملء المتغيرات المطلوبة:
+يتطلب محاكي CDN وجود خادم مصدر مُنشَر. استخدم مخرجات terraform لخادم المصدر لتعبئة المتغيرات المطلوبة:
 
 ```bash
 cd ../origin-server/terraform
@@ -140,9 +139,9 @@ origin_host     = "${origin_ip}:80"
 EOF
 ```
 
-| المتغير المطلوب | المصدر | التنسيق |
+| المتغير المطلوب | المصدر | الصيغة |
 |---|---|---|
-| `origin_server` | مخرج `public_ip` لخادم الأصل | `http://<ip>` (يشمل المخطط) |
-| `origin_host` | مخرج `public_ip` لخادم الأصل | `<ip>:80` (بدون مخطط، مع المنفذ) |
+| `origin_server` | مخرج `public_ip` لخادم المصدر | `http://<ip>` (أدرج المخطط) |
+| `origin_host` | مخرج `public_ip` لخادم المصدر | `<ip>:80` (بدون مخطط، أدرج المنفذ) |
 
-انتقل إلى [تكوين NGINX](../04-nginx-config/) لخيارات التخصيص أو [التحقق](../05-verify/) لاختبار التخزين المؤقت.
+انتقل إلى [تكوين NGINX](../04-nginx-config/) لخيارات التخصيص أو [التحقق](../05-verify/) لاختبار ذاكرة التخزين المؤقت.

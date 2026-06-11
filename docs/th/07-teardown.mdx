@@ -1,7 +1,7 @@
 ---
 title: การรื้อถอน
 description: >-
-  เรียกใช้ terraform destroy เพื่อลบทรัพยากร Azure ทั้งหมด (resource group, VM,
+  รันคำสั่ง terraform destroy เพื่อลบทรัพยากร Azure ทั้งหมด (กลุ่มทรัพยากร, VM,
   VNet, PIP, NSG) ล้างสถานะ Terraform ในเครื่อง และย้อนกลับการเปลี่ยนแปลง DNS
   หรือไฟล์ hosts
 sidebar:
@@ -11,28 +11,28 @@ i18n:
   translator: machine
 ---
 
-เมื่อเซสชันแล็บเสร็จสิ้น ให้ทำลายทรัพยากร Azure ทั้งหมดเพื่อหยุดการเรียกเก็บค่าใช้จ่าย
+เมื่อเซสชันแล็บเสร็จสิ้น ให้ทำลายทรัพยากร Azure ทั้งหมดเพื่อหยุดการเรียกเก็บเงิน
 
-## การทำลายด้วย Terraform
+## Terraform Destroy
 
 จากไดเรกทอรีที่มีการกำหนดค่า Terraform:
 
 ```bash
-# ตรวจสอบสิ่งที่จะถูกทำลาย
+# Review what will be destroyed
 terraform plan -destroy
 
-# ทำลายทรัพยากรทั้งหมด
+# Destroy all resources
 terraform destroy
 ```
 
-Terraform จะถามเพื่อยืนยัน พิมพ์ `yes` เพื่อดำเนินการต่อ
+Terraform จะขอการยืนยัน พิมพ์ `yes` เพื่อดำเนินการต่อ
 
 ## ตรวจสอบการล้างข้อมูล
 
 ยืนยันว่าทรัพยากรทั้งหมดถูกลบออกแล้ว:
 
 ```bash
-# ตรวจสอบว่า resource group ถูกลบแล้ว
+# Check resource group is gone
 az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
   | grep -q "ResourceGroupNotFound" \
   && echo "Resource group deleted" \
@@ -49,11 +49,11 @@ rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 
 ## ย้อนกลับการเปลี่ยนแปลง DNS/Hosts
 
-หากคุณแก้ไข DNS หรือไฟล์ hosts ระหว่าง[การเชื่อมต่อ](06-integrate/) ให้ย้อนกลับการเปลี่ยนแปลงเหล่านั้น:
+หากคุณแก้ไข DNS หรือไฟล์ hosts ระหว่าง [การผสานรวม](06-integrate/) ให้ย้อนกลับการเปลี่ยนแปลงเหล่านั้น:
 
 ```bash
-# ลบรายการในไฟล์ hosts (Linux/macOS)
+# Remove hosts file entry (Linux/macOS)
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-หากคุณสร้างระเบียน DNS A ให้ลบผ่านผู้ให้บริการ DNS ของคุณ
+หากคุณสร้างระเบียน DNS A ให้ลบออกผ่านผู้ให้บริการ DNS ของคุณ

@@ -1,7 +1,7 @@
 ---
 title: Smantellamento
 description: >-
-  Eseguire terraform destroy per rimuovere tutte le risorse Azure (gruppo di
+  Esegui terraform destroy per rimuovere tutte le risorse Azure (gruppo di
   risorse, VM, VNet, PIP, NSG), pulire lo stato locale di Terraform e
   ripristinare le modifiche al DNS o al file hosts.
 sidebar:
@@ -11,7 +11,7 @@ i18n:
   translator: machine
 ---
 
-Quando la sessione del laboratorio è completata, distruggere tutte le risorse Azure per interrompere la fatturazione.
+Al termine della sessione di laboratorio, distruggi tutte le risorse Azure per interrompere la fatturazione.
 
 ## Terraform Destroy
 
@@ -25,11 +25,11 @@ terraform plan -destroy
 terraform destroy
 ```
 
-Terraform chiederà conferma. Digitare `yes` per procedere.
+Terraform richiederà una conferma. Digita `yes` per procedere.
 
-## Verificare la pulizia
+## Verifica della pulizia
 
-Confermare che tutte le risorse siano state rimosse:
+Conferma che tutte le risorse siano state rimosse:
 
 ```bash
 # Check resource group is gone
@@ -39,21 +39,21 @@ az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
   || echo "Resource group still exists"
 ```
 
-## Pulire lo stato locale
+## Pulizia dello stato locale
 
-Rimuovere lo stato di Terraform e i file memorizzati nella cache:
+Rimuovi lo stato di Terraform e i file memorizzati nella cache:
 
 ```bash
 rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 ```
 
-## Ripristinare le modifiche DNS/Hosts
+## Ripristino delle modifiche a DNS/Hosts
 
-Se sono stati modificati il DNS o i file hosts durante l'[integrazione](06-integrate/), ripristinare tali modifiche:
+Se hai modificato il DNS o i file hosts durante l'[integrazione](06-integrate/), ripristina tali modifiche:
 
 ```bash
 # Remove hosts file entry (Linux/macOS)
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-Se è stato creato un record DNS A, eliminarlo tramite il proprio provider DNS.
+Se hai creato un record DNS di tipo A, eliminalo tramite il tuo provider DNS.

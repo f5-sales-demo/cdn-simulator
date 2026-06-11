@@ -1,11 +1,11 @@
 ---
-title: डिप्लॉय
+title: तैनाती
 description: >-
-  Terraform IaC deployment of the performance-optimized CDN edge node — Azure
-  F-series compute-optimized VM with Ubuntu 24.04, kernel tuning, NGINX proxy
-  cache, upstream keepalive, gzip compression, and 67+ CDN vendor headers
-  provisioned via cloud-init. All configuration files are in the terraform/
-  directory.
+  परफॉर्मेंस-ऑप्टिमाइज्ड CDN एज नोड का Terraform IaC डिप्लॉयमेंट — Azure
+  F-series कम्प्यूट-ऑप्टिमाइज्ड VM, Ubuntu 24.04, कर्नेल ट्यूनिंग, NGINX
+  प्रॉक्सी कैश, अपस्ट्रीम keepalive, gzip कम्प्रेशन, और cloud-init के माध्यम से
+  प्रोविजन किए गए 67+ CDN वेंडर हेडर। सभी कॉन्फ़िगरेशन फ़ाइलें `terraform/`
+  डायरेक्टरी में हैं।
 sidebar:
   order: 3
 i18n:
@@ -13,7 +13,7 @@ i18n:
   translator: machine
 ---
 
-सभी Terraform फाइलें [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) डायरेक्टरी में हैं। रिपॉजिटरी क्लोन करें और सीधे डिप्लॉय करें:
+सभी Terraform फ़ाइलें [`terraform/`](https://github.com/f5xc-salesdemos/cdn-simulator/tree/main/terraform) डायरेक्टरी में हैं। रिपॉजिटरी क्लोन करें और सीधे तैनात करें:
 
 ```bash
 git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
@@ -24,21 +24,21 @@ cp terraform.tfvars.example terraform.tfvars
 
 ## Terraform कॉन्फ़िगरेशन
 
-### Terraform फाइल संरचना
+### Terraform फ़ाइल संरचना
 
-terraform डायरेक्टरी में Demo Resource Standard का पालन करते हुए 9 फाइलें हैं:
+terraform डायरेक्टरी में डेमो संसाधन मानक का पालन करते हुए 9 फ़ाइलें हैं:
 
-- `versions.tf` — Terraform और प्रोवाइडर वर्शन कंस्ट्रेंट्स (azurerm ~> 4.0, azuread ~> 3.0)
+- `versions.tf` — Terraform और प्रोवाइडर संस्करण बाधाएँ (azurerm ~> 4.0, azuread ~> 3.0)
 - `providers.tf` — Azure RM और Azure AD प्रोवाइडर कॉन्फ़िगरेशन
-- `data.tf` — डिप्लॉयर ऑटो-रिज़ॉल्यूशन के लिए Azure AD डेटा सोर्स
-- `locals.tf` — डिप्लॉयर रिज़ॉल्यूशन, Azure Cloud Adoption Framework रिसोर्स नेमिंग, स्टैंडर्ड टैग
-- `main.tf` — रिसोर्स ग्रुप (`rg-cdn-simulator-{environment}-{deployer}` नाम से)
-- `variables.tf` — सभी इनपुट वेरिएबल्स (3 आवश्यक, 8 वैकल्पिक)
+- `data.tf` — deployer ऑटो-रिज़ॉल्यूशन के लिए Azure AD डेटा सोर्स
+- `locals.tf` — Deployer रिज़ॉल्यूशन, Azure Cloud Adoption Framework रिसोर्स नेमिंग, मानक टैग
+- `main.tf` — रिसोर्स ग्रुप (नाम `rg-cdn-simulator-{environment}-{deployer}`)
+- `variables.tf` — सभी इनपुट वेरिएबल (3 आवश्यक, 8 वैकल्पिक)
 - `network.tf` — VNet (10.100.0.0/16), सबनेट, पब्लिक IP, NSG (पोर्ट 22/80/443), NIC
 - `vm.tf` — templatefile() के माध्यम से cloud-init के साथ Ubuntu 24.04 VM
-- `outputs.tf` — 17 आउटपुट (15 स्टैंडर्ड + 2 कम्पोनेंट-विशिष्ट)
+- `outputs.tf` — 17 आउटपुट (15 मानक + 2 घटक-विशिष्ट)
 
-`variables.tf` में General, Compute, और Component-Specific सेक्शन में व्यवस्थित 11 इनपुट वेरिएबल्स परिभाषित हैं। `deployer` आइडेंटिफायर आपके Azure AD अकाउंट से ऑटो-रिज़ॉल्व होता है — आपको केवल `subscription_id`, `origin_server`, और `origin_host` सेट करने की आवश्यकता है:
+`variables.tf` में 11 इनपुट वेरिएबल परिभाषित हैं जो General, Compute, और Component-Specific सेक्शन में व्यवस्थित हैं। `deployer` आइडेंटिफ़ायर आपके Azure AD अकाउंट से ऑटो-रिज़ॉल्व होता है — आपको केवल `subscription_id`, `origin_server`, और `origin_host` सेट करने की आवश्यकता है:
 
 ```hcl file=./_data/variables.tf
 ```
@@ -52,35 +52,35 @@ terraform डायरेक्टरी में Demo Resource Standard का
 
 ### Cloud-Init के साथ वर्चुअल मशीन
 
-`vm.tf` Ubuntu 24.04 VM बनाता है। SSH पब्लिक की पाथ को `~` हैंडल करने के लिए `pathexpand()` के माध्यम से एक्सपैंड किया जाता है। Cloud-init टेम्पलेट `origin_server` और `origin_host` वेरिएबल्स प्राप्त करता है:
+`vm.tf` Ubuntu 24.04 VM बनाता है। SSH पब्लिक की पाथ को `~` हैंडल करने के लिए `pathexpand()` के माध्यम से एक्सपैंड किया जाता है। Cloud-init टेम्पलेट को `origin_server` और `origin_host` वेरिएबल प्राप्त होते हैं:
 
 ```hcl file=./_data/vm.tf
 ```
 
 ### Cloud-Init प्रोविजनिंग
 
-`cloud-init.yaml` VM को कर्नल ट्यूनिंग, systemd लिमिट्स, परफॉर्मेंस-ऑप्टिमाइज़्ड कॉन्फ़िगरेशन के साथ NGINX, 128 MB कैश कीज़ ज़ोन, अपस्ट्रीम कीपअलाइव पूल, gzip कम्प्रेशन, और 67+ CDN वेंडर हेडर्स के साथ प्रोविजन करता है। एक साझा हेल्पर लाइब्रेरी (`/usr/local/lib/cloud-init-helpers.sh`) `/var/log/cloud-init-progress.log` में रीट्राई लॉजिक और प्रोग्रेस लॉगिंग प्रदान करती है।
+`cloud-init.yaml` VM को कर्नेल ट्यूनिंग, systemd लिमिट, परफॉर्मेंस-ऑप्टिमाइज्ड कॉन्फ़िगरेशन के साथ NGINX, 128 MB कैश कीज़ ज़ोन, अपस्ट्रीम keepalive पूल, gzip कम्प्रेशन, और 67+ CDN वेंडर हेडर के साथ प्रोविजन करता है। एक शेयर्ड हेल्पर लाइब्रेरी (`/usr/local/lib/cloud-init-helpers.sh`) रिट्री लॉजिक और `/var/log/cloud-init-progress.log` में प्रगति लॉगिंग प्रदान करती है।
 
-Cloud-init अपस्ट्रीम कॉन्फ़िगरेशन के लिए Terraform टेम्पलेट वेरिएबल्स का उपयोग करता है: `${origin_server}` और `${origin_host}`। NGINX वेरिएबल्स जैसे `${request_id}` को Terraform templatefile में `$${request_id}` के रूप में एस्केप किया जाता है।
+cloud-init Terraform टेम्पलेट वेरिएबल का उपयोग करता है: अपस्ट्रीम कॉन्फ़िगरेशन के लिए `${origin_server}` और `${origin_host}`। NGINX वेरिएबल जैसे `${request_id}` को Terraform templatefile में `$${request_id}` के रूप में एस्केप किया जाता है।
 
 ```yaml file=./_data/cloud-init.yaml
 ```
 
 ### आउटपुट
 
-`outputs.tf` Demo Resource Standard का पालन करते हुए 17 आउटपुट एक्सपोज़ करता है — 15 स्टैंडर्ड आउटपुट जो सभी डेमो रिसोर्सेज़ द्वारा साझा किए जाते हैं (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) और 2 कम्पोनेंट-विशिष्ट आउटपुट (`edge_url`, `health_check_url`):
+`outputs.tf` डेमो संसाधन मानक का पालन करते हुए 17 आउटपुट एक्सपोज़ करता है — सभी डेमो संसाधनों द्वारा साझा 15 मानक आउटपुट (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) और 2 घटक-विशिष्ट आउटपुट (`edge_url`, `health_check_url`):
 
 ```hcl file=./_data/outputs.tf
 ```
 
-### उदाहरण वेरिएबल्स फाइल
+### उदाहरण वेरिएबल फ़ाइल
 
-`terraform.tfvars.example` को `terraform.tfvars` में कॉपी करें और अपने मान भरें। `.gitignore` क्रेडेंशियल्स को कमिट होने से रोकने के लिए `terraform.tfvars` को एक्सक्लूड करता है:
+`terraform.tfvars.example` को `terraform.tfvars` में कॉपी करें और अपनी वैल्यू भरें। `.gitignore` क्रेडेंशियल कमिट होने से रोकने के लिए `terraform.tfvars` को एक्सक्लूड करता है:
 
 ```hcl file=./_data/terraform.tfvars.example
 ```
 
-## डिप्लॉय
+## तैनाती
 
 ```bash
 # Initialize Terraform
@@ -97,17 +97,17 @@ terraform apply
 
 ## VM साइज़िंग
 
-इस CPU-बाउंड NGINX प्रॉक्सी वर्कलोड के लिए F-series कम्प्यूट-ऑप्टिमाइज़्ड VM की अनुशंसा की जाती है। डिफ़ॉल्ट `Standard_F4s_v2` (4 vCPU, 8 GiB) लैब और डेमो उपयोग के लिए उपयुक्त है। लोड टेस्टिंग या प्रोडक्शन बेंचमार्किंग परिदृश्यों के लिए `vm_size` वेरिएबल को ओवरराइड करें। Cloud-init कर्नल ट्यूनिंग और NGINX कॉन्फ़िग vCPU काउंट के साथ स्वचालित रूप से स्केल होते हैं (`worker_processes auto`)।
+F-series कम्प्यूट-ऑप्टिमाइज्ड VMs इस CPU-बाउंड NGINX प्रॉक्सी वर्कलोड के लिए अनुशंसित हैं। डिफ़ॉल्ट `Standard_F4s_v2` (4 vCPU, 8 GiB) लैब और डेमो उपयोग के लिए उपयुक्त है। लोड टेस्टिंग या प्रोडक्शन बेंचमार्किंग परिदृश्यों के लिए `vm_size` वेरिएबल को ओवरराइड करें। Cloud-init कर्नेल ट्यूनिंग और NGINX कॉन्फ़िग vCPU काउंट के साथ स्वचालित रूप से स्केल होते हैं (`worker_processes auto`)।
 
-## डिप्लॉय के बाद
+## तैनाती के बाद
 
-`terraform apply` पूरा होने के बाद, cloud-init द्वारा NGINX की इंस्टॉलेशन और कॉन्फ़िगरेशन पूरी होने के लिए 2-3 मिनट का समय दें। हेल्थ एंडपॉइंट को वेरिफाई करें:
+`terraform apply` पूरा होने के बाद, cloud-init को NGINX इंस्टॉल और कॉन्फ़िगर करने के लिए 2-3 मिनट प्रतीक्षा करें। हेल्थ एंडपॉइंट सत्यापित करें:
 
 ```bash
 curl -s "http://$(terraform output -raw public_ip)/health" | jq .
 ```
 
-अपेक्षित रिस्पॉन्स:
+अपेक्षित प्रतिक्रिया:
 
 ```json
 {
@@ -124,9 +124,9 @@ curl -s "http://$(terraform output -raw public_ip)/health" | jq .
 }
 ```
 
-## अपस्ट्रीम कम्पोनेंट्स से वायरिंग
+## अपस्ट्रीम घटकों से वायरिंग
 
-CDN सिमुलेटर को एक डिप्लॉय किए गए ऑरिजिन सर्वर की आवश्यकता है। आवश्यक वेरिएबल्स को भरने के लिए ऑरिजिन सर्वर के terraform आउटपुट का उपयोग करें:
+CDN सिम्युलेटर के लिए एक तैनात ऑरिजिन सर्वर की आवश्यकता है। आवश्यक वेरिएबल पॉपुलेट करने के लिए ऑरिजिन सर्वर के terraform आउटपुट का उपयोग करें:
 
 ```bash
 cd ../origin-server/terraform
@@ -140,9 +140,9 @@ origin_host     = "${origin_ip}:80"
 EOF
 ```
 
-| आवश्यक वेरिएबल | स्रोत | फॉर्मेट |
+| आवश्यक वेरिएबल | स्रोत | फ़ॉर्मेट |
 |---|---|---|
-| `origin_server` | ऑरिजिन सर्वर `public_ip` आउटपुट | `http://<ip>` (स्कीम शामिल करें) |
-| `origin_host` | ऑरिजिन सर्वर `public_ip` आउटपुट | `<ip>:80` (स्कीम नहीं, पोर्ट शामिल करें) |
+| `origin_server` | ऑरिजिन सर्वर `public_ip` आउटपुट | `http://<ip>` (स्कीम सहित) |
+| `origin_host` | ऑरिजिन सर्वर `public_ip` आउटपुट | `<ip>:80` (बिना स्कीम, पोर्ट सहित) |
 
-कस्टमाइज़ेशन विकल्पों के लिए [NGINX कॉन्फ़िगरेशन](../04-nginx-config/) पर जाएं या कैश टेस्टिंग के लिए [वेरिफाई](../05-verify/) पर जाएं।
+कस्टमाइज़ेशन विकल्पों के लिए [NGINX कॉन्फ़िगरेशन](../04-nginx-config/) या कैश परीक्षण के लिए [सत्यापन](../05-verify/) पर आगे बढ़ें।

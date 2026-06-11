@@ -1,9 +1,9 @@
 ---
-title: إزالة الموارد
+title: التفكيك
 description: >-
-  Run terraform destroy to remove all Azure resources (resource group, VM, VNet,
-  PIP, NSG), clean up local Terraform state, and revert DNS or hosts file
-  changes.
+  شغّل أمر terraform destroy لإزالة جميع موارد Azure (مجموعة الموارد، الجهاز
+  الافتراضي، الشبكة الافتراضية، عنوان IP العام، مجموعة أمان الشبكة)، وتنظيف حالة
+  Terraform المحلية، والتراجع عن تغييرات DNS أو ملف hosts.
 sidebar:
   order: 7
 i18n:
@@ -11,9 +11,9 @@ i18n:
   translator: machine
 ---
 
-عند اكتمال جلسة المختبر، قم بتدمير جميع موارد Azure لإيقاف الفوترة.
+عند اكتمال جلسة المختبر، دمِّر جميع موارد Azure لإيقاف الفوترة.
 
-## تدمير Terraform
+## التدمير باستخدام Terraform
 
 من الدليل الذي يحتوي على تكوين Terraform:
 
@@ -25,7 +25,7 @@ terraform plan -destroy
 terraform destroy
 ```
 
-سيطلب Terraform تأكيدًا. اكتب `yes` للمتابعة.
+سيطلب Terraform تأكيداً. اكتب `yes` للمتابعة.
 
 ## التحقق من التنظيف
 
@@ -41,19 +41,19 @@ az group show --name "$(terraform output -raw resource_group_name)" 2>&1 \
 
 ## تنظيف الحالة المحلية
 
-قم بإزالة حالة Terraform والملفات المخزنة مؤقتًا:
+أزل حالة Terraform والملفات المؤقتة المخزّنة مؤقتاً:
 
 ```bash
 rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 ```
 
-## التراجع عن تغييرات DNS/ملف Hosts
+## التراجع عن تغييرات DNS/Hosts
 
-إذا قمت بتعديل DNS أو ملفات hosts أثناء [التكامل](06-integrate/)، فتراجع عن تلك التغييرات:
+إذا قمت بتعديل DNS أو ملفات hosts أثناء [التكامل](06-integrate/)، تراجع عن تلك التغييرات:
 
 ```bash
 # Remove hosts file entry (Linux/macOS)
 sudo sed -i '/<CDN_EDGE_PUBLIC_IP>/d' /etc/hosts
 ```
 
-إذا قمت بإنشاء سجل DNS A، فاحذفه من خلال مزود DNS الخاص بك.
+إذا أنشأت سجل DNS من النوع A، فاحذفه من خلال مزود DNS الخاص بك.

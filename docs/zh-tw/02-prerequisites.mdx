@@ -14,10 +14,10 @@ i18n:
 
 ### Azure 訂閱
 
-一個有效的 Azure 訂閱，且具備建立以下資源的權限：
+一個有效的 Azure 訂閱，並具備建立以下資源的權限：
 
 - 資源群組
-- 虛擬網路和子網路
+- 虛擬網路與子網路
 - 網路安全性群組
 - 公用 IP 位址
 - 虛擬機器
@@ -53,7 +53,7 @@ sudo apt update && sudo apt install terraform
 
 ### SSH 金鑰對
 
-用於 VM 存取的 SSH 金鑰對：
+用於存取 VM 的 SSH 金鑰對：
 
 ```bash
 # Generate if you don't have one
@@ -62,17 +62,17 @@ ssh-keygen -t ed25519 -f ~/.ssh/cdn-edge-key -N ""
 
 ### Azure AD 權限
 
-您的 Azure AD 帳戶必須具備 `User.Read` 權限。部署者識別碼（用於資源命名）會自動從您的 Azure AD 設定檔中取得。若使用服務主體或受控識別進行驗證，請明確設定 `deployer` Terraform 變數。
+您的 Azure AD 帳戶必須具備 `User.Read` 權限。部署者識別碼（用於資源命名）會自動從您的 Azure AD 設定檔中衍生。若使用服務主體或受控身分識別驗證，請明確設定 `deployer` Terraform 變數。
 
 ## 選用條件
 
 ### 自訂網域
 
-如果您希望使用真正的 TLS 憑證而非自我簽署憑證：
+若您希望使用真實的 TLS 憑證而非自我簽署憑證，需具備：
 
-- 一個具備 DNS 控制權的網域名稱
-- 能夠建立指向 Azure 公用 IP 的 A 記錄
+- 一個可控制 DNS 的網域名稱
+- 建立指向 Azure 公用 IP 之 A 記錄的能力
 
 ### 來源伺服器 URL
 
-此邊緣節點將轉送流量的 F5 XC HTTP 負載平衡器 URL。這可以在部署後進行設定——預設的 NGINX 設定使用一個預留位置，您可以在 NGINX 設定中進行更新。
+此邊緣節點將流量轉發至的 F5 XC HTTP 負載平衡器 URL。此項目可於部署完成後再行設定——預設的 NGINX 設定使用佔位符，您可在 NGINX 設定中進行更新。

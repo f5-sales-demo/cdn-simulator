@@ -2,17 +2,17 @@
 title: CDN-Simulator
 description: >-
   NGINX-basierter CDN-Edge-Node-Simulator, der realistische Header von Akamai,
-  Cloudflare, Amazon CloudFront, Fastly und Azure Front Door injiziert. Wird als
-  Ubuntu 24.04 Azure VM über Terraform mit NGINX-Caching-Reverse-Proxy
-  bereitgestellt. Wird als modulare Lab-Komponente vor F5 Distributed Cloud HTTP
-  Load Balancern eingesetzt.
+  Cloudflare, Amazon CloudFront, Fastly und Azure Front Door einfügt. Wird als
+  Ubuntu 24.04 Azure-VM via Terraform mit NGINX-Caching-Reverse-Proxy
+  bereitgestellt. Wird als modulare Lab-Komponente vor F5 Distributed Cloud
+  HTTP-Load-Balancern eingesetzt.
 template: splash
 sidebar:
   hidden: true
 hero:
   tagline: >-
-    Stellen Sie einen funktionsfähigen CDN-Edge-Node in Azure für
-    Integrationstests mit F5 Distributed Cloud bereit.
+    Stellen Sie einen funktionalen CDN-Edge-Node in Azure für Integrationstests
+    mit F5 Distributed Cloud bereit.
   image:
     html: "<div style=\"font-size:4rem;\">\U0001F310</div>"
   actions:
@@ -29,13 +29,13 @@ i18n:
   translator: machine
 ---
 
-## Was dies bietet
+## Was dieser Simulator bietet
 
-- **[Einzelner Edge-Node](01-overview/)** — Eine Ubuntu 24.04 VM mit NGINX als Caching-Reverse-Proxy, der minimal funktionsfähige CDN-Edge
-- **[Terraform-Bereitstellung](03-deploy/)** — Vollständige Azure-Infrastruktur als Code: VNet, PIP, NSG und VM mit cloud-init-Provisionierung
-- **[67+ CDN-Anbieter-Header](04-nginx-config/)** — Simuliert Akamai, Cloudflare, CloudFront, Fastly und Azure Front Door Request-Header einschließlich True-Client-IP, CF-Connecting-IP, Geolokalisierung, Geräteerkennung, JA3/JA4-Fingerprints und Bot-Scores
-- **[Origin-Integration](06-integrate/)** — Konfigurieren Sie den Edge so, dass Cache-Misses an einen F5 XC HTTP Load Balancer als Origin weitergeleitet werden
-- **[Cache-Verifizierung](05-verify/)** — Validieren Sie HIT/MISS-Verhalten mit X-Cache-Status-Headern und NGINX-Cache-Inspektion
+- **[Einzelner Edge-Node](01-overview/)** — Eine Ubuntu 24.04-VM, die NGINX als Caching-Reverse-Proxy ausführt – das minimal funktionsfähige CDN-Edge
+- **[Terraform-Bereitstellung](03-deploy/)** — Vollständige Azure-Infrastruktur als Code: VNet, PIP, NSG und VM mit Cloud-init-Provisionierung
+- **[67+ CDN-Anbieter-Header](04-nginx-config/)** — Simuliert Akamai, Cloudflare, CloudFront, Fastly und Azure Front Door-Anforderungsheader, einschließlich True-Client-IP, CF-Connecting-IP, Geolokalisierung, Geräteerkennung, JA3/JA4-Fingerprints und Bot-Scores
+- **[Ursprungsserver-Integration](06-integrate/)** — Konfigurieren Sie den Edge-Node, um Cache-Misses an einen F5 XC HTTP-Load-Balancer als Ursprungsserver weiterzuleiten
+- **[Cache-Verifizierung](05-verify/)** — Validierung von HIT/MISS-Verhalten mit X-Cache-Status-Headern und NGINX-Cache-Inspektion
 
 ## Kurzreferenz
 
@@ -43,28 +43,28 @@ Nach der Bereitstellung stellt der CDN-Edge-Node folgende Endpunkte bereit:
 
 | Endpunkt | Methode | Zweck |
 |---|---|---|
-| `http://<PUBLIC_IP>/health` | GET | Health-Check — gibt JSON mit Komponentenstatus und Anbieterprofilen zurück |
-| `http://<PUBLIC_IP>/` | GET | CDN-Proxy — cached und leitet Anfragen an den Origin-Server weiter |
-| `http://<PUBLIC_IP>/<any-path>` | GET | CDN-Proxy — alle Pfade werden mit Caching und Anbieter-Headern proxied |
+| `http://<PUBLIC_IP>/health` | GET | Gesundheitsprüfung — gibt JSON mit Komponentenstatus und Anbieterprofilen zurück |
+| `http://<PUBLIC_IP>/` | GET | CDN-Proxy — speichert Anfragen im Cache und leitet sie an den Ursprungsserver weiter |
+| `http://<PUBLIC_IP>/<any-path>` | GET | CDN-Proxy — alle Pfade werden mit Caching und Anbieter-Headern weitergeleitet |
 
-Antwort-Header, die jeder proxied Antwort hinzugefügt werden:
+Antwortheader, die jeder proxierten Antwort hinzugefügt werden:
 
 | Header | Beispiel | Zweck |
 |---|---|---|
-| `X-Cache-Status` | `HIT` oder `MISS` | Ob die Antwort aus dem Cache bedient wurde |
+| `X-Cache-Status` | `HIT` oder `MISS` | Gibt an, ob die Antwort aus dem Cache geliefert wurde |
 | `X-CDN-Edge` | `cdn-simulator` | Identifiziert diesen Edge-Node |
 | `X-CDN-POP` | `SJC` | Simulierter Point-of-Presence-Code |
 | `X-Served-By` | `cache-sjc3120-SJC` | Simulierter Cache-Node-Bezeichner |
 | `X-Request-ID` | UUID | Eindeutiger Bezeichner pro Anfrage |
 
-## Dokumentationsleitfaden
+## Dokumentationsübersicht
 
 | Seite | Zielgruppe | Zweck |
 |---|---|---|
-| [Übersicht](01-overview/) | Mensch + KI | Architektur, Multi-Anbieter-Kontext, was simuliert wird |
-| [Voraussetzungen](02-prerequisites/) | KI | Erforderliche Tools, Azure-Abonnement, SSH-Schlüssel, Kostenschätzung |
-| [Bereitstellung](03-deploy/) | KI | Vollständiges Terraform HCL — kopieren und anwenden zur Bereitstellung |
+| [Übersicht](01-overview/) | Mensch + KI | Architektur, Multi-Anbieter-Kontext, was dieser Simulator abbildet |
+| [Voraussetzungen](02-prerequisites/) | KI | Erforderliche Werkzeuge, Azure-Abonnement, SSH-Schlüssel, Kostenschätzung |
+| [Bereitstellen](03-deploy/) | KI | Vollständiges Terraform-HCL — kopieren und anwenden zur Bereitstellung |
 | [NGINX-Konfiguration](04-nginx-config/) | Mensch + KI | Alle 67+ CDN-Anbieter-Header mit genauen Werten und Zwecken |
-| [Verifizierung](05-verify/) | KI | Smoke-Test-Befehle mit erwartetem Request/Response-Verhalten |
-| [Integration mit F5 XC](06-integrate/) | Mensch + KI | Edge mit F5 XC als Origin verbinden, End-to-End-Verifizierung |
+| [Verifizieren](05-verify/) | KI | Smoke-Test-Befehle mit erwartetem Anfrage-/Antwortverhalten |
+| [Integration mit F5 XC](06-integrate/) | Mensch + KI | Edge-Node mit F5 XC als Ursprungsserver verbinden, End-to-End-Verifizierung |
 | [Abbau](07-teardown/) | KI | Alle Ressourcen zerstören, Bereinigungsbefehle |

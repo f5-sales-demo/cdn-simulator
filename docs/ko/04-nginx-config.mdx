@@ -1,10 +1,10 @@
 ---
 title: NGINX 구성
 description: >-
-  프로덕션 최적화 NGINX 구성 참조 — 성능 튜닝(커널, 버퍼, keepalive, gzip, open_file_cache), 썬더링 허드
-  방지 기능을 갖춘 25 GB 디스크 캐시, 업스트림 keepalive 풀,
-  Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door의 67개 이상 CDN 벤더 헤더, 디바이스
-  감지. 170K req/s 피크에서 48시간 부하 테스트로 검증됨.
+  프로덕션 최적화 NGINX 구성 참조 — 성능 튜닝 (커널, 버퍼, keepalive, gzip, open_file_cache), 썬더링
+  허드 방지 기능을 갖춘 25GB 디스크 캐시, 업스트림 keepalive 풀,
+  Akamai/Cloudflare/CloudFront/Fastly/Azure Front Door의 67개 이상 CDN 벤더 헤더, 및 디바이스
+  감지. 172K req/s 피크 48시간 부하 테스트에서 검증됨.
 sidebar:
   order: 4
 i18n:
@@ -12,15 +12,15 @@ i18n:
   translator: machine
 ---
 
-cloud-init 프로비저닝은 완전히 성능 최적화된 NGINX CDN 엣지 구성을 배포합니다. 이 페이지는 커널 튜닝부터 캐시 동작, 벤더 헤더 주입까지 모든 구성 레이어를 문서화합니다. 모든 설정은 172,540 req/s 피크의 48시간 연속 부하 테스트로 검증되었습니다.
+cloud-init 프로비저닝은 완전히 성능 최적화된 NGINX CDN 엣지 구성을 배포합니다. 이 페이지는 커널 튜닝부터 캐시 동작, 벤더 헤더 주입까지 모든 구성 레이어를 문서화합니다. 모든 설정은 172,540 req/s 피크에서 48시간 연속 부하 테스트를 통해 검증되었습니다.
 
 ## 구성 파일
 
-| 파일 | 용도 |
+| 파일 | 목적 |
 |---|---|
 | `/etc/sysctl.d/99-cdn-tuning.conf` | Linux 커널 네트워크 튜닝 |
-| `/etc/systemd/system/nginx.service.d/override.conf` | NGINX 파일 디스크립터 제한 |
-| `/etc/security/limits.d/99-nginx.conf` | www-data 사용자의 OS 수준 제한 |
+| `/etc/systemd/system/nginx.service.d/override.conf` | NGINX 파일 디스크립터 한도 |
+| `/etc/security/limits.d/99-nginx.conf` | www-data 사용자를 위한 OS 수준 한도 |
 | `/etc/nginx/nginx.conf` | NGINX 메인 구성 (워커, 버퍼, gzip, 로깅) |
 | `/etc/nginx/conf.d/cdn-edge.conf` | CDN 프록시 구성 (캐시, 업스트림, 헤더) |
 
@@ -28,61 +28,61 @@ cloud-init 프로비저닝은 완전히 성능 최적화된 NGINX CDN 엣지 구
 
 부팅 시 `/etc/sysctl.d/99-cdn-tuning.conf`를 통해 적용됩니다.
 
-| 파라미터 | 값 | 기본값 | 용도 |
+| 매개변수 | 값 | 기본값 | 목적 |
 |---|---|---|---|
-| `net.core.somaxconn` | 65535 | 4096 | Listen 백로그 큐 크기 |
-| `net.core.netdev_max_backlog` | 65535 | 1000 | CPU별 수신 패킷 백로그 |
+| `net.core.somaxconn` | 65535 | 4096 | 수신 대기 백로그 큐 크기 |
+| `net.core.netdev_max_backlog` | 65535 | 1000 | CPU당 수신 패킷 백로그 |
 | `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | SYN 요청 큐 (버스트 시 드롭 방지) |
 | `net.ipv4.tcp_tw_reuse` | 1 | 2 | 아웃바운드 연결에 TIME_WAIT 소켓 재사용 |
-| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | 임시 포트 범위 (28K 대비 64K) |
+| `net.ipv4.ip_local_port_range` | 1024-65535 | 32768-60999 | 임시 포트 범위 (64K vs 28K) |
 | `net.core.rmem_max` | 16 MB | 212 KB | 최대 수신 소켓 버퍼 |
 | `net.core.wmem_max` | 16 MB | 212 KB | 최대 송신 소켓 버퍼 |
-| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | 소켓별 수신 버퍼 (최소/기본/최대) |
-| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | 소켓별 송신 버퍼 (최소/기본/최대) |
-| `net.ipv4.tcp_fin_timeout` | 15 | 60 | FIN_WAIT_2 타임아웃 (소켓 정리 가속) |
-| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | 유휴 5분 후 keepalive 프로브 시작 |
-| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | 유휴 연결에서 혼잡 윈도우 유지 |
+| `net.ipv4.tcp_rmem` | 4K/87K/16M | 4K/131K/6M | 소켓당 수신 버퍼 (최소/기본/최대) |
+| `net.ipv4.tcp_wmem` | 4K/65K/16M | 4K/16K/4M | 소켓당 송신 버퍼 (최소/기본/최대) |
+| `net.ipv4.tcp_fin_timeout` | 15 | 60 | FIN_WAIT_2 타임아웃 (빠른 소켓 정리) |
+| `net.ipv4.tcp_keepalive_time` | 300 | 7200 | 5분 유휴 후 keepalive 프로브 시작 |
+| `net.ipv4.tcp_slow_start_after_idle` | 0 | 1 | 유휴 연결에서 혼잡 윈도우 웜 유지 |
 | `net.ipv4.tcp_max_tw_buckets` | 2000000 | ~65536 | 최대 TIME_WAIT 소켓 수 |
-| `fs.file-max` | 2097152 | 가변 | 시스템 전체 파일 디스크립터 제한 |
-| `vm.swappiness` | 10 | 60 | 캐시 데이터에 스왑보다 RAM 우선 사용 |
+| `fs.file-max` | 2097152 | 다양 | 시스템 전체 파일 디스크립터 한도 |
+| `vm.swappiness` | 10 | 60 | 캐시 데이터에 스왑보다 RAM 선호 |
 
 ## NGINX 메인 구성
 
 ### 워커 및 연결
 
 ```nginx
-worker_processes auto;           # 4 workers on D4s_v5 (1 per vCPU)
-worker_rlimit_nofile 65535;      # Per-worker file descriptor limit
+worker_processes auto;           # D4s_v5에서 4개 워커 (vCPU당 1개)
+worker_rlimit_nofile 65535;      # 워커당 파일 디스크립터 한도
 
 events {
-    use epoll;                   # Linux-optimized event model
-    worker_connections 8192;     # 4 workers x 8192 = 32,768 max concurrent
-    multi_accept on;             # Accept all pending connections per event loop
-    accept_mutex off;            # Not needed with epoll + reuseport
+    use epoll;                   # Linux 최적화 이벤트 모델
+    worker_connections 8192;     # 4 워커 x 8192 = 32,768 최대 동시 연결
+    multi_accept on;             # 이벤트 루프당 모든 대기 연결 수락
+    accept_mutex off;            # epoll + reuseport와 함께 불필요
 }
 ```
 
-`/etc/systemd/system/nginx.service.d/override.conf`의 Systemd 오버라이드가 `LimitNOFILE=65535`를 일치하도록 설정합니다.
+`/etc/systemd/system/nginx.service.d/override.conf`의 Systemd 오버라이드는 일치하도록 `LimitNOFILE=65535`를 설정합니다.
 
 ### 프록시 버퍼
 
 ```nginx
 proxy_buffering on;
-proxy_buffer_size 16k;           # Header buffer (handles large CDN headers)
-proxy_buffers 64 16k;            # 1 MB per connection (64 x 16k)
-proxy_busy_buffers_size 256k;    # Can send 256k to client while still reading
+proxy_buffer_size 16k;           # 헤더 버퍼 (대형 CDN 헤더 처리)
+proxy_buffers 64 16k;            # 연결당 1 MB (64 x 16k)
+proxy_busy_buffers_size 256k;    # 읽는 중에도 256k를 클라이언트에 전송 가능
 ```
 
-256k busy 버퍼 크기는 매우 중요합니다 — 가장 큰 캐시된 응답보다 커야 합니다 (Juice Shop은 75 KB). 원래 64k 설정은 부하 시 직렬화를 유발했습니다.
+256k 바쁜 버퍼 크기는 중요합니다 — 가장 큰 캐시된 응답 크기(Juice Shop은 75KB)를 초과해야 합니다. 원래 64k 설정은 부하 시 직렬화를 유발했습니다.
 
 ### Gzip 압축
 
 ```nginx
 gzip on;
-gzip_comp_level 4;               # Balance: ~85% of max compression at ~40% CPU
-gzip_min_length 256;             # Skip tiny responses (gzip header overhead)
-gzip_vary on;                    # Vary: Accept-Encoding for correct caching
-gzip_proxied any;                # Compress all proxied responses
+gzip_comp_level 4;               # 균형: 최대 압축의 ~85%에서 ~40% CPU
+gzip_min_length 256;             # 작은 응답 건너뜀 (gzip 헤더 오버헤드)
+gzip_vary on;                    # 올바른 캐싱을 위한 Vary: Accept-Encoding
+gzip_proxied any;                # 모든 프록시 응답 압축
 gzip_types text/plain text/css text/javascript text/xml
            application/json application/javascript application/xml
            application/xml+rss application/atom+xml
@@ -90,7 +90,7 @@ gzip_types text/plain text/css text/javascript text/xml
            image/svg+xml;
 ```
 
-### 열린 파일 캐시
+### 오픈 파일 캐시
 
 ```nginx
 open_file_cache max=200000 inactive=20s;
@@ -99,38 +99,38 @@ open_file_cache_min_uses 2;
 open_file_cache_errors on;
 ```
 
-캐시된 객체의 파일 디스크립터와 메타데이터를 캐시하여 핫 파일에 대한 `stat()` 및 `open()` 시스콜을 제거합니다.
+캐시된 객체에 대한 파일 디스크립터와 메타데이터를 캐싱하여 핫 파일에 대한 `stat()` 및 `open()` 시스템 호출을 제거합니다.
 
 ### 클라이언트 Keepalive
 
 ```nginx
 keepalive_timeout 65;
-keepalive_requests 100000;       # Was 1000 — caused connection recycling at 90K req/s
+keepalive_requests 100000;       # 1000이었음 — 90K req/s에서 연결 재활용 유발
 ```
 
-90K req/s에서 `keepalive_requests 1000`으로 설정 시, 연결이 11초마다 재활용되어 TIME_WAIT 소켓을 생성했습니다. 100,000으로 증가시키자 이 문제가 완전히 해결되었습니다.
+`keepalive_requests 1000`으로 90K req/s에서 연결이 11초마다 재활용되어 TIME_WAIT 소켓이 생성되었습니다. 100,000으로 늘리면 이 문제가 완전히 해소됩니다.
 
-### 접근 로깅
+### 액세스 로깅
 
 ```nginx
 log_format cdn '$remote_addr [$time_local] "$request" $status $body_bytes_sent $upstream_cache_status $request_time';
 access_log /var/log/nginx/access.log cdn buffer=256k flush=5s;
 ```
 
-`cdn` 로그 형식은 지연 시간 분석을 위한 `$upstream_cache_status` (HIT/MISS)와 `$request_time`을 포함합니다. 버퍼링된 로깅(256k/5s 플러시)은 높은 부하에서 I/O 오버헤드를 줄입니다.
+`cdn` 로그 형식은 지연 시간 분석을 위한 `$upstream_cache_status` (HIT/MISS)와 `$request_time`을 포함합니다. 버퍼링된 로깅 (256k/5초 플러시)은 높은 부하에서 I/O 오버헤드를 줄입니다.
 
 ## 업스트림 Keepalive
 
 ```nginx
 upstream origin_backend {
     server 20.12.78.159:80;
-    keepalive 256;               # Persistent connections per worker to origin
+    keepalive 256;               # 워커당 오리진으로의 영구 연결
     keepalive_timeout 60s;
     keepalive_requests 1000;
 }
 ```
 
-4개 워커 x 256 keepalive = 오리진에 대한 1,024개의 웜 연결. `proxy_http_version 1.1` 및 `proxy_set_header Connection ""`과 결합하면 모든 캐시 미스에서 TCP 핸드셰이크 오버헤드가 제거됩니다.
+4 워커 x 256 keepalive = 오리진에 대한 1,024개의 웜 연결. `proxy_http_version 1.1` 및 `proxy_set_header Connection ""`과 결합하여 모든 캐시 미스에서 TCP 핸드셰이크 오버헤드를 제거합니다.
 
 ## 캐시 구성
 
@@ -145,12 +145,12 @@ proxy_cache_path /var/cache/nginx/cdn
                  use_temp_path=off;
 ```
 
-| 파라미터 | 값 | 용도 |
+| 매개변수 | 값 | 목적 |
 |---|---|---|
-| `keys_zone=cdn_cache:32m` | 32 MB 공유 메모리 | ~256,000개의 캐시 키와 메타데이터 저장 |
-| `max_size=25g` | 25 GB 디스크 제한 | 30 GB OS 디스크의 대부분을 사용; 제한 시 LRU 제거 |
-| `inactive=24h` | 24시간 비활성 타임아웃 | 24시간 동안 접근되지 않은 콘텐츠 제거 (TTL과 동일하지 않음) |
-| `use_temp_path=off` | 캐시 디렉토리에 직접 쓰기 | 크로스 파일시스템 파일 이동 방지 |
+| `keys_zone=cdn_cache:32m` | 32MB 공유 메모리 | ~256,000개의 캐시 키와 메타데이터 저장 |
+| `max_size=25g` | 25GB 디스크 한도 | 30GB OS 디스크의 대부분 사용; 한도에서 LRU 제거 |
+| `inactive=24h` | 24시간 비활성 타임아웃 | 24시간 동안 액세스하지 않은 콘텐츠 제거 (TTL과 다름) |
+| `use_temp_path=off` | 캐시 디렉토리에 직접 쓰기 | 파일 시스템 간 파일 이동 방지 |
 
 ### 캐시 동작
 
@@ -170,16 +170,16 @@ proxy_hide_header X-Cache-Status;
 proxy_hide_header Vary;
 ```
 
-| 디렉티브 | 값 | 용도 |
+| 지시문 | 값 | 목적 |
 |---|---|---|
-| `proxy_cache_valid 200 301 302 4h` | 4시간 TTL | 캐시된 콘텐츠가 4시간 동안 유효 (갱신 파동 처리량 저하를 줄이기 위해 증가됨) |
-| `proxy_cache_lock on` | 썬더링 허드 방지 | 캐시되지 않은 URL당 1개의 요청만 오리진으로 전달; 나머지는 캐시 채움 대기 |
+| `proxy_cache_valid 200 301 302 4h` | 4시간 TTL | 캐시된 콘텐츠 4시간 유효 (새로 고침 웨이브 처리량 저하 감소를 위해 증가) |
+| `proxy_cache_lock on` | 썬더링 허드 방지 | URL당 캐시되지 않은 경우 오리진에 1개의 요청만 전송; 나머지는 캐시 채우기 대기 |
 | `proxy_cache_lock_age 3s` | 잠금 타임아웃 | 첫 번째 요청이 3초 내에 완료되지 않으면 다른 요청 허용 |
-| `proxy_cache_background_update on` | 무지연 갱신 | 백그라운드에서 갱신하는 동안 오래된 콘텐츠를 즉시 제공 |
-| `proxy_cache_use_stale` | 복원력 | 오리진 오류(500/502/503/504) 또는 업데이트 중에 오래된 콘텐츠 제공 |
-| `proxy_ignore_headers` | 강제 캐싱 | 오리진의 Set-Cookie, Cache-Control, Expires, Vary 무시 — CDN이 TTL과 Vary 동작을 결정 (Juice Shop은 `max-age=0`과 삼중 `Vary` 헤더를 전송하여 효과적인 캐싱을 방해함) |
-| `proxy_hide_header X-Cache-Status` | 오리진 헤더 제거 | 오리진 NGINX가 자체 X-Cache-Status를 추가 — CDN의 캐시 상태만 표시되도록 제거 |
-| `proxy_hide_header Vary` | 캐시 단편화 방지 | 오리진이 여러 `Vary: Accept-Encoding` 헤더를 전송. 이를 제거하면 `Accept-Encoding` 순열 간의 캐시 키 단편화를 방지. NGINX의 `gzip_vary on`이 올바른 단일 `Vary` 헤더를 자동으로 추가 |
+| `proxy_cache_background_update on` | 제로 지연 새로 고침 | 백그라운드에서 새로 고침하는 동안 즉시 오래된 콘텐츠 제공 |
+| `proxy_cache_use_stale` | 복원력 | 오리진 오류 (500/502/503/504) 또는 업데이트 중에 오래된 콘텐츠 제공 |
+| `proxy_ignore_headers` | 강제 캐싱 | 오리진 Set-Cookie, Cache-Control, Expires, Vary 무시 — CDN이 TTL 및 Vary 동작 결정 (Juice Shop은 효과적인 캐싱을 방해하는 `max-age=0` 및 삼중 `Vary` 헤더를 전송함) |
+| `proxy_hide_header X-Cache-Status` | 오리진 헤더 제거 | 오리진 NGINX가 자체 X-Cache-Status를 추가함 — CDN의 캐시 상태만 표시되도록 제거 |
+| `proxy_hide_header Vary` | 캐시 단편화 방지 | 오리진이 여러 `Vary: Accept-Encoding` 헤더를 전송. 제거하면 `Accept-Encoding` 순열에 따른 캐시 키 단편화 방지. NGINX의 `gzip_vary on`이 올바른 단일 `Vary` 헤더를 자동으로 추가 |
 
 ### 프록시 타임아웃
 
@@ -189,31 +189,31 @@ proxy_connect_timeout 10s;
 proxy_send_timeout 15s;
 ```
 
-부하 시 오리진에 더 많은 응답 시간을 제공하면서도 연결 문제 시 빠르게 실패합니다.
+연결 문제에서 빠르게 실패하면서도 부하 시 오리진에 더 많은 응답 시간을 부여합니다.
 
 ### 서버 블록
 
 ```nginx
 server {
-    listen 80 reuseport;        # Kernel distributes connections across all 4 workers
+    listen 80 reuseport;        # 커널이 모든 4개 워커에 연결 분산
     server_name _;
 }
 ```
 
-`reuseport`는 `SO_REUSEPORT`를 활성화합니다 — 커널이 수신 연결을 워커 프로세스에 직접 분배하여 accept 뮤텍스 경합을 제거합니다.
+`reuseport`는 `SO_REUSEPORT`를 활성화합니다 — 커널이 수신 연결을 워커 프로세스에 직접 분산하여 accept mutex 경합을 제거합니다.
 
 ## CDN 벤더 헤더
 
-시뮬레이터는 5개 주요 CDN 벤더의 헤더를 모두 동시에 주입합니다. 이를 통해 어떤 CDN이 시뮬레이션되든 관계없이 F5 XC를 모든 벤더의 "Trusted Client IP Header"로 구성하고 현실적인 헤더 페이로드를 확인할 수 있습니다.
+시뮬레이터는 5개의 주요 CDN 벤더 헤더를 동시에 모두 주입합니다. 이를 통해 F5 XC를 어떤 벤더의 "신뢰할 수 있는 클라이언트 IP 헤더"로도 구성하고, 어떤 CDN이 시뮬레이션되든 현실적인 헤더 페이로드를 볼 수 있습니다.
 
-### 산업 표준 헤더 (모든 CDN)
+### 업계 표준 헤더 (모든 CDN)
 
-| 헤더 | 값 | 용도 |
+| 헤더 | 값 | 목적 |
 |---|---|---|
 | `X-Forwarded-For` | 클라이언트 IP 체인 | 표준 포워딩 IP |
-| `X-Forwarded-Proto` | `http` 또는 `https` | 원본 클라이언트 프로토콜 |
-| `X-Forwarded-Host` | 원본 호스트명 | 원본 Host 헤더 |
-| `X-Forwarded-Port` | 서버 포트 | 원본 포트 |
+| `X-Forwarded-Proto` | `http` 또는 `https` | 원래 클라이언트 프로토콜 |
+| `X-Forwarded-Host` | 원래 호스트명 | 원래 Host 헤더 |
+| `X-Forwarded-Port` | 서버 포트 | 원래 포트 |
 | `X-Real-IP` | 클라이언트 IP | 단일 클라이언트 IP (nginx 관례) |
 | `Via` | `1.1 cdn-simulator` | 프록시 식별 |
 | `Forwarded` | RFC 7239 형식 | 표준화된 포워딩 헤더 |
@@ -221,36 +221,36 @@ server {
 
 ### Akamai 헤더
 
-| 헤더 | 값 | 용도 |
+| 헤더 | 값 | 목적 |
 |---|---|---|
-| `True-Client-IP` | 클라이언트 IP | 원본 최종 사용자 IP 주소 |
-| `X-Akamai-Edgescape` | 복합 지역 문자열 | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
+| `True-Client-IP` | 클라이언트 IP | 원래 최종 사용자 IP 주소 |
+| `X-Akamai-Edgescape` | 복합 지오 문자열 | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
 | `X-Akamai-Device-Characteristics` | 디바이스 속성 | brand_name, model_name, is_mobile, is_tablet, is_wireless_device, device_os, device_os_version, resolution_width, resolution_height |
 | `X-Akamai-Request-ID` | 요청 UUID | 고유 요청 식별자 |
 
 ### Cloudflare 헤더
 
-| 헤더 | 값 | 용도 |
+| 헤더 | 값 | 목적 |
 |---|---|---|
 | `CF-Connecting-IP` | 클라이언트 IP | 실제 클라이언트 IP (항상 존재) |
-| `CF-IPCountry` | `US` | 두 자리 국가 코드 |
+| `CF-IPCountry` | `US` | 두 글자 국가 코드 |
 | `cf-ipcity` | `San Jose` | 클라이언트 도시 |
 | `cf-ipcontinent` | `NA` | 대륙 코드 |
-| `cf-iplatitude` / `cf-iplongitude` | 좌표 | 지리적 위치 |
+| `cf-iplatitude` / `cf-iplongitude` | 좌표 | 지리 위치 |
 | `cf-region` / `cf-region-code` | `California` / `CA` | 지역 정보 |
 | `cf-metro-code` | `807` | 미국 메트로 코드 |
 | `cf-postal-code` | `95113` | 우편번호 |
 | `cf-timezone` | `America/Los_Angeles` | IANA 시간대 |
-| `Cf-Ray` | `{request_id}-SJC` | POP IATA 코드가 포함된 고유 ray ID |
+| `Cf-Ray` | `{request_id}-SJC` | POP IATA 코드가 포함된 고유 레이 ID |
 | `CF-Visitor` | `{"scheme":"https"}` | 방문자 프로토콜 정보 |
 | `cf-bot-score` | `85` | 봇 점수 (1=봇, 99=사람) |
 | `cf-verified-bot` | `false` | 알려진 정상 봇 플래그 |
-| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS 핑거프린트 |
-| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | JA4 TLS 핑거프린트 |
+| `cf-ja3-hash` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS 지문 |
+| `cf-ja4` | `t13d1516h2_8daaf6152771_b0da82dd1658` | JA4 TLS 지문 |
 
 ### Amazon CloudFront 헤더
 
-| 헤더 | 값 | 용도 |
+| 헤더 | 값 | 목적 |
 |---|---|---|
 | `CloudFront-Viewer-Address` | `IP:port` | 클라이언트 IP 및 소스 포트 |
 | `CloudFront-Viewer-Country` | `US` | 국가 코드 |
@@ -259,14 +259,14 @@ server {
 | `CloudFront-Viewer-Country-Region-Name` | `California` | 전체 지역명 |
 | `CloudFront-Viewer-City` | `San Jose` | 클라이언트 도시 |
 | `CloudFront-Viewer-Postal-Code` | `95113` | 우편번호 |
-| `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | 지리적 위치 |
+| `CloudFront-Viewer-Latitude` / `Longitude` | `37.33530` / `-121.89300` | 지리 위치 |
 | `CloudFront-Viewer-Time-Zone` | `America/Los_Angeles` | IANA 시간대 |
 | `CloudFront-Viewer-Metro-Code` | `807` | 미국 메트로 코드 |
 | `CloudFront-Viewer-ASN` | `7018` | 자율 시스템 번호 |
 | `CloudFront-Viewer-Http-Version` | `2.0` | 클라이언트 HTTP 버전 |
-| `CloudFront-Forwarded-Proto` | `https` | 원본 프로토콜 |
+| `CloudFront-Forwarded-Proto` | `https` | 원래 프로토콜 |
 | `CloudFront-Viewer-TLS` | `TLSv1.3:TLS_AES_128_GCM_SHA256:sessionResumed` | TLS 세부 정보 |
-| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS 핑거프린트 |
+| `CloudFront-Viewer-JA3-Fingerprint` | `e7d705a3286e19ea42f587b344ee6865` | JA3 TLS 지문 |
 | `CloudFront-Is-Desktop-Viewer` | `true`/`false` | 디바이스 감지 |
 | `CloudFront-Is-Mobile-Viewer` | `true`/`false` | 디바이스 감지 |
 | `CloudFront-Is-Tablet-Viewer` | `true`/`false` | 디바이스 감지 |
@@ -275,52 +275,52 @@ server {
 
 ### Fastly 헤더
 
-| 헤더 | 값 | 용도 |
+| 헤더 | 값 | 목적 |
 |---|---|---|
 | `Fastly-Client-IP` | 클라이언트 IP | 실제 클라이언트 IP |
 | `Fastly-SSL` | `1` | TLS를 통한 연결 |
 | `Fastly-Client` | `1` | 클라이언트 대면 요청 (쉴드 아님) |
 | `Fastly-FF` | `cache-sjc3120-SJC` | 캐시 노드 식별 |
-| `X-Geo-Country-Code` | `US` | 국가 (VCL 변수 관례) |
-| `X-Geo-Country-Code3` | `USA` | 세 자리 국가 코드 |
+| `X-Geo-Country-Code` | `US` | 국가 (VCL 변수 규칙) |
+| `X-Geo-Country-Code3` | `USA` | 세 글자 국가 코드 |
 | `X-Geo-Country-Name` | `United States` | 전체 국가명 |
 | `X-Geo-City` | `San Jose` | 클라이언트 도시 |
 | `X-Geo-Region` | `CA` | 지역 코드 |
 | `X-Geo-Continent-Code` | `NA` | 대륙 |
-| `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | 지리적 위치 |
+| `X-Geo-Latitude` / `X-Geo-Longitude` | `37.3353` / `-121.8938` | 지리 위치 |
 | `X-Geo-Postal-Code` | `95113` | 우편번호 |
 | `X-Geo-Metro-Code` | `807` | 미국 메트로 코드 |
 | `X-Geo-ASN` | `7018` | 자율 시스템 번호 |
-| `X-Geo-Conn-Speed` | `broadband` | 연결 속도 등급 |
+| `X-Geo-Conn-Speed` | `broadband` | 연결 속도 클래스 |
 | `X-Geo-Conn-Type` | `wired` | 연결 유형 |
 
 ### Azure Front Door 헤더
 
-| 헤더 | 값 | 용도 |
+| 헤더 | 값 | 목적 |
 |---|---|---|
 | `X-Azure-ClientIP` | 클라이언트 IP | 클라이언트 IP 주소 |
 | `X-Azure-SocketIP` | 클라이언트 IP | TCP 소켓 소스 IP |
-| `X-Azure-Ref` | 인코딩된 참조 문자열 | 문제 해결용 고유 요청 참조 |
+| `X-Azure-Ref` | 인코딩된 참조 문자열 | 문제 해결을 위한 고유 요청 참조 |
 | `X-Azure-FDID` | `a0a0a0a0-bbbb-cccc-dddd-e1e1e1e1e1e1` | Front Door 리소스 식별자 |
-| `X-Azure-RequestChain` | `hops=1` | 루프 감지 홉 카운트 |
+| `X-Azure-RequestChain` | `hops=1` | 루프 감지 홉 수 |
 
 ### 응답 헤더 (클라이언트 응답에 추가됨)
 
-| 헤더 | 값 | 용도 |
+| 헤더 | 값 | 목적 |
 |---|---|---|
-| `X-Cache-Status` | `HIT`, `MISS`, `EXPIRED`, `STALE`, `UPDATING` | 이 요청의 캐시 동작 |
+| `X-Cache-Status` | `HIT`, `MISS`, `EXPIRED`, `STALE`, `UPDATING` | 이 요청에 대한 캐시 동작 |
 | `X-CDN-Edge` | `cdn-simulator` | 이 엣지 노드 식별 |
-| `X-CDN-POP` | `SJC` | 시뮬레이션된 POP(Point of Presence) IATA 코드 |
+| `X-CDN-POP` | `SJC` | 시뮬레이션된 거점(POP) IATA 코드 |
 | `X-Served-By` | `cache-sjc3120-SJC` | Fastly 형식의 시뮬레이션된 캐시 노드 |
-| `X-Request-ID` | UUID (요청별) | 고유 요청 식별자 |
+| `X-Request-ID` | UUID (요청당) | 고유 요청 식별자 |
 
 ## 디바이스 감지
 
-시뮬레이터는 NGINX `map` 디렉티브를 사용하여 `User-Agent` 헤더에서 디바이스 유형을 감지합니다:
+시뮬레이터는 NGINX `map` 지시문을 사용하여 `User-Agent` 헤더에서 디바이스 유형을 감지합니다:
 
-- **모바일**: iPhone, Android (태블릿 제외), iPod, BlackBerry, Opera Mini, IEMobile 매칭
-- **태블릿**: iPad, Android 태블릿, Kindle, PlayBook 매칭
-- **데스크톱**: 모바일도 태블릿도 매칭되지 않을 때 기본값
+- **모바일**: iPhone, Android (태블릿 제외), iPod, BlackBerry, Opera Mini, IEMobile 일치
+- **태블릿**: iPad, Android 태블릿, Kindle, PlayBook 일치
+- **데스크톱**: 모바일이나 태블릿에 일치하지 않을 경우 기본값
 
 디바이스 유형은 다음에 반영됩니다:
 - `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
@@ -333,17 +333,17 @@ server {
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# Update upstream server
+# 업스트림 서버 업데이트
 sudo sed -i 's|server .*;|server NEW_HOST:80;|' /etc/nginx/conf.d/cdn-edge.conf
 
-# Clear cache and reload
+# 캐시 지우기 및 리로드
 sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
 또는 `terraform.tfvars`에서 `origin_host`를 업데이트하고 `terraform apply`를 실행하여 재프로비저닝합니다.
 
-### 캐시 삭제
+### 캐시 지우기
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -354,42 +354,42 @@ sudo systemctl reload nginx
 ### 캐시 통계 확인
 
 ```bash
-# Object count and disk usage
+# 객체 수 및 디스크 사용량
 sudo find /var/cache/nginx/cdn -type f | wc -l
 sudo du -sh /var/cache/nginx/cdn
 
-# Recent access log with cache status
+# 캐시 상태가 포함된 최근 액세스 로그
 tail -20 /var/log/nginx/access.log
 ```
 
-### 부하 시 모니터링
+### 부하 하에서 모니터링
 
 ```bash
-# Real-time connections and socket states
+# 실시간 연결 및 소켓 상태
 ss -s
 
-# NGINX worker CPU usage
+# NGINX 워커 CPU 사용량
 top -bn1 | grep nginx
 
-# Upstream keepalive connections
+# 업스트림 keepalive 연결
 ss -tn state established dst <ORIGIN_IP> | wc -l
 
-# TIME_WAIT socket count
+# TIME_WAIT 소켓 수
 ss -tn state time-wait | wc -l
 ```
 
 ## 성능 벤치마크 결과
 
-48시간 연속 부하 테스트로 검증됨:
+48시간 연속 부하 테스트에서 검증됨:
 
 | 지표 | 값 |
 |---|---|
 | 피크 처리량 (캐시됨) | 172,540 req/s |
 | 지속 처리량 (캐시됨) | 85,000-103,000 req/s |
 | 피크 연결 수 | 15,000 동시 |
-| 캐시 히트율 | 100% (워밍업 완료 시) |
-| 부하 시 메모리 | 1.2 GB 안정 (16 GB의 8%) |
-| 피크 시 CPU | 100% (4코어 - CPU가 상한) |
+| 캐시 적중률 | 100% (웜업 후) |
+| 부하 시 메모리 | 1.2GB 안정 (16GB의 8%) |
+| 피크 시 CPU | 100% (4코어 - CPU가 상한선) |
 | 48시간 테스트 중 오류 | 0 |
-| 메모리 누수 | 감지되지 않음 |
-| 연결 누수 | 감지되지 않음 |
+| 메모리 누수 | 미감지 |
+| 연결 누수 | 미감지 |

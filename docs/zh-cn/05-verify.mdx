@@ -1,8 +1,8 @@
 ---
 title: 验证
 description: >-
-  使用预期的 HTTP 响应码、X-Cache-Status 头部值（HIT/MISS）、健康检查 JSON
-  响应、缓存目录检查、源站连通性检查进行冒烟测试，以及 cloud-init、NGINX 启动和 NSG 问题的故障排除
+  使用预期 HTTP 响应代码、X-Cache-Status 响应头值（HIT/MISS）、健康检查 JSON 响应、缓存目录检查、源站连接检查以及针对
+  cloud-init、NGINX 启动和 NSG 问题的故障排除命令进行冒烟测试
 sidebar:
   order: 5
 i18n:
@@ -10,11 +10,11 @@ i18n:
   translator: machine
 ---
 
-部署完成后，运行以下检查以确认 CDN 边缘节点正常运行。在 `terraform apply` 之后，请等待 2-3 分钟让 cloud-init 完成 NGINX 的安装。
+部署完成后，执行以下检查以确认 CDN 边缘节点正常运行。执行 `terraform apply` 后，请等待 2-3 分钟，待 cloud-init 完成 NGINX 安装。
 
 ## 健康检查
 
-验证 NGINX 正在运行并能响应请求：
+验证 NGINX 是否正在运行并正常响应：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/health" | jq .
@@ -45,13 +45,13 @@ curl -s "$(terraform output -raw health_check_url)" | jq .
 
 ## 缓存未命中（首次请求）
 
-对任何路径的首次请求将会是缓存未命中 — 边缘节点从源站获取内容：
+对任意路径的首次请求将发生缓存未命中——边缘节点从源站获取内容：
 
 ```bash
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-在响应中查找以下头部：
+在响应中查找以下响应头：
 
 ```
 X-Cache-Status: MISS
@@ -68,18 +68,18 @@ X-CDN-Edge: cdn-simulator
 curl -I "http://<PUBLIC_IP>/"
 ```
 
-预期头部：
+预期响应头：
 
 ```
 X-Cache-Status: HIT
 X-CDN-Edge: cdn-simulator
 ```
 
-`HIT` 确认响应是从 NGINX 磁盘缓存提供的，无需联系源站。
+`HIT` 确认响应由 NGINX 磁盘缓存提供，未与源站联系。
 
 ## 缓存目录检查
 
-通过 SSH 登录虚拟机，验证磁盘上存在缓存内容：
+通过 SSH 登录虚拟机，验证磁盘上是否存在已缓存的内容：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -93,7 +93,7 @@ sudo du -sh /var/cache/nginx/cdn
 
 ## NGINX 状态
 
-验证 NGINX 正在运行且配置有效：
+验证 NGINX 是否正在运行，且配置有效：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -104,30 +104,30 @@ sudo systemctl status nginx
 # 验证配置
 sudo nginx -t
 
-# 查看活跃连接（如果启用了 stub_status）
+# 查看活跃连接数（如果已启用 stub_status）
 curl -s http://localhost/health
 ```
 
-## 源站连通性
+## 源站连接
 
-验证边缘节点能够访问源站服务器：
+验证边缘节点是否可以访问源站服务器：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
 
-# 测试与源站的连通性（替换为您的源站 URL）
+# 测试与源站的连接（替换为您的源站 URL）
 curl -I "https://your-origin.example.com/"
 ```
 
-如果测试失败，请检查：
+如果连接失败，请检查：
 
 1. Terraform 配置中的 `origin_server` 变量是否正确
-2. 源站服务器是否允许来自边缘节点公网 IP 的入站连接
+2. 源站服务器是否允许来自边缘节点公共 IP 的入站连接
 3. 虚拟机中的 DNS 解析是否正常（`nslookup your-origin.example.com`）
 
 ## Cloud-Init 进度
 
-通过 cloud-init 日志监控预配置进度：
+通过 cloud-init 日志监控配置进度：
 
 ```bash
 ssh azureuser@<PUBLIC_IP> "tail -f /var/log/cloud-init-progress.log"
@@ -143,14 +143,14 @@ ssh azureuser@<PUBLIC_IP> "sudo cloud-init status --long"
 
 ## 端到端测试
 
-运行完整的请求周期并验证响应链路：
+执行完整的请求周期并验证响应链：
 
 ```bash
-# 第一次请求 — MISS（从源站获取）
+# 第一次请求——MISS（从源站获取）
 echo "=== Request 1 (expect MISS) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 
-# 第二次请求 — HIT（从缓存提供）
+# 第二次请求——HIT（从缓存提供）
 echo "=== Request 2 (expect HIT) ==="
 curl -s -o /dev/null -w "HTTP %{http_code} | Cache: %{header:X-Cache-Status}\n" "http://<PUBLIC_IP>/test-path"
 ```
@@ -164,15 +164,15 @@ HTTP 200 | Cache: MISS
 HTTP 200 | Cache: HIT
 ```
 
-## 供应商头部验证
+## 厂商响应头验证
 
-通过请求 `/headers` 路径验证所有 CDN 供应商头部是否已注入（使用 httpbin.org 作为源站时）：
+通过请求 `/headers` 路径，验证所有 CDN 厂商响应头是否被正确注入（使用 httpbin.org 作为源站时）：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 ```
 
-预期响应包含来自所有五个供应商的头部：
+预期响应包含来自所有五个厂商的响应头：
 
 ```json
 {
@@ -198,7 +198,7 @@ curl -s "http://<PUBLIC_IP>/headers" | python3 -m json.tool
 
 ### 设备检测测试
 
-使用移动端 User-Agent 进行测试，验证设备检测头部是否发生变化：
+使用移动端 User-Agent 进行测试，验证设备检测响应头是否发生变化：
 
 ```bash
 curl -s "http://<PUBLIC_IP>/headers?device=mobile" \
@@ -225,7 +225,7 @@ sudo journalctl -u nginx --no-pager -n 50
 
 ### Cloud-init 未完成
 
-在 `terraform apply` 之后，cloud-init 需要 2-3 分钟。检查进度：
+执行 `terraform apply` 后，cloud-init 需要 2-3 分钟。检查进度：
 
 ```bash
 ssh azureuser@<PUBLIC_IP>
@@ -235,11 +235,11 @@ sudo tail -f /var/log/cloud-init-output.log
 
 ### 缓存始终显示 MISS
 
-- 验证源站返回可缓存的响应码（200、301、302）
-- 检查源站是否发送了 `Cache-Control: no-cache` 或 `no-store` 头部
+- 验证源站返回的响应代码是否可缓存（200、301、302）
+- 检查源站是否未发送 `Cache-Control: no-cache` 或 `no-store` 响应头
 - 检查 NGINX 错误日志：`sudo tail -f /var/log/nginx/error.log`
 
-### 端口 80/443 连接被拒绝
+### 80/443 端口连接被拒绝
 
-- 验证 NSG 规则已应用：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
-- 验证 NGINX 正在监听：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`
+- 验证 NSG 规则是否已应用：`az network nsg rule list --nsg-name "$(terraform output -raw nsg_name)" --resource-group "$(terraform output -raw resource_group_name)" -o table`
+- 验证 NGINX 是否正在监听：`ssh azureuser@<PUBLIC_IP> "sudo ss -tlnp | grep nginx"`

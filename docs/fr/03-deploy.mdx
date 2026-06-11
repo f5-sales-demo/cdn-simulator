@@ -1,10 +1,10 @@
 ---
-title: Déploiement
+title: Déployer
 description: >-
-  Déploiement IaC Terraform du nœud edge CDN optimisé pour les performances — VM
-  Azure F-series optimisée pour le calcul avec Ubuntu 24.04, tuning du noyau,
-  cache proxy NGINX, keepalive upstream, compression gzip, et plus de 67
-  en-têtes de fournisseurs CDN provisionnés via cloud-init. Tous les fichiers de
+  Déploiement IaC Terraform du nœud CDN edge optimisé en performance — VM Azure
+  de la série F à calcul optimisé avec Ubuntu 24.04, réglage du noyau, cache
+  proxy NGINX, keepalive en amont, compression gzip et plus de 67 en-têtes de
+  fournisseurs CDN provisionnés via cloud-init. Tous les fichiers de
   configuration se trouvent dans le répertoire terraform/.
 sidebar:
   order: 3
@@ -26,56 +26,56 @@ cp terraform.tfvars.example terraform.tfvars
 
 ### Structure des fichiers Terraform
 
-Le répertoire terraform contient 9 fichiers conformes au Demo Resource Standard :
+Le répertoire terraform contient 9 fichiers conformes au standard des Ressources de démonstration :
 
-- `versions.tf` — Contraintes de version Terraform et des providers (azurerm ~> 4.0, azuread ~> 3.0)
-- `providers.tf` — Configuration des providers Azure RM et Azure AD
+- `versions.tf` — Contraintes de version Terraform et des fournisseurs (azurerm ~> 4.0, azuread ~> 3.0)
+- `providers.tf` — Configuration des fournisseurs Azure RM et Azure AD
 - `data.tf` — Sources de données Azure AD pour la résolution automatique du déployeur
-- `locals.tf` — Résolution du déployeur, nommage des ressources Azure Cloud Adoption Framework, tags standards
+- `locals.tf` — Résolution du déployeur, nommage des ressources Azure Cloud Adoption Framework, étiquettes standard
 - `main.tf` — Groupe de ressources (nommé `rg-cdn-simulator-{environment}-{deployer}`)
-- `variables.tf` — Toutes les variables d'entrée (3 requises, 8 optionnelles)
+- `variables.tf` — Toutes les variables d'entrée (3 obligatoires, 8 optionnelles)
 - `network.tf` — VNet (10.100.0.0/16), sous-réseau, IP publique, NSG (ports 22/80/443), NIC
 - `vm.tf` — VM Ubuntu 24.04 avec cloud-init via templatefile()
-- `outputs.tf` — 17 sorties (15 standards + 2 spécifiques au composant)
+- `outputs.tf` — 17 sorties (15 standard + 2 spécifiques au composant)
 
-`variables.tf` définit 11 variables d'entrée organisées en sections General, Compute et Component-Specific. L'identifiant `deployer` est résolu automatiquement à partir de votre compte Azure AD — vous n'avez besoin de définir que `subscription_id`, `origin_server` et `origin_host` :
+`variables.tf` définit 11 variables d'entrée organisées en sections Général, Calcul et Spécifique au composant. L'identifiant `deployer` est résolu automatiquement depuis votre compte Azure AD — vous n'avez besoin de définir que `subscription_id`, `origin_server` et `origin_host` :
 
 ```hcl file=./_data/variables.tf
 ```
 
 ### Infrastructure réseau
 
-`network.tf` crée le VNet, le sous-réseau, l'IP publique, le NSG (ports 22/80/443) et la NIC :
+`network.tf` crée le VNet, le sous-réseau, l'IP publique, le NSG (ports 22/80/443) et le NIC :
 
 ```hcl file=./_data/network.tf
 ```
 
 ### Machine virtuelle avec Cloud-Init
 
-`vm.tf` crée la VM Ubuntu 24.04. Le chemin de la clé publique SSH est étendu via `pathexpand()` pour gérer le `~`. Le template cloud-init reçoit les variables `origin_server` et `origin_host` :
+`vm.tf` crée la VM Ubuntu 24.04. Le chemin de la clé publique SSH est développé via `pathexpand()` pour gérer `~`. Le modèle cloud-init reçoit les variables `origin_server` et `origin_host` :
 
 ```hcl file=./_data/vm.tf
 ```
 
 ### Provisionnement Cloud-Init
 
-`cloud-init.yaml` provisionne la VM avec le tuning du noyau, les limites systemd, NGINX avec une configuration optimisée pour les performances, une zone de clés de cache de 128 Mo, un pool de keepalive upstream, la compression gzip et plus de 67 en-têtes de fournisseurs CDN. Une bibliothèque d'aide partagée (`/usr/local/lib/cloud-init-helpers.sh`) fournit une logique de réessai et une journalisation de la progression dans `/var/log/cloud-init-progress.log`.
+`cloud-init.yaml` provisionne la VM avec le réglage du noyau, les limites systemd, NGINX avec une configuration optimisée en performance, une zone de clés de cache de 128 Mo, un pool keepalive en amont, la compression gzip et plus de 67 en-têtes de fournisseurs CDN. Une bibliothèque d'aide partagée (`/usr/local/lib/cloud-init-helpers.sh`) fournit une logique de nouvelle tentative et une journalisation de progression vers `/var/log/cloud-init-progress.log`.
 
-Le cloud-init utilise des variables de template Terraform : `${origin_server}` et `${origin_host}` pour la configuration upstream. Les variables NGINX comme `${request_id}` sont échappées sous la forme `$${request_id}` dans le templatefile Terraform.
+Le cloud-init utilise des variables de modèle Terraform : `${origin_server}` et `${origin_host}` pour la configuration en amont. Les variables NGINX telles que `${request_id}` sont échappées en `$${request_id}` dans le templatefile Terraform.
 
 ```yaml file=./_data/cloud-init.yaml
 ```
 
 ### Sorties
 
-`outputs.tf` expose 17 sorties conformes au Demo Resource Standard — 15 sorties standards partagées par toutes les ressources de démonstration (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) plus 2 sorties spécifiques au composant (`edge_url`, `health_check_url`) :
+`outputs.tf` expose 17 sorties conformes au standard des Ressources de démonstration — 15 sorties standard partagées par toutes les ressources de démonstration (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) ainsi que 2 sorties spécifiques au composant (`edge_url`, `health_check_url`) :
 
 ```hcl file=./_data/outputs.tf
 ```
 
 ### Exemple de fichier de variables
 
-Copiez `terraform.tfvars.example` vers `terraform.tfvars` et renseignez vos valeurs. Le `.gitignore` exclut `terraform.tfvars` pour éviter de commiter des identifiants :
+Copiez `terraform.tfvars.example` vers `terraform.tfvars` et renseignez vos valeurs. Le `.gitignore` exclut `terraform.tfvars` pour éviter de valider des informations d'identification :
 
 ```hcl file=./_data/terraform.tfvars.example
 ```
@@ -93,15 +93,15 @@ terraform plan
 terraform apply
 ```
 
-Terraform affiche l'IP publique, la commande SSH et l'URL edge après un déploiement réussi.
+Terraform affiche l'IP publique, la commande SSH et l'URL du nœud edge après un déploiement réussi.
 
 ## Dimensionnement de la VM
 
-Les VM F-series optimisées pour le calcul sont recommandées pour cette charge de travail proxy NGINX intensive en CPU. La taille par défaut `Standard_F4s_v2` (4 vCPU, 8 Gio) est adaptée à un usage lab et démonstration. Remplacez la variable `vm_size` pour les scénarios de tests de charge ou de benchmarking en production. Le tuning du noyau via cloud-init et la configuration NGINX s'adaptent automatiquement au nombre de vCPU (`worker_processes auto`).
+Les VM de la série F à calcul optimisé sont recommandées pour cette charge de travail proxy NGINX liée au CPU. La valeur par défaut `Standard_F4s_v2` (4 vCPU, 8 Gio) convient à une utilisation en laboratoire et en démonstration. Remplacez la variable `vm_size` pour les scénarios de test de charge ou d'évaluation comparative en production. Le réglage du noyau cloud-init et la configuration NGINX s'adaptent automatiquement au nombre de vCPU (`worker_processes auto`).
 
-## Post-déploiement
+## Après le déploiement
 
-Après l'exécution de `terraform apply`, attendez 2 à 3 minutes pour que cloud-init termine l'installation et la configuration de NGINX. Vérifiez le point de terminaison de santé :
+Une fois `terraform apply` terminé, attendez 2 à 3 minutes que cloud-init finisse d'installer et de configurer NGINX. Vérifiez le point de terminaison de santé :
 
 ```bash
 curl -s "http://$(terraform output -raw public_ip)/health" | jq .
@@ -126,7 +126,7 @@ Réponse attendue :
 
 ## Connexion depuis les composants en amont
 
-Le simulateur CDN nécessite un serveur d'origine déployé. Utilisez les sorties terraform du serveur d'origine pour renseigner les variables requises :
+Le Simulateur CDN nécessite un serveur d'origine déployé. Utilisez les sorties Terraform du serveur d'origine pour renseigner les variables requises :
 
 ```bash
 cd ../origin-server/terraform
@@ -142,7 +142,7 @@ EOF
 
 | Variable requise | Source | Format |
 |---|---|---|
-| `origin_server` | Sortie `public_ip` du serveur d'origine | `http://<ip>` (inclure le schéma) |
-| `origin_host` | Sortie `public_ip` du serveur d'origine | `<ip>:80` (sans schéma, inclure le port) |
+| `origin_server` | Sortie `public_ip` du Serveur d'origine | `http://<ip>` (inclure le schéma) |
+| `origin_host` | Sortie `public_ip` du Serveur d'origine | `<ip>:80` (sans schéma, inclure le port) |
 
-Passez à la [Configuration NGINX](../04-nginx-config/) pour les options de personnalisation ou à [Vérification](../05-verify/) pour les tests de cache.
+Passez à [Configuration NGINX](../04-nginx-config/) pour les options de personnalisation ou à [Vérifier](../05-verify/) pour les tests de cache.

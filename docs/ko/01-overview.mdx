@@ -1,8 +1,8 @@
 ---
 title: 개요
 description: >-
-  Ubuntu 24.04 기반 Azure에 배포된 NGINX CDN 에지 노드 시뮬레이터의 아키텍처, 엔드포인트, 벤더 헤더 시뮬레이션 및
-  모듈형 설계
+  Azure의 Ubuntu 24.04에 배포된 NGINX 기반 CDN 엣지 노드 시뮬레이터의 아키텍처, 엔드포인트, 벤더 헤더 시뮬레이션 및
+  모듈식 설계
 sidebar:
   order: 1
 i18n:
@@ -12,46 +12,46 @@ i18n:
 
 ## 목적
 
-이 컴포넌트는 랩 및 데모 환경을 위한 CDN 에지 노드를 시뮬레이션합니다. 고객의 네트워크 아키텍처에서 Akamai, Cloudflare, Amazon CloudFront, Fastly와 같은 벤더가 수행하는 역할, 즉 오리진 서버 앞에 위치하여 최종 사용자에게 가장 가까운 캐싱 레이어를 나타냅니다.
+이 구성 요소는 랩 및 데모 환경을 위한 CDN 엣지 노드를 시뮬레이션합니다. Akamai, Cloudflare, Amazon CloudFront, Fastly와 같은 벤더가 고객의 네트워크 아키텍처에서 수행하는 역할, 즉 오리진 서버 앞에 위치하여 최종 사용자와 가장 가까운 캐싱 레이어를 나타냅니다.
 
-프로덕션 멀티벤더 아키텍처에서 고객은 일반적으로 서드파티 CDN과 F5 Distributed Cloud를 함께 사용합니다:
+프로덕션 멀티 벤더 아키텍처에서 고객은 일반적으로 서드파티 CDN을 F5 Distributed Cloud와 함께 사용합니다:
 
 ```
-최종 사용자 → CDN 에지 (Akamai/Cloudflare/등) → F5 XC HTTP LB → 오리진 앱
+End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
-이 시뮬레이터는 벤더 계약이나 프로덕션 인프라 없이 통합을 시연하고 테스트할 수 있도록 상용 CDN을 NGINX 기반 에지 노드로 대체합니다.
+이 시뮬레이터는 상용 CDN을 NGINX 기반 엣지 노드로 대체하여, 벤더 계약이나 프로덕션 인프라 없이도 통합을 시연하고 테스트할 수 있도록 합니다.
 
 ## 아키텍처
 
 ```
 ┌─────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌────────────┐
-│  클라이언트 │────▶│  CDN 에지 (NGINX)     │────▶│  F5 XC HTTP LB  │────▶│ 오리진 앱   │
-│          │     │  Ubuntu 24.04 Azure  │     │  (오리진 서버)    │     │            │
-└─────────┘     │  - TLS 종료          │     └─────────────────┘     └────────────┘
-                │  - 디스크 기반 캐시    │
+│  Client  │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB  │────▶│ Origin App │
+│          │     │  Ubuntu 24.04 Azure  │     │  (Origin Server) │     │            │
+└─────────┘     │  - TLS termination   │     └─────────────────┘     └────────────┘
+                │  - Disk-based cache  │
                 │  - X-Cache-Status    │
                 └──────────────────────┘
 ```
 
-NGINX 에지 노드는:
+NGINX 엣지 노드:
 
-- **에지에서 TLS를 종료**합니다 (자체 서명 또는 Let's Encrypt)
-- `proxy_cache_path`를 사용하여 **디스크에 응답을 캐시**합니다
+- **엣지에서 TLS를 종료**합니다 (자체 서명 인증서 또는 Let's Encrypt)
+- **`proxy_cache_path`를 사용하여 디스크에 응답을 캐시**합니다
 - **캐시 미스를 구성 가능한 오리진 서버**(F5 XC HTTP 로드 밸런서 VIP)로 전달합니다
-- `X-Cache-Status` 응답 헤더(`HIT`, `MISS`, `BYPASS`, `EXPIRED`)를 통해 **캐시 상태를 보고**합니다
+- **`X-Cache-Status` 응답 헤더를 통해 캐시 상태를 보고**합니다 (`HIT`, `MISS`, `BYPASS`, `EXPIRED`)
 
 ## 시뮬레이션 대상
 
 | CDN 기능 | NGINX 구현 |
 |---|---|
-| 에지 캐싱 | 디스크 기반 스토리지를 사용하는 `proxy_cache` |
+| 엣지 캐싱 | 디스크 기반 스토리지를 사용하는 `proxy_cache` |
 | 캐시 키 생성 | 스킴, 호스트, URI 기반의 `proxy_cache_key` |
 | 오리진 풀 | F5 XC HTTP 로드 밸런서로의 `proxy_pass` |
-| TLS 종료 | NGINX `ssl_certificate` 디렉티브 |
-| Cache-Control 준수 | 오리진 헤더 패스스루를 포함한 `proxy_cache_valid` |
+| TLS 종료 | NGINX `ssl_certificate` 지시어 |
+| Cache-Control 준수 | 오리진 헤더 패스스루와 함께하는 `proxy_cache_valid` |
 | 캐시 상태 보고 | `add_header X-Cache-Status $upstream_cache_status` |
-| 헬스 엔드포인트 | 200 OK를 반환하는 `/health` 로케이션 |
+| 헬스 엔드포인트 | 200 OK를 반환하는 `/health` location |
 
 ## 엔드포인트 및 요청/응답 동작
 
@@ -78,7 +78,7 @@ GET /health
 GET /<any-path>
 ```
 
-오리진으로 주입되는 요청 헤더 (5개 벤더의 67개 이상 헤더):
+오리진을 향해 주입되는 요청 헤더 (5개 벤더의 67개 이상 헤더):
 
 | 카테고리 | 추가되는 헤더 |
 |---|---|
@@ -88,26 +88,26 @@ GET /<any-path>
 | TLS/핑거프린트 | `CloudFront-Viewer-TLS`, `cf-ja3-hash`, `cf-ja4`, `CloudFront-Viewer-JA3-Fingerprint` |
 | 봇 감지 | `cf-bot-score` (85 = 사람일 가능성 높음), `cf-verified-bot` |
 | 요청 추적 | `Cf-Ray`, `X-Akamai-Request-ID`, `X-Amz-Cf-Id`, `X-Azure-Ref` |
-| 에지 식별 | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
+| 엣지 식별 | `X-CDN-Edge`, `X-CDN-POP`, `X-Served-By`, `Fastly-FF`, `X-Azure-FDID` |
 | 표준 | `Via`, `Forwarded`, `CDN-Loop`, `X-Forwarded-Proto/Host/Port` |
 
-모든 프록시된 응답에 추가되는 응답 헤더:
+모든 프록시 응답에 추가되는 응답 헤더:
 
-| 헤더 | 값 | 용도 |
+| 헤더 | 값 | 목적 |
 |---|---|---|
-| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | 이 요청의 캐시 동작 |
-| `X-CDN-Edge` | `cdn-simulator` | 이 에지 노드 식별 |
+| `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | 이 요청에 대한 캐시 동작 |
+| `X-CDN-Edge` | `cdn-simulator` | 이 엣지 노드를 식별 |
 | `X-CDN-POP` | `SJC` | 시뮬레이션된 PoP(Point of Presence) IATA 코드 |
 | `X-Served-By` | `cache-sjc3120-SJC` | Fastly 형식의 시뮬레이션된 캐시 노드 |
-| `X-Request-ID` | UUID (요청별) | 고유 요청 식별자 |
+| `X-Request-ID` | UUID (요청당) | 고유 요청 식별자 |
 
 ### 캐시 동작
 
-- 임의 경로에 대한 첫 번째 요청: `X-Cache-Status: MISS` (오리진에서 가져오고, 이제 캐시됨)
-- 이후 동일한 요청: `X-Cache-Status: HIT` (디스크 캐시에서 제공)
+- 특정 경로에 대한 첫 번째 요청: `X-Cache-Status: MISS` (오리진에서 가져온 후 캐시됨)
+- 이후 동일한 요청: `X-Cache-Status: HIT` (디스크 캐시에서 제공됨)
 - 캐시 키: `$scheme$host$request_uri` (스킴 + 호스트명 + 전체 경로 + 쿼리 문자열)
 - 캐시 TTL: 200/301/302에 대해 10분, 404에 대해 1분
-- 스테일 서빙: 오리진 오류(500/502/503/504) 시 캐시된 콘텐츠를 반환
+- 오래된 콘텐츠 제공: 오리진 오류(500/502/503/504) 시 캐시된 콘텐츠를 반환
 
 ### VM 접근
 
@@ -119,21 +119,21 @@ GET /<any-path>
 | 캐시 디렉토리 | `/var/cache/nginx/cdn/` |
 | Cloud-init 로그 | `/var/log/cloud-init-output.log` |
 
-## 모듈형 컴포넌트 설계
+## 모듈식 구성 요소 설계
 
-이것은 더 큰 랩 환경의 한 구성 요소입니다. 각 컴포넌트는 독립적이며 개별적으로 배포됩니다:
+이것은 더 큰 랩 환경의 일부입니다. 각 구성 요소는 독립적으로 포함되어 개별적으로 배포됩니다:
 
-- **이 컴포넌트**는 CDN 에지를 제공합니다 (Azure VM의 NGINX)
-- **기타 컴포넌트**는 오리진 애플리케이션, F5 XC 구성, DNS, WAF 정책 등을 제공합니다
+- **이 구성 요소**는 CDN 엣지(Azure VM의 NGINX)를 제공합니다
+- **다른 구성 요소**는 오리진 애플리케이션, F5 XC 구성, DNS, WAF 정책 등을 제공합니다
 
-운영자가 컴포넌트를 하나씩 추가합니다. 각 컴포넌트의 문서는 AI 어시스턴트가 읽고 인프라를 자율적으로 배포할 수 있도록 작성되어 있습니다.
+운영자는 구성 요소를 하나씩 추가합니다. 각 구성 요소의 문서는 AI 어시스턴트가 읽고 인프라를 자율적으로 배포할 수 있도록 작성되어 있습니다.
 
 ## NGINX를 선택한 이유
 
-NGINX가 CDN 시뮬레이션 엔진으로 선택된 이유는 다음과 같습니다:
+NGINX는 CDN 시뮬레이션 엔진으로 다음과 같은 이유로 선택되었습니다:
 
-1. **F5 제품** — F5는 2019년에 NGINX Inc.를 인수했으며, F5 포트폴리오의 일부입니다
-2. **업계에서 검증됨** — Cloudflare는 Pingora로 마이그레이션하기 전까지 10년 이상 전체 CDN을 NGINX로 운영했으며, Netflix는 Open Connect CDN에 NGINX를 사용합니다
-3. **단일 프로세스** — 별도의 TLS 프록시가 필요한 Varnish와 달리 하나의 바이너리에서 TLS 종료와 캐싱을 처리합니다
-4. **간단한 배포** — Ubuntu 24.04에서 `apt install nginx`로 설치하고, 두 개의 디렉티브로 캐싱을 활성화합니다
-5. **충실한 문서화** — 콘텐츠 캐싱 및 리버스 프록시 구성에 대한 광범위한 공식 문서가 제공됩니다
+1. **F5 제품** — F5는 2019년 NGINX Inc.를 인수했으며, F5 포트폴리오의 일부입니다
+2. **업계 검증** — Cloudflare는 Pingora로 마이그레이션하기 전 10년 이상 전체 CDN을 NGINX로 운영했으며, Netflix는 Open Connect CDN에 NGINX를 사용합니다
+3. **단일 프로세스** — 별도의 TLS 프록시가 필요한 Varnish와 달리, 하나의 바이너리로 TLS 종료와 캐싱을 처리합니다
+4. **간편한 배포** — Ubuntu 24.04에서 `apt install nginx`로 설치하며, 두 가지 지시어로 캐싱을 활성화합니다
+5. **풍부한 문서** — 콘텐츠 캐싱 및 리버스 프록시 구성에 대한 방대한 공식 문서가 있습니다
