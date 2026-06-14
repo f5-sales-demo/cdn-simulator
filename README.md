@@ -6,18 +6,10 @@
 
 NGINX-based CDN edge node simulator on Azure for multi-vendor lab environments
 
+
 ## Documentation
 
 Full documentation is available at **[https://f5xc-salesdemos.github.io/cdn-simulator/](https://f5xc-salesdemos.github.io/cdn-simulator/)**.
-
-## Getting Started
-
-```bash
-git clone https://github.com/f5xc-salesdemos/cdn-simulator.git
-```
-
-See the [documentation](https://f5xc-salesdemos.github.io/cdn-simulator/) for detailed setup
-and usage guides.
 
 ## Contributing
 
