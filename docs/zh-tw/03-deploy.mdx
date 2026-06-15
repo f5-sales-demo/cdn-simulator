@@ -1,13 +1,13 @@
 ---
 title: 部署
 description: >-
-  以 Terraform IaC 部署效能最佳化的 CDN 邊緣節點 — Azure F 系列運算最佳化 VM，搭載 Ubuntu
-  24.04、核心調校、NGINX 代理快取、上游保持連線、gzip 壓縮，以及透過 cloud-init 佈建的 67 種以上 CDN
-  廠商標頭。所有設定檔均位於 terraform/ 目錄中。
+  使用 Terraform IaC 部署效能最佳化的 CDN 邊緣節點 — Azure F 系列運算最佳化 VM，搭載 Ubuntu
+  24.04、核心調校、NGINX 代理快取、上游 keepalive、gzip 壓縮，以及透過 cloud-init 佈建的 67+ 個 CDN
+  廠商標頭。所有設定檔位於 terraform/ 目錄中。
 sidebar:
   order: 3
 i18n:
-  sourceHash: ad66166f6858
+  sourceHash: 53d239333ab8
   translator: machine
 ---
 
@@ -24,56 +24,56 @@ cp terraform.tfvars.example terraform.tfvars
 
 ### Terraform 檔案結構
 
-terraform 目錄包含 9 個遵循示範資源標準的檔案：
+terraform 目錄包含 9 個檔案，遵循示範資源標準：
 
-- `versions.tf` — Terraform 及提供者版本限制（azurerm ~> 4.0、azuread ~> 3.0）
-- `providers.tf` — Azure RM 及 Azure AD 提供者設定
+- `versions.tf` — Terraform 與提供者版本限制（azurerm ~> 4.0、azuread ~> 3.0）
+- `providers.tf` — Azure RM 與 Azure AD 提供者設定
 - `data.tf` — 用於部署者自動解析的 Azure AD 資料來源
 - `locals.tf` — 部署者解析、Azure 雲端採用框架資源命名、標準標籤
 - `main.tf` — 資源群組（命名為 `rg-cdn-simulator-{environment}-{deployer}`）
-- `variables.tf` — 所有輸入變數（3 個必要、8 個選用）
+- `variables.tf` — 所有輸入變數（3 個必填，8 個選填）
 - `network.tf` — VNet（10.100.0.0/16）、子網路、公用 IP、NSG（連接埠 22/80/443）、NIC
-- `vm.tf` — 搭載透過 templatefile() 傳入 cloud-init 的 Ubuntu 24.04 VM
-- `outputs.tf` — 17 個輸出（15 個標準 + 2 個元件專用）
+- `vm.tf` — 搭載 cloud-init 的 Ubuntu 24.04 VM，透過 templatefile() 傳入
+- `outputs.tf` — 17 個輸出（15 個標準輸出 + 2 個元件專屬輸出）
 
-`variables.tf` 定義了 11 個輸入變數，分為「一般」、「運算」及「元件專用」三個區段。`deployer` 識別碼會從您的 Azure AD 帳戶自動解析 — 您只需設定 `subscription_id`、`origin_server` 及 `origin_host`：
+`variables.tf` 定義了 11 個輸入變數，分為一般、運算及元件專屬三個區段。`deployer` 識別碼會從您的 Azure AD 帳戶自動解析——您只需設定 `subscription_id`、`origin_server` 與 `origin_host`：
 
 ```hcl file=../_data/variables.tf
 ```
 
 ### 網路基礎架構
 
-`network.tf` 建立 VNet、子網路、公用 IP、NSG（連接埠 22/80/443）及 NIC：
+`network.tf` 建立 VNet、子網路、公用 IP、NSG（連接埠 22/80/443）與 NIC：
 
 ```hcl file=../_data/network.tf
 ```
 
 ### 搭載 Cloud-Init 的虛擬機器
 
-`vm.tf` 建立 Ubuntu 24.04 VM。SSH 公開金鑰路徑透過 `pathexpand()` 展開，以處理 `~`。Cloud-init 範本接收 `origin_server` 及 `origin_host` 變數：
+`vm.tf` 建立 Ubuntu 24.04 VM。SSH 公鑰路徑透過 `pathexpand()` 展開以處理 `~`。Cloud-init 範本接收 `origin_server` 與 `origin_host` 變數：
 
 ```hcl file=../_data/vm.tf
 ```
 
 ### Cloud-Init 佈建
 
-`cloud-init.yaml` 使用核心調校、systemd 限制、效能最佳化設定的 NGINX、128 MB 快取鍵值區域、上游保持連線池、gzip 壓縮以及 67 種以上 CDN 廠商標頭來佈建 VM。共用輔助程式庫（`/usr/local/lib/cloud-init-helpers.sh`）提供重試邏輯，並將進度記錄至 `/var/log/cloud-init-progress.log`。
+`cloud-init.yaml` 透過核心調校、systemd 限制、效能最佳化設定的 NGINX、128 MB 快取金鑰區域、上游 keepalive 集區、gzip 壓縮以及 67+ 個 CDN 廠商標頭來佈建 VM。共用輔助函式庫（`/usr/local/lib/cloud-init-helpers.sh`）提供重試邏輯，並將進度記錄至 `/var/log/cloud-init-progress.log`。
 
-Cloud-init 使用 Terraform 範本變數：`${origin_server}` 及 `${origin_host}` 用於上游設定。NGINX 變數（例如 `${request_id}`）在 Terraform templatefile 中以 `$${request_id}` 的形式跳脫。
+cloud-init 使用 Terraform 範本變數：`${origin_server}` 與 `${origin_host}` 用於上游設定。NGINX 變數（如 `${request_id}`）在 Terraform templatefile 中需跳脫為 `$${request_id}`。
 
 ```yaml file=../_data/cloud-init.yaml
 ```
 
 ### 輸出
 
-`outputs.tf` 依循示範資源標準公開 17 個輸出 — 15 個所有示範資源共用的標準輸出（`deployer`、`public_ip`、`private_ip`、`ssh_command`、`resource_group_name`、`vm_name`、`nsg_name`、`vnet_name`、`subnet_id`、`component`、`environment`、`resource_group_id`、`vm_id`、`nsg_id`、`location`），以及 2 個元件專用輸出（`edge_url`、`health_check_url`）：
+`outputs.tf` 依照示範資源標準公開 17 個輸出——15 個所有示範資源共用的標準輸出（`deployer`、`public_ip`、`private_ip`、`ssh_command`、`resource_group_name`、`vm_name`、`nsg_name`、`vnet_name`、`subnet_id`、`component`、`environment`、`resource_group_id`、`vm_id`、`nsg_id`、`location`）加上 2 個元件專屬輸出（`edge_url`、`health_check_url`）：
 
 ```hcl file=../_data/outputs.tf
 ```
 
 ### 範例變數檔案
 
-將 `terraform.tfvars.example` 複製為 `terraform.tfvars` 並填入您的值。`.gitignore` 已排除 `terraform.tfvars`，以防止提交認證資訊：
+將 `terraform.tfvars.example` 複製為 `terraform.tfvars` 並填入您的值。`.gitignore` 已排除 `terraform.tfvars` 以防止提交認證資訊：
 
 ```hcl file=../_data/terraform.tfvars.example
 ```
@@ -91,15 +91,15 @@ terraform plan
 terraform apply
 ```
 
-成功部署後，Terraform 會輸出公用 IP、SSH 指令及邊緣節點 URL。
+Terraform 在成功部署後會輸出公用 IP、SSH 指令與邊緣節點 URL。
 
-## VM 規格選擇
+## VM 規格
 
-F 系列運算最佳化 VM 適合用於此以 CPU 為瓶頸的 NGINX 代理工作負載。預設的 `Standard_F4s_v2`（4 vCPU、8 GiB）適合實驗室及示範用途。若要進行負載測試或正式環境效能基準測試，可覆寫 `vm_size` 變數。Cloud-init 核心調校及 NGINX 設定會依 vCPU 數量自動擴展（`worker_processes auto`）。
+F 系列運算最佳化 VM 適合此 CPU 密集型的 NGINX 代理工作負載。預設的 `Standard_F4s_v2`（4 個 vCPU、8 GiB）適合實驗室與示範使用。如需負載測試或生產基準測試情境，可覆寫 `vm_size` 變數。cloud-init 核心調校與 NGINX 設定會根據 vCPU 數量自動調整（`worker_processes auto`）。
 
-## 部署後步驟
+## 部署後續
 
-`terraform apply` 完成後，請等待 2 至 3 分鐘讓 cloud-init 完成 NGINX 的安裝與設定。驗證健康狀態端點：
+`terraform apply` 完成後，請等待 2-3 分鐘讓 cloud-init 完成 NGINX 的安裝與設定。驗證健康檢查端點：
 
 ```bash
 curl -s "http://$(terraform output -raw public_ip)/health" | jq .
@@ -124,7 +124,7 @@ curl -s "http://$(terraform output -raw public_ip)/health" | jq .
 
 ## 與上游元件串接
 
-CDN 模擬器需要已部署的來源伺服器。使用來源伺服器的 terraform 輸出來填入必要變數：
+CDN 模擬器需要已部署的來源伺服器。使用來源伺服器的 terraform 輸出來填入所需變數：
 
 ```bash
 cd ../origin-server/terraform
@@ -138,9 +138,9 @@ origin_host     = "${origin_ip}:80"
 EOF
 ```
 
-| 必要變數 | 來源 | 格式 |
+| 必填變數 | 來源 | 格式 |
 |---|---|---|
-| `origin_server` | 來源伺服器 `public_ip` 輸出 | `http://<ip>`（包含協定） |
-| `origin_host` | 來源伺服器 `public_ip` 輸出 | `<ip>:80`（不含協定，包含連接埠） |
+| `origin_server` | 來源伺服器 `public_ip` 輸出 | `http://<ip>`（含通訊協定） |
+| `origin_host` | 來源伺服器 `public_ip` 輸出 | `<ip>:80`（不含通訊協定，含連接埠） |
 
 繼續前往 [NGINX 設定](../04-nginx-config/) 了解自訂選項，或前往 [驗證](../05-verify/) 進行快取測試。

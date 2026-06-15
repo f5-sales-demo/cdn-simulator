@@ -1,15 +1,15 @@
 ---
-title: การปรับใช้งาน
+title: ปรับใช้งาน
 description: >-
-  การปรับใช้งาน Terraform IaC สำหรับ CDN edge node ที่ปรับแต่งประสิทธิภาพ —
-  Azure F-series compute-optimized VM พร้อม Ubuntu 24.04, การปรับแต่ง kernel,
-  NGINX proxy cache, upstream keepalive, gzip compression, และ CDN vendor
-  headers กว่า 67 รายการ ที่จัดเตรียมผ่าน cloud-init
-  ไฟล์การกำหนดค่าทั้งหมดอยู่ในไดเรกทอรี terraform/
+  การปรับใช้งาน Terraform IaC สำหรับ CDN edge node
+  ที่ได้รับการปรับแต่งประสิทธิภาพ — Azure F-series compute-optimized VM พร้อม
+  Ubuntu 24.04, การปรับแต่งเคอร์เนล, NGINX proxy cache, upstream keepalive,
+  การบีบอัด gzip และส่วนหัวของผู้จำหน่าย CDN กว่า 67 รายการที่จัดสรรผ่าน
+  cloud-init ไฟล์การกำหนดค่าทั้งหมดอยู่ในไดเรกทอรี terraform/
 sidebar:
   order: 3
 i18n:
-  sourceHash: ad66166f6858
+  sourceHash: 53d239333ab8
   translator: machine
 ---
 
@@ -26,61 +26,61 @@ cp terraform.tfvars.example terraform.tfvars
 
 ### โครงสร้างไฟล์ Terraform
 
-ไดเรกทอรี terraform ประกอบด้วยไฟล์ 9 ไฟล์ตามมาตรฐาน ทรัพยากรสาธิต:
+ไดเรกทอรี terraform ประกอบด้วย 9 ไฟล์ตามมาตรฐาน ทรัพยากรสาธิต:
 
 - `versions.tf` — ข้อจำกัดเวอร์ชัน Terraform และ provider (azurerm ~> 4.0, azuread ~> 3.0)
-- `providers.tf` — การกำหนดค่า Azure RM และ Azure AD provider
+- `providers.tf` — การกำหนดค่า provider Azure RM และ Azure AD
 - `data.tf` — แหล่งข้อมูล Azure AD สำหรับการแก้ไข deployer อัตโนมัติ
-- `locals.tf` — การแก้ไข Deployer, การตั้งชื่อทรัพยากรตาม Azure Cloud Adoption Framework, แท็กมาตรฐาน
+- `locals.tf` — การแก้ไข deployer, การตั้งชื่อทรัพยากรตาม Azure Cloud Adoption Framework, แท็กมาตรฐาน
 - `main.tf` — Resource group (ชื่อ `rg-cdn-simulator-{environment}-{deployer}`)
-- `variables.tf` — ตัวแปร input ทั้งหมด (3 ตัวที่จำเป็น, 8 ตัวที่ไม่บังคับ)
+- `variables.tf` — ตัวแปรอินพุตทั้งหมด (3 ตัวที่จำเป็น, 8 ตัวเสริม)
 - `network.tf` — VNet (10.100.0.0/16), subnet, public IP, NSG (พอร์ต 22/80/443), NIC
 - `vm.tf` — Ubuntu 24.04 VM พร้อม cloud-init ผ่าน templatefile()
 - `outputs.tf` — 17 outputs (15 มาตรฐาน + 2 เฉพาะส่วนประกอบ)
 
-`variables.tf` กำหนดตัวแปร input จำนวน 11 ตัว จัดแบ่งเป็นส่วน General, Compute, และ Component-Specific ตัวระบุ `deployer` จะถูกแก้ไขอัตโนมัติจากบัญชี Azure AD ของคุณ — คุณจำเป็นต้องตั้งค่าเพียง `subscription_id`, `origin_server`, และ `origin_host`:
+`variables.tf` กำหนด 11 ตัวแปรอินพุต จัดเป็นหมวด General, Compute และ Component-Specific ตัวระบุ `deployer` จะถูกแก้ไขอัตโนมัติจากบัญชี Azure AD ของคุณ — คุณต้องตั้งค่าเพียง `subscription_id`, `origin_server` และ `origin_host`:
 
 ```hcl file=../_data/variables.tf
 ```
 
 ### โครงสร้างพื้นฐานเครือข่าย
 
-`network.tf` สร้าง VNet, subnet, public IP, NSG (พอร์ต 22/80/443), และ NIC:
+`network.tf` สร้าง VNet, subnet, public IP, NSG (พอร์ต 22/80/443) และ NIC:
 
 ```hcl file=../_data/network.tf
 ```
 
 ### Virtual Machine พร้อม Cloud-Init
 
-`vm.tf` สร้าง Ubuntu 24.04 VM โดย path ของ SSH public key จะถูกขยายผ่าน `pathexpand()` เพื่อรองรับ `~` เทมเพลต Cloud-init จะรับตัวแปร `origin_server` และ `origin_host`:
+`vm.tf` สร้าง Ubuntu 24.04 VM โดยพาธของ SSH public key จะถูกขยายผ่าน `pathexpand()` เพื่อรองรับ `~` เทมเพลต cloud-init รับตัวแปร `origin_server` และ `origin_host`:
 
 ```hcl file=../_data/vm.tf
 ```
 
-### การจัดเตรียมด้วย Cloud-Init
+### การจัดสรรด้วย Cloud-Init
 
-`cloud-init.yaml` จัดเตรียม VM ด้วยการปรับแต่ง kernel, systemd limits, NGINX พร้อมการกำหนดค่าที่ปรับแต่งประสิทธิภาพ, cache keys zone ขนาด 128 MB, upstream keepalive pool, gzip compression, และ CDN vendor headers กว่า 67 รายการ ไลบรารีตัวช่วยที่ใช้ร่วมกัน (`/usr/local/lib/cloud-init-helpers.sh`) มีตรรกะการลองใหม่และการบันทึกความคืบหน้าไปยัง `/var/log/cloud-init-progress.log`
+`cloud-init.yaml` จัดสรร VM ด้วยการปรับแต่งเคอร์เนล, ขีดจำกัด systemd, NGINX พร้อมการกำหนดค่าที่ปรับแต่งประสิทธิภาพ, โซนคีย์แคช 128 MB, pool ของ upstream keepalive, การบีบอัด gzip และส่วนหัวของผู้จำหน่าย CDN กว่า 67 รายการ ไลบรารีตัวช่วยร่วม (`/usr/local/lib/cloud-init-helpers.sh`) มีลอจิกการลองใหม่และการบันทึกความคืบหน้าไปยัง `/var/log/cloud-init-progress.log`
 
-Cloud-init ใช้ตัวแปรเทมเพลต Terraform ได้แก่ `${origin_server}` และ `${origin_host}` สำหรับการกำหนดค่า upstream ตัวแปร NGINX เช่น `${request_id}` จะถูก escape เป็น `$${request_id}` ใน Terraform templatefile
+cloud-init ใช้ตัวแปรเทมเพลต Terraform: `${origin_server}` และ `${origin_host}` สำหรับการกำหนดค่า upstream ตัวแปร NGINX เช่น `${request_id}` จะถูก escape เป็น `$${request_id}` ใน Terraform templatefile
 
 ```yaml file=../_data/cloud-init.yaml
 ```
 
 ### Outputs
 
-`outputs.tf` เปิดเผย 17 outputs ตามมาตรฐาน ทรัพยากรสาธิต — 15 outputs มาตรฐานที่ใช้ร่วมกันโดยทรัพยากรสาธิตทั้งหมด (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) บวกกับ 2 outputs เฉพาะส่วนประกอบ (`edge_url`, `health_check_url`):
+`outputs.tf` เปิดเผย 17 outputs ตามมาตรฐาน ทรัพยากรสาธิต — 15 outputs มาตรฐานที่ใช้ร่วมกันโดย ทรัพยากรสาธิต ทั้งหมด (`deployer`, `public_ip`, `private_ip`, `ssh_command`, `resource_group_name`, `vm_name`, `nsg_name`, `vnet_name`, `subnet_id`, `component`, `environment`, `resource_group_id`, `vm_id`, `nsg_id`, `location`) บวก 2 outputs เฉพาะส่วนประกอบ (`edge_url`, `health_check_url`):
 
 ```hcl file=../_data/outputs.tf
 ```
 
-### ตัวอย่างไฟล์ Variables
+### ไฟล์ตัวแปรตัวอย่าง
 
-คัดลอก `terraform.tfvars.example` ไปยัง `terraform.tfvars` และกรอกค่าของคุณ `.gitignore` จะยกเว้น `terraform.tfvars` เพื่อป้องกันการ commit ข้อมูลรับรอง:
+คัดลอก `terraform.tfvars.example` ไปยัง `terraform.tfvars` และกรอกค่าของคุณ `.gitignore` ยกเว้น `terraform.tfvars` เพื่อป้องกันการ commit ข้อมูลประจำตัว:
 
 ```hcl file=../_data/terraform.tfvars.example
 ```
 
-## การปรับใช้งาน
+## ปรับใช้งาน
 
 ```bash
 # Initialize Terraform
@@ -93,15 +93,15 @@ terraform plan
 terraform apply
 ```
 
-Terraform จะแสดง public IP, คำสั่ง SSH, และ edge URL หลังจากปรับใช้งานสำเร็จ
+Terraform จะแสดง public IP, คำสั่ง SSH และ edge URL หลังจากการปรับใช้งานสำเร็จ
 
-## ขนาด VM
+## การกำหนดขนาด VM
 
-F-series compute-optimized VM แนะนำสำหรับ workload NGINX proxy ที่ใช้ CPU เป็นหลักนี้ ค่าเริ่มต้น `Standard_F4s_v2` (4 vCPU, 8 GiB) เหมาะสำหรับการใช้งานในห้องปฏิบัติการและการสาธิต สามารถแทนที่ตัวแปร `vm_size` สำหรับสถานการณ์การทดสอบโหลดหรือการวัดประสิทธิภาพในสภาพแวดล้อมการผลิต การปรับแต่ง kernel ผ่าน cloud-init และการกำหนดค่า NGINX จะปรับขนาดโดยอัตโนมัติตามจำนวน vCPU (`worker_processes auto`)
+F-series compute-optimized VM แนะนำสำหรับ workload NGINX proxy ที่ใช้ CPU เป็นหลัก `Standard_F4s_v2` ค่าเริ่มต้น (4 vCPU, 8 GiB) เหมาะสำหรับการใช้งานในห้องปฏิบัติการและการสาธิต สามารถแทนที่ตัวแปร `vm_size` สำหรับสถานการณ์การทดสอบโหลดหรือการวัดประสิทธิภาพในการใช้งานจริง การปรับแต่งเคอร์เนลด้วย cloud-init และการกำหนดค่า NGINX จะปรับขนาดอัตโนมัติตามจำนวน vCPU (`worker_processes auto`)
 
-## หลังการปรับใช้งาน
+## หลังจากการปรับใช้งาน
 
-หลังจาก `terraform apply` เสร็จสมบูรณ์ ให้รอ 2-3 นาทีเพื่อให้ cloud-init ติดตั้งและกำหนดค่า NGINX เสร็จสิ้น ตรวจสอบ health endpoint:
+หลังจาก `terraform apply` เสร็จสิ้น รอ 2-3 นาทีเพื่อให้ cloud-init ติดตั้งและกำหนดค่า NGINX เสร็จสมบูรณ์ ตรวจสอบ endpoint สุขภาพ:
 
 ```bash
 curl -s "http://$(terraform output -raw public_ip)/health" | jq .
@@ -124,9 +124,9 @@ curl -s "http://$(terraform output -raw public_ip)/health" | jq .
 }
 ```
 
-## การเชื่อมต่อจากส่วนประกอบ Upstream
+## การเชื่อมต่อจาก ส่วนประกอบ ต้นน้ำ
 
-ตัวจำลอง CDN ต้องการ origin server ที่ปรับใช้งานแล้ว ใช้ terraform outputs ของ origin server เพื่อกำหนดค่าตัวแปรที่จำเป็น:
+ตัวจำลอง CDN ต้องการ เซิร์ฟเวอร์ต้นทาง ที่ถูกปรับใช้งานแล้ว ใช้ outputs ของ terraform จาก เซิร์ฟเวอร์ต้นทาง เพื่อกรอกตัวแปรที่จำเป็น:
 
 ```bash
 cd ../origin-server/terraform
@@ -142,7 +142,7 @@ EOF
 
 | ตัวแปรที่จำเป็น | แหล่งที่มา | รูปแบบ |
 |---|---|---|
-| `origin_server` | output `public_ip` ของ Origin server | `http://<ip>` (ระบุ scheme) |
-| `origin_host` | output `public_ip` ของ Origin server | `<ip>:80` (ไม่มี scheme, ระบุพอร์ต) |
+| `origin_server` | output `public_ip` ของ เซิร์ฟเวอร์ต้นทาง | `http://<ip>` (รวม scheme) |
+| `origin_host` | output `public_ip` ของ เซิร์ฟเวอร์ต้นทาง | `<ip>:80` (ไม่มี scheme, รวมพอร์ต) |
 
-ดำเนินการต่อไปยัง [การกำหนดค่า NGINX](../04-nginx-config/) สำหรับตัวเลือกการปรับแต่ง หรือ [การตรวจสอบ](../05-verify/) สำหรับการทดสอบ cache
+ดำเนินการต่อไปยัง [การกำหนดค่า NGINX](../04-nginx-config/) สำหรับตัวเลือกการปรับแต่ง หรือ [ตรวจสอบ](../05-verify/) สำหรับการทดสอบแคช
