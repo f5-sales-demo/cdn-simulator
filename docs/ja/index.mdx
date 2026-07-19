@@ -22,17 +22,17 @@ hero:
       icon: rocket
       variant: minimal
 i18n:
-  sourceHash: 7c6769192b97
+  sourceHash: 20966bfa88fd
   translator: machine
 ---
 
 ## 提供される機能
 
-- **[シングルエッジノード](01-overview/)** — キャッシングリバースプロキシとして NGINX を実行する Ubuntu 24.04 VM 1台、最小構成の CDN エッジ
-- **[Terraform デプロイメント](03-deploy/)** — 完全な Azure インフラストラクチャのコード化：VNet、PIP、NSG、および cloud-init プロビジョニングを備えた VM
-- **[67 以上の CDN ベンダーヘッダー](04-nginx-config/)** — True-Client-IP、CF-Connecting-IP、ジオロケーション、デバイス検出、JA3/JA4 フィンガープリント、ボットスコアを含む Akamai、Cloudflare、CloudFront、Fastly、Azure Front Door のリクエストヘッダーをシミュレート
-- **[オリジンサーバー統合](06-integrate/)** — キャッシュミスをオリジンサーバーとして F5 XC HTTP ロードバランサーに転送するようエッジを設定
-- **[キャッシュ検証](05-verify/)** — X-Cache-Status ヘッダーと NGINX キャッシュ検査による HIT/MISS の動作を確認
+- **[シングルエッジノード](/cdn-simulator/ja/01-overview/)** — キャッシングリバースプロキシとして NGINX を実行する Ubuntu 24.04 VM 1台、最小構成の CDN エッジ
+- **[Terraform デプロイメント](/cdn-simulator/ja/03-deploy/)** — 完全な Azure インフラストラクチャのコード化：VNet、PIP、NSG、および cloud-init プロビジョニングを備えた VM
+- **[67 以上の CDN ベンダーヘッダー](/cdn-simulator/ja/04-nginx-config/)** — True-Client-IP、CF-Connecting-IP、ジオロケーション、デバイス検出、JA3/JA4 フィンガープリント、ボットスコアを含む Akamai、Cloudflare、CloudFront、Fastly、Azure Front Door のリクエストヘッダーをシミュレート
+- **[オリジンサーバー統合](/cdn-simulator/ja/06-integrate/)** — キャッシュミスをオリジンサーバーとして F5 XC HTTP ロードバランサーに転送するようエッジを設定
+- **[キャッシュ検証](/cdn-simulator/ja/05-verify/)** — X-Cache-Status ヘッダーと NGINX キャッシュ検査による HIT/MISS の動作を確認
 
 ## クイックリファレンス
 
@@ -58,10 +58,10 @@ i18n:
 
 | ページ | 対象者 | 目的 |
 |---|---|---|
-| [概要](01-overview/) | 人間 + AI | アーキテクチャ、マルチベンダーのコンテキスト、シミュレート内容 |
-| [前提条件](02-prerequisites/) | AI | 必要なツール、Azure サブスクリプション、SSH キー、コスト見積もり |
-| [デプロイ](03-deploy/) | AI | 完全な Terraform HCL — コピーして適用するだけでデプロイ可能 |
-| [NGINX 設定](04-nginx-config/) | 人間 + AI | 正確な値と目的を含む 67 以上のすべての CDN ベンダーヘッダー |
-| [検証](05-verify/) | AI | 期待されるリクエスト/レスポンスの動作を含むスモークテストコマンド |
-| [F5 XC との統合](06-integrate/) | 人間 + AI | エッジをオリジンサーバーとして F5 XC に接続し、エンドツーエンドで検証 |
-| [削除](07-teardown/) | AI | すべてのリソースを破棄し、クリーンアップコマンドを実行 |
+| [概要](/cdn-simulator/ja/01-overview/) | 人間 + AI | アーキテクチャ、マルチベンダーのコンテキスト、シミュレート内容 |
+| [前提条件](/cdn-simulator/ja/02-prerequisites/) | AI | 必要なツール、Azure サブスクリプション、SSH キー、コスト見積もり |
+| [デプロイ](/cdn-simulator/ja/03-deploy/) | AI | 完全な Terraform HCL — コピーして適用するだけでデプロイ可能 |
+| [NGINX 設定](/cdn-simulator/ja/04-nginx-config/) | 人間 + AI | 正確な値と目的を含む 67 以上のすべての CDN ベンダーヘッダー |
+| [検証](/cdn-simulator/ja/05-verify/) | AI | 期待されるリクエスト/レスポンスの動作を含むスモークテストコマンド |
+| [F5 XC との統合](/cdn-simulator/ja/06-integrate/) | 人間 + AI | エッジをオリジンサーバーとして F5 XC に接続し、エンドツーエンドで検証 |
+| [削除](/cdn-simulator/ja/07-teardown/) | AI | すべてのリソースを破棄し、クリーンアップコマンドを実行 |

@@ -25,17 +25,17 @@ hero:
       icon: rocket
       variant: minimal
 i18n:
-  sourceHash: 7c6769192b97
+  sourceHash: 20966bfa88fd
   translator: machine
 ---
 
 ## Was dieser Simulator bietet
 
-- **[Einzelner Edge-Node](01-overview/)** — Eine Ubuntu 24.04-VM, die NGINX als Caching-Reverse-Proxy ausführt – das minimal funktionsfähige CDN-Edge
-- **[Terraform-Bereitstellung](03-deploy/)** — Vollständige Azure-Infrastruktur als Code: VNet, PIP, NSG und VM mit Cloud-init-Provisionierung
-- **[67+ CDN-Anbieter-Header](04-nginx-config/)** — Simuliert Akamai, Cloudflare, CloudFront, Fastly und Azure Front Door-Anforderungsheader, einschließlich True-Client-IP, CF-Connecting-IP, Geolokalisierung, Geräteerkennung, JA3/JA4-Fingerprints und Bot-Scores
-- **[Ursprungsserver-Integration](06-integrate/)** — Konfigurieren Sie den Edge-Node, um Cache-Misses an einen F5 XC HTTP-Load-Balancer als Ursprungsserver weiterzuleiten
-- **[Cache-Verifizierung](05-verify/)** — Validierung von HIT/MISS-Verhalten mit X-Cache-Status-Headern und NGINX-Cache-Inspektion
+- **[Einzelner Edge-Node](/cdn-simulator/de/01-overview/)** — Eine Ubuntu 24.04-VM, die NGINX als Caching-Reverse-Proxy ausführt – das minimal funktionsfähige CDN-Edge
+- **[Terraform-Bereitstellung](/cdn-simulator/de/03-deploy/)** — Vollständige Azure-Infrastruktur als Code: VNet, PIP, NSG und VM mit Cloud-init-Provisionierung
+- **[67+ CDN-Anbieter-Header](/cdn-simulator/de/04-nginx-config/)** — Simuliert Akamai, Cloudflare, CloudFront, Fastly und Azure Front Door-Anforderungsheader, einschließlich True-Client-IP, CF-Connecting-IP, Geolokalisierung, Geräteerkennung, JA3/JA4-Fingerprints und Bot-Scores
+- **[Ursprungsserver-Integration](/cdn-simulator/de/06-integrate/)** — Konfigurieren Sie den Edge-Node, um Cache-Misses an einen F5 XC HTTP-Load-Balancer als Ursprungsserver weiterzuleiten
+- **[Cache-Verifizierung](/cdn-simulator/de/05-verify/)** — Validierung von HIT/MISS-Verhalten mit X-Cache-Status-Headern und NGINX-Cache-Inspektion
 
 ## Kurzreferenz
 
@@ -61,10 +61,10 @@ Antwortheader, die jeder proxierten Antwort hinzugefügt werden:
 
 | Seite | Zielgruppe | Zweck |
 |---|---|---|
-| [Übersicht](01-overview/) | Mensch + KI | Architektur, Multi-Anbieter-Kontext, was dieser Simulator abbildet |
-| [Voraussetzungen](02-prerequisites/) | KI | Erforderliche Werkzeuge, Azure-Abonnement, SSH-Schlüssel, Kostenschätzung |
-| [Bereitstellen](03-deploy/) | KI | Vollständiges Terraform-HCL — kopieren und anwenden zur Bereitstellung |
-| [NGINX-Konfiguration](04-nginx-config/) | Mensch + KI | Alle 67+ CDN-Anbieter-Header mit genauen Werten und Zwecken |
-| [Verifizieren](05-verify/) | KI | Smoke-Test-Befehle mit erwartetem Anfrage-/Antwortverhalten |
-| [Integration mit F5 XC](06-integrate/) | Mensch + KI | Edge-Node mit F5 XC als Ursprungsserver verbinden, End-to-End-Verifizierung |
-| [Abbau](07-teardown/) | KI | Alle Ressourcen zerstören, Bereinigungsbefehle |
+| [Übersicht](/cdn-simulator/de/01-overview/) | Mensch + KI | Architektur, Multi-Anbieter-Kontext, was dieser Simulator abbildet |
+| [Voraussetzungen](/cdn-simulator/de/02-prerequisites/) | KI | Erforderliche Werkzeuge, Azure-Abonnement, SSH-Schlüssel, Kostenschätzung |
+| [Bereitstellen](/cdn-simulator/de/03-deploy/) | KI | Vollständiges Terraform-HCL — kopieren und anwenden zur Bereitstellung |
+| [NGINX-Konfiguration](/cdn-simulator/de/04-nginx-config/) | Mensch + KI | Alle 67+ CDN-Anbieter-Header mit genauen Werten und Zwecken |
+| [Verifizieren](/cdn-simulator/de/05-verify/) | KI | Smoke-Test-Befehle mit erwartetem Anfrage-/Antwortverhalten |
+| [Integration mit F5 XC](/cdn-simulator/de/06-integrate/) | Mensch + KI | Edge-Node mit F5 XC als Ursprungsserver verbinden, End-to-End-Verifizierung |
+| [Abbau](/cdn-simulator/de/07-teardown/) | KI | Alle Ressourcen zerstören, Bereinigungsbefehle |

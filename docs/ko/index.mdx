@@ -21,17 +21,17 @@ hero:
       icon: rocket
       variant: minimal
 i18n:
-  sourceHash: 7c6769192b97
+  sourceHash: 20966bfa88fd
   translator: machine
 ---
 
 ## 제공 기능
 
-- **[단일 엣지 노드](01-overview/)** — 캐싱 역방향 프록시로 NGINX를 실행하는 Ubuntu 24.04 VM 1대, 최소 실행 가능한 CDN 엣지
-- **[Terraform 배포](03-deploy/)** — 완전한 Azure 인프라 코드: VNet, PIP, NSG, cloud-init 프로비저닝이 포함된 VM
-- **[67개 이상의 CDN 벤더 헤더](04-nginx-config/)** — True-Client-IP, CF-Connecting-IP, 지리적 위치, 디바이스 감지, JA3/JA4 핑거프린트, 봇 점수를 포함한 Akamai, Cloudflare, CloudFront, Fastly, Azure Front Door 요청 헤더 시뮬레이션
-- **[오리진 통합](06-integrate/)** — 캐시 미스를 오리진 서버로서 F5 XC HTTP 부하 분산기에 전달하도록 엣지 구성
-- **[캐시 검증](05-verify/)** — X-Cache-Status 헤더와 NGINX 캐시 검사를 통한 HIT/MISS 동작 확인
+- **[단일 엣지 노드](/cdn-simulator/ko/01-overview/)** — 캐싱 역방향 프록시로 NGINX를 실행하는 Ubuntu 24.04 VM 1대, 최소 실행 가능한 CDN 엣지
+- **[Terraform 배포](/cdn-simulator/ko/03-deploy/)** — 완전한 Azure 인프라 코드: VNet, PIP, NSG, cloud-init 프로비저닝이 포함된 VM
+- **[67개 이상의 CDN 벤더 헤더](/cdn-simulator/ko/04-nginx-config/)** — True-Client-IP, CF-Connecting-IP, 지리적 위치, 디바이스 감지, JA3/JA4 핑거프린트, 봇 점수를 포함한 Akamai, Cloudflare, CloudFront, Fastly, Azure Front Door 요청 헤더 시뮬레이션
+- **[오리진 통합](/cdn-simulator/ko/06-integrate/)** — 캐시 미스를 오리진 서버로서 F5 XC HTTP 부하 분산기에 전달하도록 엣지 구성
+- **[캐시 검증](/cdn-simulator/ko/05-verify/)** — X-Cache-Status 헤더와 NGINX 캐시 검사를 통한 HIT/MISS 동작 확인
 
 ## 빠른 참조
 
@@ -57,10 +57,10 @@ i18n:
 
 | 페이지 | 대상 | 목적 |
 |---|---|---|
-| [개요](01-overview/) | 사람 + AI | 아키텍처, 멀티 벤더 컨텍스트, 시뮬레이션 대상 |
-| [사전 요구 사항](02-prerequisites/) | AI | 필요한 도구, Azure 구독, SSH 키, 비용 추정 |
-| [배포](03-deploy/) | AI | 완전한 Terraform HCL — 복사 후 적용하여 배포 |
-| [NGINX 구성](04-nginx-config/) | 사람 + AI | 정확한 값과 목적이 포함된 67개 이상의 CDN 벤더 헤더 |
-| [검증](05-verify/) | AI | 예상 요청/응답 동작이 포함된 스모크 테스트 명령 |
-| [F5 XC와 통합](06-integrate/) | 사람 + AI | 오리진 서버로 F5 XC에 엣지 연결, 종단 간 검증 |
-| [해체](07-teardown/) | AI | 모든 리소스 삭제, 정리 명령 |
+| [개요](/cdn-simulator/ko/01-overview/) | 사람 + AI | 아키텍처, 멀티 벤더 컨텍스트, 시뮬레이션 대상 |
+| [사전 요구 사항](/cdn-simulator/ko/02-prerequisites/) | AI | 필요한 도구, Azure 구독, SSH 키, 비용 추정 |
+| [배포](/cdn-simulator/ko/03-deploy/) | AI | 완전한 Terraform HCL — 복사 후 적용하여 배포 |
+| [NGINX 구성](/cdn-simulator/ko/04-nginx-config/) | 사람 + AI | 정확한 값과 목적이 포함된 67개 이상의 CDN 벤더 헤더 |
+| [검증](/cdn-simulator/ko/05-verify/) | AI | 예상 요청/응답 동작이 포함된 스모크 테스트 명령 |
+| [F5 XC와 통합](/cdn-simulator/ko/06-integrate/) | 사람 + AI | 오리진 서버로 F5 XC에 엣지 연결, 종단 간 검증 |
+| [해체](/cdn-simulator/ko/07-teardown/) | AI | 모든 리소스 삭제, 정리 명령 |

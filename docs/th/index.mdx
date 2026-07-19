@@ -25,17 +25,17 @@ hero:
       icon: rocket
       variant: minimal
 i18n:
-  sourceHash: 7c6769192b97
+  sourceHash: 20966bfa88fd
   translator: machine
 ---
 
 ## สิ่งที่ได้รับ
 
-- **[Edge Node เดี่ยว](01-overview/)** — VM Ubuntu 24.04 หนึ่งเครื่องที่รัน NGINX เป็น caching reverse proxy ซึ่งเป็น CDN edge ขั้นต่ำที่ใช้งานได้
-- **[การปรับใช้ด้วย Terraform](03-deploy/)** — โครงสร้างพื้นฐาน Azure แบบ code ที่สมบูรณ์: VNet, PIP, NSG และ VM พร้อมการจัดเตรียมด้วย cloud-init
-- **[CDN Vendor Header กว่า 67 รายการ](04-nginx-config/)** — จำลอง header ของ Akamai, Cloudflare, CloudFront, Fastly และ Azure Front Door รวมถึง True-Client-IP, CF-Connecting-IP, geolocation, การตรวจจับอุปกรณ์, fingerprint JA3/JA4 และคะแนน bot
-- **[การผสานรวมกับ เซิร์ฟเวอร์ต้นทาง](06-integrate/)** — กำหนดค่า edge เพื่อส่งต่อ cache miss ไปยัง F5 XC HTTP load balancer ในฐานะ origin
-- **[การตรวจสอบแคช](05-verify/)** — ตรวจสอบพฤติกรรม HIT/MISS ด้วย header X-Cache-Status และการตรวจสอบแคช NGINX
+- **[Edge Node เดี่ยว](/cdn-simulator/th/01-overview/)** — VM Ubuntu 24.04 หนึ่งเครื่องที่รัน NGINX เป็น caching reverse proxy ซึ่งเป็น CDN edge ขั้นต่ำที่ใช้งานได้
+- **[การปรับใช้ด้วย Terraform](/cdn-simulator/th/03-deploy/)** — โครงสร้างพื้นฐาน Azure แบบ code ที่สมบูรณ์: VNet, PIP, NSG และ VM พร้อมการจัดเตรียมด้วย cloud-init
+- **[CDN Vendor Header กว่า 67 รายการ](/cdn-simulator/th/04-nginx-config/)** — จำลอง header ของ Akamai, Cloudflare, CloudFront, Fastly และ Azure Front Door รวมถึง True-Client-IP, CF-Connecting-IP, geolocation, การตรวจจับอุปกรณ์, fingerprint JA3/JA4 และคะแนน bot
+- **[การผสานรวมกับ เซิร์ฟเวอร์ต้นทาง](/cdn-simulator/th/06-integrate/)** — กำหนดค่า edge เพื่อส่งต่อ cache miss ไปยัง F5 XC HTTP load balancer ในฐานะ origin
+- **[การตรวจสอบแคช](/cdn-simulator/th/05-verify/)** — ตรวจสอบพฤติกรรม HIT/MISS ด้วย header X-Cache-Status และการตรวจสอบแคช NGINX
 
 ## อ้างอิงด่วน
 
@@ -61,10 +61,10 @@ Response header ที่เพิ่มในทุก proxied response:
 
 | หน้า | กลุ่มเป้าหมาย | วัตถุประสงค์ |
 |---|---|---|
-| [ภาพรวม](01-overview/) | มนุษย์ + AI | สถาปัตยกรรม บริบทหลายผู้ขาย สิ่งที่จำลอง |
-| [ข้อกำหนดเบื้องต้น](02-prerequisites/) | AI | เครื่องมือที่จำเป็น, การสมัครใช้งาน Azure, SSH key, ประมาณการค่าใช้จ่าย |
-| [ปรับใช้](03-deploy/) | AI | Terraform HCL ที่สมบูรณ์ — คัดลอกและ apply เพื่อปรับใช้ |
-| [การกำหนดค่า NGINX](04-nginx-config/) | มนุษย์ + AI | CDN vendor header กว่า 67 รายการพร้อมค่าและวัตถุประสงค์ที่แน่นอน |
-| [ตรวจสอบ](05-verify/) | AI | คำสั่ง smoke test พร้อมพฤติกรรม request/response ที่คาดหวัง |
-| [ผสานรวมกับ F5 XC](06-integrate/) | มนุษย์ + AI | เชื่อมต่อ edge กับ F5 XC ในฐานะ origin การตรวจสอบแบบ end-to-end |
-| [ถอนการติดตั้ง](07-teardown/) | AI | ทำลายทรัพยากรทั้งหมด คำสั่งทำความสะอาด |
+| [ภาพรวม](/cdn-simulator/th/01-overview/) | มนุษย์ + AI | สถาปัตยกรรม บริบทหลายผู้ขาย สิ่งที่จำลอง |
+| [ข้อกำหนดเบื้องต้น](/cdn-simulator/th/02-prerequisites/) | AI | เครื่องมือที่จำเป็น, การสมัครใช้งาน Azure, SSH key, ประมาณการค่าใช้จ่าย |
+| [ปรับใช้](/cdn-simulator/th/03-deploy/) | AI | Terraform HCL ที่สมบูรณ์ — คัดลอกและ apply เพื่อปรับใช้ |
+| [การกำหนดค่า NGINX](/cdn-simulator/th/04-nginx-config/) | มนุษย์ + AI | CDN vendor header กว่า 67 รายการพร้อมค่าและวัตถุประสงค์ที่แน่นอน |
+| [ตรวจสอบ](/cdn-simulator/th/05-verify/) | AI | คำสั่ง smoke test พร้อมพฤติกรรม request/response ที่คาดหวัง |
+| [ผสานรวมกับ F5 XC](/cdn-simulator/th/06-integrate/) | มนุษย์ + AI | เชื่อมต่อ edge กับ F5 XC ในฐานะ origin การตรวจสอบแบบ end-to-end |
+| [ถอนการติดตั้ง](/cdn-simulator/th/07-teardown/) | AI | ทำลายทรัพยากรทั้งหมด คำสั่งทำความสะอาด |

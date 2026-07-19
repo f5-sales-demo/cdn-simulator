@@ -25,17 +25,17 @@ hero:
       icon: rocket
       variant: minimal
 i18n:
-  sourceHash: 7c6769192b97
+  sourceHash: 20966bfa88fd
   translator: machine
 ---
 
 ## Cosa offre questo strumento
 
-- **[Nodo edge singolo](01-overview/)** — Una VM Ubuntu 24.04 che esegue NGINX come reverse proxy di caching, il minimo indispensabile per un edge CDN
-- **[Distribuzione Terraform](03-deploy/)** — Infrastruttura Azure completa come codice: VNet, PIP, NSG e VM con provisioning cloud-init
-- **[67+ header di vendor CDN](04-nginx-config/)** — Simula gli header di richiesta di Akamai, Cloudflare, CloudFront, Fastly e Azure Front Door, inclusi True-Client-IP, CF-Connecting-IP, geolocalizzazione, rilevamento dispositivo, fingerprint JA3/JA4 e punteggi bot
-- **[Integrazione con il Server di origine](06-integrate/)** — Configura l'edge per inoltrare i cache miss a un bilanciatore del carico HTTP F5 XC come origine
-- **[Verifica della cache](05-verify/)** — Convalida il comportamento HIT/MISS con gli header X-Cache-Status e l'ispezione della cache NGINX
+- **[Nodo edge singolo](/cdn-simulator/it/01-overview/)** — Una VM Ubuntu 24.04 che esegue NGINX come reverse proxy di caching, il minimo indispensabile per un edge CDN
+- **[Distribuzione Terraform](/cdn-simulator/it/03-deploy/)** — Infrastruttura Azure completa come codice: VNet, PIP, NSG e VM con provisioning cloud-init
+- **[67+ header di vendor CDN](/cdn-simulator/it/04-nginx-config/)** — Simula gli header di richiesta di Akamai, Cloudflare, CloudFront, Fastly e Azure Front Door, inclusi True-Client-IP, CF-Connecting-IP, geolocalizzazione, rilevamento dispositivo, fingerprint JA3/JA4 e punteggi bot
+- **[Integrazione con il Server di origine](/cdn-simulator/it/06-integrate/)** — Configura l'edge per inoltrare i cache miss a un bilanciatore del carico HTTP F5 XC come origine
+- **[Verifica della cache](/cdn-simulator/it/05-verify/)** — Convalida il comportamento HIT/MISS con gli header X-Cache-Status e l'ispezione della cache NGINX
 
 ## Riferimento rapido
 
@@ -61,10 +61,10 @@ Header di risposta aggiunti a ogni risposta proxata:
 
 | Pagina | Destinatari | Scopo |
 |---|---|---|
-| [Panoramica](01-overview/) | Umano + IA | Architettura, contesto multi-vendor, cosa viene simulato |
-| [Prerequisiti](02-prerequisites/) | IA | Strumenti richiesti, sottoscrizione Azure, chiavi SSH, stima dei costi |
-| [Distribuisci](03-deploy/) | IA | HCL Terraform completo — copiare e applicare per distribuire |
-| [Configurazione NGINX](04-nginx-config/) | Umano + IA | Tutti i 67+ header di vendor CDN con valori esatti e scopi |
-| [Verifica](05-verify/) | IA | Comandi di smoke test con comportamento atteso di richiesta/risposta |
-| [Integra con F5 XC](06-integrate/) | Umano + IA | Connetti l'edge a F5 XC come origine, verifica end-to-end |
-| [Smantellamento](07-teardown/) | IA | Eliminazione di tutte le risorse, comandi di pulizia |
+| [Panoramica](/cdn-simulator/it/01-overview/) | Umano + IA | Architettura, contesto multi-vendor, cosa viene simulato |
+| [Prerequisiti](/cdn-simulator/it/02-prerequisites/) | IA | Strumenti richiesti, sottoscrizione Azure, chiavi SSH, stima dei costi |
+| [Distribuisci](/cdn-simulator/it/03-deploy/) | IA | HCL Terraform completo — copiare e applicare per distribuire |
+| [Configurazione NGINX](/cdn-simulator/it/04-nginx-config/) | Umano + IA | Tutti i 67+ header di vendor CDN con valori esatti e scopi |
+| [Verifica](/cdn-simulator/it/05-verify/) | IA | Comandi di smoke test con comportamento atteso di richiesta/risposta |
+| [Integra con F5 XC](/cdn-simulator/it/06-integrate/) | Umano + IA | Connetti l'edge a F5 XC come origine, verifica end-to-end |
+| [Smantellamento](/cdn-simulator/it/07-teardown/) | IA | Eliminazione di tutte le risorse, comandi di pulizia |

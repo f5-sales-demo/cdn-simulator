@@ -25,17 +25,17 @@ hero:
       icon: rocket
       variant: minimal
 i18n:
-  sourceHash: 7c6769192b97
+  sourceHash: 20966bfa88fd
   translator: machine
 ---
 
 ## Qué proporciona esto
 
-- **[Nodo de borde único](01-overview/)** — Una VM Ubuntu 24.04 que ejecuta NGINX como proxy inverso de caché, el mínimo viable de borde CDN
-- **[Despliegue con Terraform](03-deploy/)** — Infraestructura completa de Azure como código: VNet, PIP, NSG y VM con aprovisionamiento cloud-init
-- **[Más de 67 encabezados de proveedores CDN](04-nginx-config/)** — Simula encabezados de solicitud de Akamai, Cloudflare, CloudFront, Fastly y Azure Front Door, incluidos True-Client-IP, CF-Connecting-IP, geolocalización, detección de dispositivos, huellas digitales JA3/JA4 y puntuaciones de bots
-- **[Integración con el Servidor de origen](06-integrate/)** — Configure el borde para reenviar los errores de caché a un balanceador de carga HTTP de F5 XC como origen
-- **[Verificación de caché](05-verify/)** — Valide el comportamiento HIT/MISS con encabezados X-Cache-Status e inspección de caché NGINX
+- **[Nodo de borde único](/cdn-simulator/es/01-overview/)** — Una VM Ubuntu 24.04 que ejecuta NGINX como proxy inverso de caché, el mínimo viable de borde CDN
+- **[Despliegue con Terraform](/cdn-simulator/es/03-deploy/)** — Infraestructura completa de Azure como código: VNet, PIP, NSG y VM con aprovisionamiento cloud-init
+- **[Más de 67 encabezados de proveedores CDN](/cdn-simulator/es/04-nginx-config/)** — Simula encabezados de solicitud de Akamai, Cloudflare, CloudFront, Fastly y Azure Front Door, incluidos True-Client-IP, CF-Connecting-IP, geolocalización, detección de dispositivos, huellas digitales JA3/JA4 y puntuaciones de bots
+- **[Integración con el Servidor de origen](/cdn-simulator/es/06-integrate/)** — Configure el borde para reenviar los errores de caché a un balanceador de carga HTTP de F5 XC como origen
+- **[Verificación de caché](/cdn-simulator/es/05-verify/)** — Valide el comportamiento HIT/MISS con encabezados X-Cache-Status e inspección de caché NGINX
 
 ## Referencia rápida
 
@@ -61,10 +61,10 @@ Encabezados de respuesta añadidos a cada respuesta enviada mediante proxy:
 
 | Página | Audiencia | Propósito |
 |---|---|---|
-| [Descripción general](01-overview/) | Humano + IA | Arquitectura, contexto multifabricante, qué simula esto |
-| [Requisitos previos](02-prerequisites/) | IA | Herramientas requeridas, suscripción de Azure, claves SSH, estimación de costos |
-| [Despliegue](03-deploy/) | IA | HCL de Terraform completo — copiar y aplicar para desplegar |
-| [Configuración de NGINX](04-nginx-config/) | Humano + IA | Los más de 67 encabezados de proveedor CDN con valores exactos y propósitos |
-| [Verificar](05-verify/) | IA | Comandos de prueba básica con el comportamiento esperado de solicitud/respuesta |
-| [Integrar con F5 XC](06-integrate/) | Humano + IA | Conectar el borde a F5 XC como origen, verificación de extremo a extremo |
-| [Eliminar recursos](07-teardown/) | IA | Destruir todos los recursos, comandos de limpieza |
+| [Descripción general](/cdn-simulator/es/01-overview/) | Humano + IA | Arquitectura, contexto multifabricante, qué simula esto |
+| [Requisitos previos](/cdn-simulator/es/02-prerequisites/) | IA | Herramientas requeridas, suscripción de Azure, claves SSH, estimación de costos |
+| [Despliegue](/cdn-simulator/es/03-deploy/) | IA | HCL de Terraform completo — copiar y aplicar para desplegar |
+| [Configuración de NGINX](/cdn-simulator/es/04-nginx-config/) | Humano + IA | Los más de 67 encabezados de proveedor CDN con valores exactos y propósitos |
+| [Verificar](/cdn-simulator/es/05-verify/) | IA | Comandos de prueba básica con el comportamiento esperado de solicitud/respuesta |
+| [Integrar con F5 XC](/cdn-simulator/es/06-integrate/) | Humano + IA | Conectar el borde a F5 XC como origen, verificación de extremo a extremo |
+| [Eliminar recursos](/cdn-simulator/es/07-teardown/) | IA | Destruir todos los recursos, comandos de limpieza |

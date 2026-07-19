@@ -21,17 +21,17 @@ hero:
       icon: rocket
       variant: minimal
 i18n:
-  sourceHash: 7c6769192b97
+  sourceHash: 20966bfa88fd
   translator: machine
 ---
 
 ## 功能说明
 
-- **[单一边缘节点](01-overview/)** — 一台运行 NGINX 作为缓存反向代理的 Ubuntu 24.04 VM，是最小可行的 CDN 边缘节点
-- **[Terraform 部署](03-deploy/)** — 完整的 Azure 基础设施即代码：VNet、PIP、NSG 以及通过 cloud-init 进行预配置的 VM
-- **[67+ CDN 厂商请求头](04-nginx-config/)** — 模拟 Akamai、Cloudflare、CloudFront、Fastly 和 Azure Front Door 的请求头，包括 True-Client-IP、CF-Connecting-IP、地理位置信息、设备检测、JA3/JA4 指纹以及机器人评分
-- **[源站集成](06-integrate/)** — 将边缘节点配置为把缓存未命中的请求转发至 F5 XC HTTP 负载均衡器作为源站
-- **[缓存验证](05-verify/)** — 通过 X-Cache-Status 响应头和 NGINX 缓存检查来验证 HIT/MISS 行为
+- **[单一边缘节点](/cdn-simulator/zh-cn/01-overview/)** — 一台运行 NGINX 作为缓存反向代理的 Ubuntu 24.04 VM，是最小可行的 CDN 边缘节点
+- **[Terraform 部署](/cdn-simulator/zh-cn/03-deploy/)** — 完整的 Azure 基础设施即代码：VNet、PIP、NSG 以及通过 cloud-init 进行预配置的 VM
+- **[67+ CDN 厂商请求头](/cdn-simulator/zh-cn/04-nginx-config/)** — 模拟 Akamai、Cloudflare、CloudFront、Fastly 和 Azure Front Door 的请求头，包括 True-Client-IP、CF-Connecting-IP、地理位置信息、设备检测、JA3/JA4 指纹以及机器人评分
+- **[源站集成](/cdn-simulator/zh-cn/06-integrate/)** — 将边缘节点配置为把缓存未命中的请求转发至 F5 XC HTTP 负载均衡器作为源站
+- **[缓存验证](/cdn-simulator/zh-cn/05-verify/)** — 通过 X-Cache-Status 响应头和 NGINX 缓存检查来验证 HIT/MISS 行为
 
 ## 快速参考
 
@@ -57,10 +57,10 @@ i18n:
 
 | 页面 | 适用对象 | 用途 |
 |---|---|---|
-| [概述](01-overview/) | 人工 + AI | 架构说明、多厂商背景、模拟内容介绍 |
-| [前置条件](02-prerequisites/) | AI | 所需工具、Azure 订阅、SSH 密钥、费用估算 |
-| [部署](03-deploy/) | AI | 完整的 Terraform HCL — 复制并应用以完成部署 |
-| [NGINX 配置](04-nginx-config/) | 人工 + AI | 全部 67+ 个 CDN 厂商请求头及其精确值与用途说明 |
-| [验证](05-verify/) | AI | 冒烟测试命令及预期的请求/响应行为 |
-| [与 F5 XC 集成](06-integrate/) | 人工 + AI | 将边缘节点连接至 F5 XC 作为源站，进行端到端验证 |
-| [销毁环境](07-teardown/) | AI | 销毁所有资源及清理命令 |
+| [概述](/cdn-simulator/zh-cn/01-overview/) | 人工 + AI | 架构说明、多厂商背景、模拟内容介绍 |
+| [前置条件](/cdn-simulator/zh-cn/02-prerequisites/) | AI | 所需工具、Azure 订阅、SSH 密钥、费用估算 |
+| [部署](/cdn-simulator/zh-cn/03-deploy/) | AI | 完整的 Terraform HCL — 复制并应用以完成部署 |
+| [NGINX 配置](/cdn-simulator/zh-cn/04-nginx-config/) | 人工 + AI | 全部 67+ 个 CDN 厂商请求头及其精确值与用途说明 |
+| [验证](/cdn-simulator/zh-cn/05-verify/) | AI | 冒烟测试命令及预期的请求/响应行为 |
+| [与 F5 XC 集成](/cdn-simulator/zh-cn/06-integrate/) | 人工 + AI | 将边缘节点连接至 F5 XC 作为源站，进行端到端验证 |
+| [销毁环境](/cdn-simulator/zh-cn/07-teardown/) | AI | 销毁所有资源及清理命令 |
