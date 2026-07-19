@@ -21,17 +21,17 @@ hero:
       icon: rocket
       variant: minimal
 i18n:
-  sourceHash: 7c6769192b97
+  sourceHash: 20966bfa88fd
   translator: machine
 ---
 
 ## 本模擬器提供的功能
 
-- **[單一邊緣節點](01-overview/)** — 一台執行 NGINX 作為快取反向代理的 Ubuntu 24.04 VM，為最小可行的 CDN 邊緣配置
-- **[Terraform 部署](03-deploy/)** — 完整的 Azure 基礎架構即程式碼：VNet、PIP、NSG 及搭配 cloud-init 佈建的 VM
-- **[67+ 種 CDN 廠商標頭](04-nginx-config/)** — 模擬 Akamai、Cloudflare、CloudFront、Fastly 及 Azure Front Door 的請求標頭，包含 True-Client-IP、CF-Connecting-IP、地理位置、裝置偵測、JA3/JA4 指紋及機器人評分
-- **[源站整合](06-integrate/)** — 將邊緣節點設定為把快取未命中的請求轉發至 F5 XC HTTP 負載平衡器作為源站
-- **[快取驗證](05-verify/)** — 透過 X-Cache-Status 標頭及 NGINX 快取檢查，驗證 HIT/MISS 行為
+- **[單一邊緣節點](/cdn-simulator/zh-tw/01-overview/)** — 一台執行 NGINX 作為快取反向代理的 Ubuntu 24.04 VM，為最小可行的 CDN 邊緣配置
+- **[Terraform 部署](/cdn-simulator/zh-tw/03-deploy/)** — 完整的 Azure 基礎架構即程式碼：VNet、PIP、NSG 及搭配 cloud-init 佈建的 VM
+- **[67+ 種 CDN 廠商標頭](/cdn-simulator/zh-tw/04-nginx-config/)** — 模擬 Akamai、Cloudflare、CloudFront、Fastly 及 Azure Front Door 的請求標頭，包含 True-Client-IP、CF-Connecting-IP、地理位置、裝置偵測、JA3/JA4 指紋及機器人評分
+- **[源站整合](/cdn-simulator/zh-tw/06-integrate/)** — 將邊緣節點設定為把快取未命中的請求轉發至 F5 XC HTTP 負載平衡器作為源站
+- **[快取驗證](/cdn-simulator/zh-tw/05-verify/)** — 透過 X-Cache-Status 標頭及 NGINX 快取檢查，驗證 HIT/MISS 行為
 
 ## 快速參考
 
@@ -57,10 +57,10 @@ i18n:
 
 | 頁面 | 目標讀者 | 用途 |
 |---|---|---|
-| [概覽](01-overview/) | 人工 + AI | 架構、多廠商情境及模擬內容說明 |
-| [前置條件](02-prerequisites/) | AI | 所需工具、Azure 訂閱、SSH 金鑰及費用估算 |
-| [部署](03-deploy/) | AI | 完整的 Terraform HCL — 複製並套用以完成部署 |
-| [NGINX 設定](04-nginx-config/) | 人工 + AI | 所有 67+ 種 CDN 廠商標頭，含確切值及用途說明 |
-| [驗證](05-verify/) | AI | 含預期請求／回應行為的煙霧測試指令 |
-| [與 F5 XC 整合](06-integrate/) | 人工 + AI | 將邊緣節點連接至 F5 XC 作為源站，並進行端對端驗證 |
-| [清除資源](07-teardown/) | AI | 銷毀所有資源及清理指令 |
+| [概覽](/cdn-simulator/zh-tw/01-overview/) | 人工 + AI | 架構、多廠商情境及模擬內容說明 |
+| [前置條件](/cdn-simulator/zh-tw/02-prerequisites/) | AI | 所需工具、Azure 訂閱、SSH 金鑰及費用估算 |
+| [部署](/cdn-simulator/zh-tw/03-deploy/) | AI | 完整的 Terraform HCL — 複製並套用以完成部署 |
+| [NGINX 設定](/cdn-simulator/zh-tw/04-nginx-config/) | 人工 + AI | 所有 67+ 種 CDN 廠商標頭，含確切值及用途說明 |
+| [驗證](/cdn-simulator/zh-tw/05-verify/) | AI | 含預期請求／回應行為的煙霧測試指令 |
+| [與 F5 XC 整合](/cdn-simulator/zh-tw/06-integrate/) | 人工 + AI | 將邊緣節點連接至 F5 XC 作為源站，並進行端對端驗證 |
+| [清除資源](/cdn-simulator/zh-tw/07-teardown/) | AI | 銷毀所有資源及清理指令 |

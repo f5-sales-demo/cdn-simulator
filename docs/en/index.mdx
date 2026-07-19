@@ -21,11 +21,11 @@ hero:
 
 ## What This Provides
 
-- **[Single Edge Node](01-overview/)** — One Ubuntu 24.04 VM running NGINX as a caching reverse proxy, the minimum viable CDN edge
-- **[Terraform Deployment](03-deploy/)** — Complete Azure infrastructure as code: VNet, PIP, NSG, and VM with cloud-init provisioning
-- **[67+ CDN Vendor Headers](04-nginx-config/)** — Simulates Akamai, Cloudflare, CloudFront, Fastly, and Azure Front Door request headers including True-Client-IP, CF-Connecting-IP, geolocation, device detection, JA3/JA4 fingerprints, and bot scores
-- **[Origin Integration](06-integrate/)** — Configure the edge to forward cache misses to an F5 XC HTTP load balancer as the origin
-- **[Cache Verification](05-verify/)** — Validate HIT/MISS behavior with X-Cache-Status headers and NGINX cache inspection
+- **[Single Edge Node](/cdn-simulator/en/01-overview/)** — One Ubuntu 24.04 VM running NGINX as a caching reverse proxy, the minimum viable CDN edge
+- **[Terraform Deployment](/cdn-simulator/en/03-deploy/)** — Complete Azure infrastructure as code: VNet, PIP, NSG, and VM with cloud-init provisioning
+- **[67+ CDN Vendor Headers](/cdn-simulator/en/04-nginx-config/)** — Simulates Akamai, Cloudflare, CloudFront, Fastly, and Azure Front Door request headers including True-Client-IP, CF-Connecting-IP, geolocation, device detection, JA3/JA4 fingerprints, and bot scores
+- **[Origin Integration](/cdn-simulator/en/06-integrate/)** — Configure the edge to forward cache misses to an F5 XC HTTP load balancer as the origin
+- **[Cache Verification](/cdn-simulator/en/05-verify/)** — Validate HIT/MISS behavior with X-Cache-Status headers and NGINX cache inspection
 
 ## Quick Reference
 
@@ -51,10 +51,10 @@ Response headers added to every proxied response:
 
 | Page | Audience | Purpose |
 |---|---|---|
-| [Overview](01-overview/) | Human + AI | Architecture, multi-vendor context, what this simulates |
-| [Prerequisites](02-prerequisites/) | AI | Required tools, Azure subscription, SSH keys, cost estimate |
-| [Deploy](03-deploy/) | AI | Complete Terraform HCL — copy and apply to deploy |
-| [NGINX Configuration](04-nginx-config/) | Human + AI | All 67+ CDN vendor headers with exact values and purposes |
-| [Verify](05-verify/) | AI | Smoke test commands with expected request/response behavior |
-| [Integrate with F5 XC](06-integrate/) | Human + AI | Connect edge to F5 XC as origin, end-to-end verification |
-| [Teardown](07-teardown/) | AI | Destroy all resources, cleanup commands |
+| [Overview](/cdn-simulator/en/01-overview/) | Human + AI | Architecture, multi-vendor context, what this simulates |
+| [Prerequisites](/cdn-simulator/en/02-prerequisites/) | AI | Required tools, Azure subscription, SSH keys, cost estimate |
+| [Deploy](/cdn-simulator/en/03-deploy/) | AI | Complete Terraform HCL — copy and apply to deploy |
+| [NGINX Configuration](/cdn-simulator/en/04-nginx-config/) | Human + AI | All 67+ CDN vendor headers with exact values and purposes |
+| [Verify](/cdn-simulator/en/05-verify/) | AI | Smoke test commands with expected request/response behavior |
+| [Integrate with F5 XC](/cdn-simulator/en/06-integrate/) | Human + AI | Connect edge to F5 XC as origin, end-to-end verification |
+| [Teardown](/cdn-simulator/en/07-teardown/) | AI | Destroy all resources, cleanup commands |
