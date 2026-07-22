@@ -90,3 +90,8 @@ output "health_check_url" {
   description = "Health check endpoint"
   value       = "http://${azurerm_public_ip.main.ip_address}/health"
 }
+
+output "edge_fqdn" {
+  description = "Stable cloudapp.azure.com FQDN of the CDN edge node (used as the CSD demo third-party host)"
+  value       = azurerm_public_ip.main.fqdn
+}
