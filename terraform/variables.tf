@@ -71,10 +71,17 @@ variable "origin_server" {
 variable "origin_host" {
   description = "Origin server host:port for NGINX upstream (no scheme). Use IP:443 for HTTPS or IP:80 for HTTP."
   type        = string
+
+  # Interpolated into the NGINX `upstream` block via templatefile — constrain to host:port
+  # so no NGINX metacharacters can be injected.
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?:[0-9]{1,5}$", var.origin_host))
+    error_message = "origin_host must be host:port (hostname or IP with a numeric port), no special characters."
+  }
 }
 
 variable "origin_scheme" {
-  description = "Scheme the edge uses to reach the origin upstream: 'https' (default) or 'http'. Use 'http' to front a plain HTTP origin (e.g. an origin on :80)."
+  description = "Scheme the edge uses to reach the origin upstream: 'https' (default, secure) or 'http'. 'http' is an explicit opt-in for non-sensitive demo/lab origins on a trusted network (e.g. an origin on :80); do NOT use it for origins carrying sensitive data — leave the default 'https' there."
   type        = string
   default     = "https"
 
@@ -88,4 +95,11 @@ variable "origin_upstream_host" {
   description = "Host header (and TLS SNI when origin_scheme=https) the edge sends to the origin. Defaults to the demo origin vhost."
   type        = string
   default     = "csd.bankexample.com"
+
+  # Interpolated into the NGINX config via templatefile — constrain to a bare hostname
+  # (optional :port) so no newlines/semicolons/braces can inject NGINX directives.
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:[0-9]{1,5})?$", var.origin_upstream_host))
+    error_message = "origin_upstream_host must be a valid hostname with an optional :port and no special characters."
+  }
 }
