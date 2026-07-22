@@ -7,6 +7,8 @@ origin_server   = "http://your-origin-ip"
 origin_host     = "your-origin-ip:80"
 
 # --- Optional overrides (defaults shown) ---
+# origin_scheme        = "https"               # 'http' to front a plain HTTP origin (:80)
+# origin_upstream_host = "csd.bankexample.com" # Host header / TLS SNI sent to the origin
 # deployer           = ""                       # auto-resolved from Azure AD
 # location           = "eastus2"
 # environment        = "lab"

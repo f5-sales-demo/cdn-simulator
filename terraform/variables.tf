@@ -72,3 +72,20 @@ variable "origin_host" {
   description = "Origin server host:port for NGINX upstream (no scheme). Use IP:443 for HTTPS or IP:80 for HTTP."
   type        = string
 }
+
+variable "origin_scheme" {
+  description = "Scheme the edge uses to reach the origin upstream: 'https' (default) or 'http'. Use 'http' to front a plain HTTP origin (e.g. an origin on :80)."
+  type        = string
+  default     = "https"
+
+  validation {
+    condition     = contains(["http", "https"], var.origin_scheme)
+    error_message = "origin_scheme must be either 'http' or 'https'."
+  }
+}
+
+variable "origin_upstream_host" {
+  description = "Host header (and TLS SNI when origin_scheme=https) the edge sends to the origin. Defaults to the demo origin vhost."
+  type        = string
+  default     = "csd.bankexample.com"
+}

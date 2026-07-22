@@ -28,8 +28,10 @@ resource "azurerm_linux_virtual_machine" "main" {
   }
 
   custom_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
-    origin_server = var.origin_server
-    origin_host   = var.origin_host
+    origin_server        = var.origin_server
+    origin_host          = var.origin_host
+    origin_scheme        = var.origin_scheme
+    origin_upstream_host = var.origin_upstream_host
   }))
 
   boot_diagnostics {}

@@ -153,11 +153,11 @@ write_files:
           }
 
           location / {
-              proxy_pass https://origin_backend;
+              proxy_pass ${origin_scheme}://origin_backend;
               proxy_http_version 1.1;
               proxy_set_header Connection "";
               proxy_ssl_server_name on;
-              proxy_ssl_name csd.bankexample.com;
+              proxy_ssl_name ${origin_upstream_host};
               proxy_ssl_verify off;
               proxy_read_timeout 180s;
               proxy_connect_timeout 10s;
@@ -248,7 +248,7 @@ write_files:
               proxy_set_header X-Azure-RequestChain "hops=1";
 
               # Cache
-              proxy_set_header Host csd.bankexample.com;
+              proxy_set_header Host ${origin_upstream_host};
               proxy_cache cdn_cache;
               proxy_cache_methods GET HEAD;
               proxy_cache_valid 200 301 302 4h;
