@@ -20,6 +20,10 @@ resource "azurerm_public_ip" "main" {
   resource_group_name = azurerm_resource_group.main.name
   allocation_method   = "Static"
   sku                 = "Standard"
+  # DNS name label yields a stable <label>.<region>.cloudapp.azure.com FQDN.
+  # The CSD demo uses this FQDN (not the raw IP) as the third-party CDN host,
+  # so the mitigated-domain registered in F5 XC matches the script src exactly.
+  domain_name_label = local.name.dns_label
 
   tags = azurerm_resource_group.main.tags
 }

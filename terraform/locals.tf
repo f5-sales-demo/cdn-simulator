@@ -41,6 +41,7 @@ locals {
     virtual_network   = "vnet-${local.component}-${local.deployer}"
     subnet            = "snet-${local.component}-${local.deployer}"
     public_ip         = "pip-${local.component}-${local.deployer}"
+    dns_label         = "${local.component}-${local.deployer}"
     nsg               = "nsg-${local.component}-${local.deployer}"
     network_interface = "nic-${local.component}-${local.deployer}"
     virtual_machine   = "vm-${local.component}-${local.deployer}"
