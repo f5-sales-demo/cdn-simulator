@@ -17,7 +17,7 @@ Start with direct integration to establish the baseline, then insert F5 XC when 
 The [origin-server](https://f5-sales-demo.github.io/origin-server/) lab component provides vulnerable web applications for security testing.
 
 | Property | Value |
-|---|---|
+| --- | --- |
 | Documentation | [f5-sales-demo.github.io/origin-server](https://f5-sales-demo.github.io/origin-server/) |
 | Repository | [github.com/f5-sales-demo/origin-server](https://github.com/f5-sales-demo/origin-server) |
 | Default Port | 80 |
@@ -44,7 +44,7 @@ The manifest lists all application paths, health checks, container images, and d
 ### Application Paths
 
 | Path | Application | Demo Features |
-|---|---|---|
+| --- | --- | --- |
 | `/` | Landing page | — |
 | `/health` | Health check | — |
 | `/juice-shop/` | OWASP Juice Shop | WAF, Bot Defense, API Security |
@@ -56,7 +56,7 @@ The manifest lists all application paths, health checks, container images, and d
 
 ## Stage 1: Direct Integration (Baseline)
 
-```
+```text
 ┌──────────┐     ┌──────────────────────┐     ┌─────────────────────┐
 │  Client   │────▶│  CDN Edge (NGINX)    │────▶│  Origin Server      │
 │           │     │  20.65.90.112        │     │  20.12.78.159       │
@@ -128,7 +128,7 @@ curl -sf "http://$CDN/whoami/"
 Verify these key headers are present:
 
 | Vendor | Header | Expected Value |
-|---|---|---|
+| --- | --- | --- |
 | Standard | `X-Forwarded-For` | `<your_ip>, <cdn_edge_ip>` |
 | Akamai | `True-Client-Ip` | `<your_ip>` |
 | Cloudflare | `Cf-Connecting-Ip` | `<your_ip>` |
@@ -164,7 +164,7 @@ curl -s -I "http://$CDN/whoami/" | grep X-Cache-Status
 
 After baseline testing, insert an F5 XC HTTP load balancer between the CDN and origin:
 
-```
+```text
 ┌──────────┐     ┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │  Client   │────▶│  CDN Edge      │────▶│  F5 XC HTTP LB   │────▶│  Origin Server  │
 │           │     │  (NGINX)       │     │  WAF + Bot + API  │     │                 │
@@ -181,7 +181,7 @@ sudo rm -rf /var/cache/nginx/cdn/*
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-3. **Verify WAF enforcement** through the full chain:
+1. **Verify WAF enforcement** through the full chain:
 
 ```bash
 # SQL injection through CDN → F5 XC WAF should block
@@ -191,12 +191,12 @@ curl -I "http://$CDN/dvwa/vulnerabilities/sqli/?id=%27+OR+1%3D1--"
 curl -sf -o /dev/null -w "%{http_code}" "http://$CDN/juice-shop/"
 ```
 
-4. **Configure Trusted Client IP Header** in F5 XC to read the real client IP from CDN headers (e.g., `True-Client-IP` for Akamai simulation, `CF-Connecting-IP` for Cloudflare simulation)
+1. **Configure Trusted Client IP Header** in F5 XC to read the real client IP from CDN headers (e.g., `True-Client-IP` for Akamai simulation, `CF-Connecting-IP` for Cloudflare simulation)
 
 ## Multi-Component Architecture
 
 | Component | Repository | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | **CDN Edge** (this) | [cdn-simulator](https://github.com/f5-sales-demo/cdn-simulator) | Caching, vendor headers |
 | **Origin Server** | [origin-server](https://github.com/f5-sales-demo/origin-server) | Vulnerable web apps |
 | **F5 XC Config** | Various (waf, api-protection, bot-*, etc.) | Security policies |

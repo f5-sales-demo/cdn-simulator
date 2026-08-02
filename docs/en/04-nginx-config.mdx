@@ -10,7 +10,7 @@ The cloud-init provisioning deploys a fully performance-optimized NGINX CDN edge
 ## Configuration Files
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `/etc/sysctl.d/99-cdn-tuning.conf` | Linux kernel network tuning |
 | `/etc/systemd/system/nginx.service.d/override.conf` | File descriptor limits for NGINX |
 | `/etc/security/limits.d/99-nginx.conf` | OS-level limits for www-data user |
@@ -22,7 +22,7 @@ The cloud-init provisioning deploys a fully performance-optimized NGINX CDN edge
 Applied via `/etc/sysctl.d/99-cdn-tuning.conf` at boot.
 
 | Parameter | Value | Default | Purpose |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `net.core.somaxconn` | 65535 | 4096 | Listen backlog queue size |
 | `net.core.netdev_max_backlog` | 65535 | 1000 | Per-CPU incoming packet backlog |
 | `net.ipv4.tcp_max_syn_backlog` | 65535 | 256 | SYN request queue (prevents drops under burst) |
@@ -139,7 +139,7 @@ proxy_cache_path /var/cache/nginx/cdn
 ```
 
 | Parameter | Value | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `keys_zone=cdn_cache:32m` | 32 MB shared memory | Stores ~256,000 cache keys and metadata |
 | `max_size=25g` | 25 GB disk limit | Uses most of the 30 GB OS disk; LRU eviction at limit |
 | `inactive=24h` | 24-hour inactivity timeout | Content not accessed for 24h is evicted (not the same as TTL) |
@@ -164,7 +164,7 @@ proxy_hide_header Vary;
 ```
 
 | Directive | Value | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `proxy_cache_valid 200 301 302 4h` | 4-hour TTL | Cached content valid for 4 hours (increased to reduce refresh wave throughput dips) |
 | `proxy_cache_lock on` | Thundering herd prevention | Only 1 request goes to origin per uncached URL; others wait for cache fill |
 | `proxy_cache_lock_age 3s` | Lock timeout | If first request hasn't completed in 3s, allow another through |
@@ -202,7 +202,7 @@ The simulator injects headers from all five major CDN vendors simultaneously. Th
 ### Industry Standard Headers (All CDNs)
 
 | Header | Value | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `X-Forwarded-For` | Client IP chain | Standard forwarded IP |
 | `X-Forwarded-Proto` | `http` or `https` | Original client protocol |
 | `X-Forwarded-Host` | Original hostname | Original Host header |
@@ -215,16 +215,16 @@ The simulator injects headers from all five major CDN vendors simultaneously. Th
 ### Akamai Headers
 
 | Header | Value | Purpose |
-|---|---|---|
-| `True-Client-IP` | Client IP | Original end-user IP address |
-| `X-Akamai-Edgescape` | Compound geo string | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, zip, continent, throughput, bw, network, asnum, network_type |
+| --- | --- | --- |
+| `True-Client-IP` | Client IP | Original end user IP address |
+| `X-Akamai-Edgescape` | Compound geo string | georegion, country_code, region_code, city, dma, pmsa, msa, areacode, county, fips, lat, long, timezone, ZIP, continent, throughput, bw, network, asnum, network_type |
 | `X-Akamai-Device-Characteristics` | Device properties | brand_name, model_name, is_mobile, is_tablet, is_wireless_device, device_os, device_os_version, resolution_width, resolution_height |
 | `X-Akamai-Request-ID` | Request UUID | Unique request identifier |
 
 ### Cloudflare Headers
 
 | Header | Value | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `CF-Connecting-IP` | Client IP | True client IP (always present) |
 | `CF-IPCountry` | `US` | Two-letter country code |
 | `cf-ipcity` | `San Jose` | Client city |
@@ -244,7 +244,7 @@ The simulator injects headers from all five major CDN vendors simultaneously. Th
 ### Amazon CloudFront Headers
 
 | Header | Value | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `CloudFront-Viewer-Address` | `IP:port` | Client IP and source port |
 | `CloudFront-Viewer-Country` | `US` | Country code |
 | `CloudFront-Viewer-Country-Name` | `United States` | Full country name |
@@ -269,7 +269,7 @@ The simulator injects headers from all five major CDN vendors simultaneously. Th
 ### Fastly Headers
 
 | Header | Value | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `Fastly-Client-IP` | Client IP | True client IP |
 | `Fastly-SSL` | `1` | Connection was over TLS |
 | `Fastly-Client` | `1` | Client-facing request (not shield) |
@@ -290,7 +290,7 @@ The simulator injects headers from all five major CDN vendors simultaneously. Th
 ### Azure Front Door Headers
 
 | Header | Value | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `X-Azure-ClientIP` | Client IP | Client IP address |
 | `X-Azure-SocketIP` | Client IP | TCP socket source IP |
 | `X-Azure-Ref` | Encoded ref string | Unique request reference for troubleshooting |
@@ -300,7 +300,7 @@ The simulator injects headers from all five major CDN vendors simultaneously. Th
 ### Response Headers (Added to Client Responses)
 
 | Header | Values | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `X-Cache-Status` | `HIT`, `MISS`, `EXPIRED`, `STALE`, `UPDATING` | Cache behavior for this request |
 | `X-CDN-Edge` | `cdn-simulator` | Identifies this edge node |
 | `X-CDN-POP` | `SJC` | Simulated Point of Presence IATA code |
@@ -316,6 +316,7 @@ The simulator detects device type from the `User-Agent` header using NGINX `map`
 - **Desktop**: Default when neither mobile nor tablet matches
 
 Device type is reflected in:
+
 - `CloudFront-Is-Desktop-Viewer` / `CloudFront-Is-Mobile-Viewer` / `CloudFront-Is-Tablet-Viewer`
 - `X-Akamai-Device-Characteristics` (`is_mobile`, `is_tablet`, `is_wireless_device` fields)
 
@@ -376,7 +377,7 @@ ss -tn state time-wait | wc -l
 Verified under 48-hour continuous load test:
 
 | Metric | Value |
-|---|---|
+| --- | --- |
 | Peak throughput (cached) | 172,540 req/s |
 | Sustained throughput (cached) | 85,000-103,000 req/s |
 | Peak connections | 15,000 concurrent |

@@ -32,7 +32,7 @@ hero:
 After deployment, the CDN edge node exposes:
 
 | Endpoint | Method | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `http://<PUBLIC_IP>/health` | GET | Health check — returns JSON with component status and vendor profiles |
 | `http://<PUBLIC_IP>/` | GET | CDN proxy — caches and forwards requests to the origin server |
 | `http://<PUBLIC_IP>/<any-path>` | GET | CDN proxy — all paths are proxied with caching and vendor headers |
@@ -40,7 +40,7 @@ After deployment, the CDN edge node exposes:
 Response headers added to every proxied response:
 
 | Header | Example | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `X-Cache-Status` | `HIT` or `MISS` | Whether response was served from cache |
 | `X-CDN-Edge` | `cdn-simulator` | Identifies this edge node |
 | `X-CDN-POP` | `SJC` | Simulated Point of Presence code |
@@ -50,7 +50,7 @@ Response headers added to every proxied response:
 ## Documentation Guide
 
 | Page | Audience | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | [Overview](/cdn-simulator/en/01-overview/) | Human + AI | Architecture, multi-vendor context, what this simulates |
 | [Prerequisites](/cdn-simulator/en/02-prerequisites/) | AI | Required tools, Azure subscription, SSH keys, cost estimate |
 | [Deploy](/cdn-simulator/en/03-deploy/) | AI | Complete Terraform HCL — copy and apply to deploy |
