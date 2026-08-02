@@ -7,7 +7,7 @@
 ## Aggregate Stats
 
 | Metric | Value |
-|---|---|
+| --- | --- |
 | **Total requests served** | **225,794,097** |
 | **Cache HITs** | 224,672,073 (99.50%) |
 | **Cache MISSes** | 1,119,619 (0.50%) |
@@ -20,7 +20,7 @@
 ## VM Sizing Journey
 
 | Phase | CDN VM | vCPU | Monthly Cost | Outcome |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Initial deploy | Standard_B2s | 2 | ~$35 | Burstable, inadequate |
 | First upgrade | Standard_D4s_v5 | 4 | ~$125 | 100% CPU at 13K connections |
 | Second upgrade | Standard_F8s_v2 | 8 | ~$194 | 100% CPU at 11K connections |
@@ -29,7 +29,7 @@
 ## Cache Optimization Impact
 
 | Fix | Before | After |
-|---|---|---|
+| --- | --- | --- |
 | `proxy_ignore_headers Vary` | Triple Vary fragmented cache | Single cache entry per URL |
 | `proxy_hide_header X-Cache-Status` | Duplicate headers from origin | Clean single header |
 | `proxy_hide_header Vary` | Origin's Vary passed through | gzip_vary handles it |
@@ -41,7 +41,7 @@
 ### Round 1: Non-keepalive
 
 | Test | Traffic Gen VM | Gen vCPU | Peak Conn | CDN CPU | NGINX % | Kernel % | Errors |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | Baseline | D8s_v3 | 8 | 2.1K | 67% | 25% | 40% | 0 |
 | Test B | F16s_v2 | 16 | 14K | 100% | 30% | 70% | 0 |
 | Test C | F32s_v2 | 32 | 28.2K | 100% | 34% | 66% | 0 |
@@ -50,13 +50,13 @@
 ### Round 1: Keepalive (D16s_v3 pass)
 
 | Test | Traffic Gen VM | Gen vCPU | Peak Conn | CDN CPU | NGINX % | Kernel % | Errors |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | Test D (KA) | D16s_v3 | 16 | 8.4K | 100% | **55%** | **45%** | 0 |
 
 ### Round 2: Keepalive A/B Comparison
 
 | Test | Traffic Gen VM | Gen vCPU | Peak Conn | CDN CPU | NGINX % | Kernel % | Errors |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | A (KA) | F16s_v2 | 16 | 1.8K | 100% | 42% | 58% | 0 |
 | B (KA) | F32s_v2 | 32 | 3.6K | 100% | 43% | 57% | 0 |
 
@@ -71,7 +71,7 @@
 ## CPU Bottleneck Analysis
 
 | Component | Without Keepalive | With Keepalive |
-|---|---|---|
+| --- | --- | --- |
 | **NGINX (usr)** | 28-34% | 42-55% |
 | **Kernel (sys)** | 30-43% | 20-32% |
 | **Softirq (si)** | 28-35% | 27-31% |

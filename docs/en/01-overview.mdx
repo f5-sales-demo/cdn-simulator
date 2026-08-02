@@ -11,7 +11,7 @@ This component simulates a CDN edge node for lab and demo environments. It repre
 
 In production multi-vendor architectures, customers commonly pair a third-party CDN with F5 Distributed Cloud:
 
-```
+```text
 End User → CDN Edge (Akamai/Cloudflare/etc.) → F5 XC HTTP LB → Origin App
 ```
 
@@ -19,7 +19,7 @@ This simulator replaces the commercial CDN with an NGINX-based edge node so the 
 
 ## Architecture
 
-```
+```text
 ┌─────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌────────────┐
 │  Client  │────▶│  CDN Edge (NGINX)    │────▶│  F5 XC HTTP LB  │────▶│ Origin App │
 │          │     │  Ubuntu 24.04 Azure  │     │  (Origin Server) │     │            │
@@ -39,7 +39,7 @@ The NGINX edge node:
 ## What This Simulates
 
 | CDN Function | NGINX Implementation |
-|---|---|
+| --- | --- |
 | Edge caching | `proxy_cache` with disk-based storage |
 | Cache key generation | `proxy_cache_key` based on scheme, host, and URI |
 | Origin pull | `proxy_pass` to the F5 XC HTTP load balancer |
@@ -52,7 +52,7 @@ The NGINX edge node:
 
 ### Health Check
 
-```
+```http
 GET /health
 ```
 
@@ -69,14 +69,14 @@ Response (200 OK, `Content-Type: application/json`):
 
 ### CDN Proxy (All Other Paths)
 
-```
+```http
 GET /<any-path>
 ```
 
 Request headers injected toward origin (67+ headers from 5 vendors):
 
 | Category | Headers Added |
-|---|---|
+| --- | --- |
 | Client IP | `True-Client-IP`, `CF-Connecting-IP`, `Fastly-Client-IP`, `X-Azure-ClientIP`, `CloudFront-Viewer-Address`, `X-Forwarded-For`, `X-Real-IP` |
 | Geolocation | `X-Akamai-Edgescape` (compound), `CF-IPCountry`, `cf-ipcity`, `cf-iplatitude/longitude`, `CloudFront-Viewer-Country/City/Latitude/Longitude`, `X-Geo-Country-Code/City/Region` |
 | Device Detection | `CloudFront-Is-Mobile-Viewer`, `CloudFront-Is-Desktop-Viewer`, `CloudFront-Is-Tablet-Viewer`, `X-Akamai-Device-Characteristics` |
@@ -89,7 +89,7 @@ Request headers injected toward origin (67+ headers from 5 vendors):
 Response headers added to every proxied response:
 
 | Header | Values | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `X-Cache-Status` | `HIT`, `MISS`, `BYPASS`, `EXPIRED`, `STALE` | Cache behavior for this request |
 | `X-CDN-Edge` | `cdn-simulator` | Identifies this edge node |
 | `X-CDN-POP` | `SJC` | Simulated Point of Presence IATA code |
@@ -107,7 +107,7 @@ Response headers added to every proxied response:
 ### VM Access
 
 | Access Method | Command/Path |
-|---|---|
+| --- | --- |
 | SSH | `ssh azureuser@<PUBLIC_IP>` |
 | NGINX config | `/etc/nginx/conf.d/cdn-edge.conf` |
 | NGINX logs | `/var/log/nginx/access.log` and `/var/log/nginx/error.log` |
