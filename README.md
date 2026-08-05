@@ -22,7 +22,7 @@ NGINX-based CDN edge node simulator on Azure for multi-vendor lab environments
 
 ## Documentation
 
-Full documentation is available at **[https://f5-sales-demo.github.io/cdn-simulator/](https://f5-sales-demo.github.io/cdn-simulator/)**.
+Full documentation is available at __[https://f5-sales-demo.github.io/cdn-simulator/](https://f5-sales-demo.github.io/cdn-simulator/)__.
 
 ## Contributing
 
